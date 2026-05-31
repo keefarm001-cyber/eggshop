@@ -118,6 +118,23 @@ table{width:100%;border-collapse:collapse}thead{background:var(--surface2)}th{pa
 
       <div class="page" id="page-debt-notes"><div class="ph"><div class="pt">📋 ใบลดหนี้ / ใบเพิ่มหนี้</div><button class="btn btn-primary" onclick="showDebtNoteModal()">+ สร้างเอกสาร</button></div><div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>ประเภท</th><th>วันที่</th><th>ลูกค้า</th><th>อ้างอิงใบแจ้งหนี้</th><th>จำนวน</th><th>เหตุผล</th></tr></thead><tbody id="debtT"></tbody></table></div></div></div>
 
+      <div class="page" id="page-permissions">
+        <div class="ph">
+          <div><div class="pt">🔐 ตั้งค่าสิทธิ์การใช้งาน</div><div style="font-size:12px;color:var(--text-muted)">กำหนดสิทธิ์การเข้าถึงฟังก์ชั่นต่างๆ ตาม Role</div></div>
+        </div>
+        <div class="pb">
+          <div class="card" style="margin-bottom:14px">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-secondary perm-role-btn active" onclick="selectPermRole('manager',this)">👨‍💼 ผู้จัดการ</button>
+              <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('cashier',this)">💁 แคชเชียร์</button>
+              <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('stock',this)">📦 สต๊อก</button>
+              <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('viewer',this)">👁️ ผู้ชม</button>
+            </div>
+          </div>
+          <div id="permContent"><div class="es"><div class="ei">🔐</div><p>เลือก Role เพื่อตั้งค่าสิทธิ์</p></div></div>
+        </div>
+      </div>
+
       <div class="page" id="page-expense-docs">
         <div class="ph">
           <div><div class="pt">🧾 ค่าใช้จ่าย (เอกสาร)</div><div style="font-size:12px;color:var(--text-muted)">สร้างเอกสารค่าใช้จ่ายแบบเต็มรูปแบบ</div></div>
@@ -171,10 +188,13 @@ function logout(){localStorage.removeItem('es_token');localStorage.removeItem('e
 async function initApp(){
   document.getElementById('loginPage').style.display='none';document.getElementById('appPage').style.display='flex';
   document.getElementById('navUserName').textContent=CU.full_name;document.getElementById('navUserRole').textContent=fmt.role(CU.role);document.getElementById('navBranch').textContent=CU.branch_code||'ทุกสาขา';
-  const navDef=[{sec:'การขาย'},{id:'pos',l:'ขายหน้าร้าน',i:'🛒',r:['owner','admin','manager','cashier']},{id:'shifts',l:'กะการขาย',i:'⏰',r:['owner','admin','manager','cashier']},{id:'sales',l:'ประวัติการขาย',i:'📑',r:['owner','admin','manager']},{sec:'เอกสาร'},{id:'quotations',l:'ใบเสนอราคา',i:'📝',r:['owner','admin','manager']},{id:'invoices',l:'ใบแจ้งหนี้',i:'📄',r:['owner','admin','manager']},{id:'credits',l:'ลูกค้าเชื่อ',i:'💳',r:['owner','admin','manager','cashier']},{id:'receipts',l:'ใบรับสินค้า',i:'📋',r:['owner','admin','manager','stock']},{sec:'สต๊อก'},{id:'stock',l:'สต๊อกสินค้า',i:'📦',r:['owner','admin','manager','stock']},{sec:'CRM'},{id:'members',l:'สมาชิก',i:'⭐',r:['owner','admin','manager','cashier']},{id:'contacts',l:'ผู้ติดต่อ',i:'👥',r:['owner','admin','manager']},{sec:'จัดการ'},{id:'products',l:'สินค้า',i:'🥚',r:['owner','admin','manager']},{id:'reports',l:'รายงาน',i:'📈',r:['owner','admin','manager','viewer']},{id:'users',l:'ผู้ใช้งาน',i:'⚙️',r:['owner','admin']},{sec:'HR'},{id:'employees',l:'พนักงาน',i:'👔',r:['owner','admin']},{sec:'การเงิน'},{id:'expenses',l:'ค่าใช้จ่าย',i:'💰',r:['owner','admin','manager']},{id:'promotions',l:'โปรโมชั่น',i:'🎁',r:['owner','admin','manager']},{id:'debt-notes',l:'ใบลดหนี้/เพิ่มหนี้',i:'📋',r:['owner','admin','manager']},{id:'expense-docs',l:'ค่าใช้จ่าย (เอกสาร)',i:'🧾',r:['owner','admin','manager']},{id:'payroll',l:'เงินเดือน/Payroll',i:'💵',r:['owner','admin']}];
+  const navDef=[{sec:'การขาย'},{id:'pos',l:'ขายหน้าร้าน',i:'🛒',r:['owner','admin','manager','cashier']},{id:'shifts',l:'กะการขาย',i:'⏰',r:['owner','admin','manager','cashier']},{id:'sales',l:'ประวัติการขาย',i:'📑',r:['owner','admin','manager']},{sec:'เอกสาร'},{id:'quotations',l:'ใบเสนอราคา',i:'📝',r:['owner','admin','manager']},{id:'invoices',l:'ใบแจ้งหนี้',i:'📄',r:['owner','admin','manager']},{id:'credits',l:'ลูกค้าเชื่อ',i:'💳',r:['owner','admin','manager','cashier']},{id:'receipts',l:'ใบรับสินค้า',i:'📋',r:['owner','admin','manager','stock']},{sec:'สต๊อก'},{id:'stock',l:'สต๊อกสินค้า',i:'📦',r:['owner','admin','manager','stock']},{sec:'CRM'},{id:'members',l:'สมาชิก',i:'⭐',r:['owner','admin','manager','cashier']},{id:'contacts',l:'ผู้ติดต่อ',i:'👥',r:['owner','admin','manager']},{sec:'จัดการ'},{id:'products',l:'สินค้า',i:'🥚',r:['owner','admin','manager']},{id:'reports',l:'รายงาน',i:'📈',r:['owner','admin','manager','viewer']},{id:'users',l:'ผู้ใช้งาน',i:'⚙️',r:['owner','admin']},{id:'permissions',l:'ตั้งค่าสิทธิ์',i:'🔐',r:['owner','admin']},{sec:'HR'},{id:'employees',l:'พนักงาน',i:'👔',r:['owner','admin']},{sec:'การเงิน'},{id:'expenses',l:'ค่าใช้จ่าย',i:'💰',r:['owner','admin','manager']},{id:'promotions',l:'โปรโมชั่น',i:'🎁',r:['owner','admin','manager']},{id:'debt-notes',l:'ใบลดหนี้/เพิ่มหนี้',i:'📋',r:['owner','admin','manager']},{id:'expense-docs',l:'ค่าใช้จ่าย (เอกสาร)',i:'🧾',r:['owner','admin','manager']},{id:'payroll',l:'เงินเดือน/Payroll',i:'💵',r:['owner','admin']}];
   document.getElementById('navLinks').innerHTML=navDef.map(x=>x.sec?`<div class="nav-section">${x.sec}</div>`:x.r.includes(CU.role)?`<div class="nav-link" onclick="showPage('${x.id}')" id="nav-${x.id}"><span class="nav-icon">${x.i}</span><span>${x.l}</span></div>`:'').join('');
   try{branches=await api.get('/branches');['stBranch','mvBranch','sBranch','expBranch'].forEach(id=>{const el=document.getElementById(id);if(el)branches.forEach(b=>{el.innerHTML+=`<option value="${b.id}">${b.name}</option>`;});});mSet=await api.get('/member-settings');}catch(e){}
-  // ตรวจสอบว่าต้องเลือกสาขาไหม
+  // โหลด permissions ก่อน show page
+  await loadUserPermissions();
+
+  // ถ้ามีหลายสาขา ให้เลือกสาขา
   if(CU.access_branches && CU.access_branches.length > 1 && !['owner','admin'].includes(CU.role)) {
     showBranchSelector(CU.access_branches);
   } else {
@@ -185,7 +205,7 @@ async function initApp(){
 function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
   const page=document.getElementById('page-'+id);if(page)page.classList.add('active');const nl=document.getElementById('nav-'+id);if(nl)nl.classList.add('active');
-  const L={dashboard:loadDash,pos:()=>{loadShiftSt();loadPosProds();loadPosMem();},shifts:loadShifts,sales:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('sFrom').value=t;document.getElementById('sTo').value=t;loadSales();},stock:loadStock,smv:()=>{loadMvProds();loadMv();},receipts:loadRecv,quotations:loadQt,invoices:loadInv,credits:loadCred,members:loadMembers,contacts:loadCts,products:()=>{loadProdCats();loadProds();},reports:()=>{document.getElementById('rptDate').value=new Date().toISOString().slice(0,10);loadReport();},users:loadUsers,expenses:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('expFrom').value=t;document.getElementById('expTo').value=t;loadExpenses();},promotions:loadPromos,'debt-notes':loadDebtNotes,employees:loadEmployees,'expense-docs':loadExpenseDocs,payroll:loadPayroll};
+  const L={dashboard:loadDash,pos:()=>{loadShiftSt();loadPosProds();loadPosMem();},shifts:loadShifts,sales:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('sFrom').value=t;document.getElementById('sTo').value=t;loadSales();},stock:loadStock,smv:()=>{loadMvProds();loadMv();},receipts:loadRecv,quotations:loadQt,invoices:loadInv,credits:loadCred,members:loadMembers,contacts:loadCts,products:()=>{loadProdCats();loadProds();},reports:()=>{document.getElementById('rptDate').value=new Date().toISOString().slice(0,10);loadReport();},users:loadUsers,expenses:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('expFrom').value=t;document.getElementById('expTo').value=t;loadExpenses();},promotions:loadPromos,'debt-notes':loadDebtNotes,employees:loadEmployees,'expense-docs':loadExpenseDocs,payroll:loadPayroll,permissions:()=>selectPermRole('manager',document.querySelector('.perm-role-btn'))};
   if(L[id])L[id]();
 }
 
@@ -315,7 +335,15 @@ async function switchBranch(bid, bcode, bname) {
     localStorage.setItem('es_user', JSON.stringify(CU));
     document.getElementById('navBranch').textContent = res.branch_code;
     CM();
+    // โหลด permissions ก่อน show page
+  await loadUserPermissions();
+
+  // ถ้ามีหลายสาขา ให้เลือกสาขา
+  if(CU.access_branches && CU.access_branches.length > 1 && !['owner','admin'].includes(CU.role)) {
+    showBranchSelector(CU.access_branches);
+  } else {
     showPage({owner:'dashboard',admin:'dashboard',manager:'dashboard',cashier:'pos',stock:'stock',viewer:'reports'}[CU.role]||'dashboard');
+  }
     toast(`เปลี่ยนสาขา: ${bname}`, 'success');
   } catch(e) { toast(e.message, 'error'); }
 }
@@ -1196,6 +1224,146 @@ function printPaySlip(item, periodName) {
   <div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:10px 24px;background:#e67e00;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer">🖨️ พิมพ์สลิป</button></div>
   </body></html>`);
   win.document.close();
+}
+
+
+// ============================================================
+// PERMISSIONS UI
+// ============================================================
+let _permSchema = [];
+let _curPermRole = 'manager';
+let _curPerms = new Set();
+
+async function selectPermRole(roleName, btn) {
+  _curPermRole = roleName;
+  document.querySelectorAll('.perm-role-btn').forEach(b => {
+    b.classList.remove('active');
+    b.style.background = '';
+    b.style.color = '';
+    b.style.borderColor = '';
+  });
+  if (btn) {
+    btn.style.background = 'var(--accent)';
+    btn.style.color = '#fff';
+    btn.style.borderColor = 'var(--accent)';
+  }
+  try {
+    const [schema, perms] = await Promise.all([
+      _permSchema.length ? Promise.resolve(_permSchema) : api.get('/permissions/schema'),
+      api.get('/permissions/' + roleName)
+    ]);
+    _permSchema = schema;
+    _curPerms = new Set(perms);
+    renderPermissions();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function renderPermissions() {
+  const roleLabel = { manager:'ผู้จัดการ', cashier:'แคชเชียร์', stock:'สต๊อก', viewer:'ผู้ชม' };
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div><strong style="font-size:15px">Role: ${roleLabel[_curPermRole]||_curPermRole}</strong><div style="font-size:12px;color:var(--text-muted);margin-top:2px">ติ๊กเพื่อให้สิทธิ์การเข้าถึงฟังก์ชั่นนั้น</div></div>
+    <button class="btn btn-primary" onclick="savePermissions()">💾 บันทึกสิทธิ์</button>
+  </div>`;
+
+  for (const group of _permSchema) {
+    html += `<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="ct" style="margin:0">${group.group}</div>
+        <button class="btn btn-secondary btn-sm" onclick="togglePermGroup('${group.group}')">เลือกทั้งกลุ่ม</button>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:7px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse">
+          <thead style="background:var(--surface2)">
+            <tr>
+              <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text-muted)">ฟังก์ชั่น</th>
+              <th style="padding:8px 14px;text-align:center;font-size:11px;color:var(--text-muted);width:120px">ดูและใช้งาน</th>
+            </tr>
+          </thead>
+          <tbody>`;
+    for (const item of group.items) {
+      const checked = _curPerms.has(item.key);
+      html += `<tr style="border-top:1px solid var(--border)" id="permRow_${item.key}">
+        <td style="padding:10px 14px;font-size:13px">${item.label}</td>
+        <td style="padding:10px 14px;text-align:center">
+          <label style="display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
+            <input type="checkbox" id="perm_${item.key}" ${checked?'checked':''} onchange="onPermChange('${item.key}',this.checked)"
+              style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent)">
+          </label>
+        </td>
+      </tr>`;
+    }
+    html += `</tbody></table></div></div>`;
+  }
+  document.getElementById('permContent').innerHTML = html;
+}
+
+function onPermChange(key, checked) {
+  if (checked) _curPerms.add(key);
+  else _curPerms.delete(key);
+  // visual feedback
+  const row = document.getElementById('permRow_'+key);
+  if (row) row.style.background = checked ? 'var(--success-dim)' : '';
+}
+
+function togglePermGroup(groupName) {
+  const group = _permSchema.find(g => g.group === groupName);
+  if (!group) return;
+  const allChecked = group.items.every(i => _curPerms.has(i.key));
+  group.items.forEach(item => {
+    const el = document.getElementById('perm_'+item.key);
+    if (allChecked) { _curPerms.delete(item.key); if(el) el.checked = false; }
+    else { _curPerms.add(item.key); if(el) el.checked = true; }
+    const row = document.getElementById('permRow_'+item.key);
+    if (row) row.style.background = (!allChecked) ? 'var(--success-dim)' : '';
+  });
+}
+
+async function savePermissions() {
+  try {
+    await api.put('/permissions/'+_curPermRole, { permissions: [..._curPerms] });
+    toast('บันทึกสิทธิ์เรียบร้อย ✓', 'success');
+    // รีเฟรช nav ตาม permission ใหม่ (ถ้า user มี role เดียวกัน)
+    if (CU.role === _curPermRole) {
+      toast('กรุณา Logout แล้ว Login ใหม่เพื่อให้สิทธิ์มีผล', 'info');
+    }
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ดึง permissions ตอน init เพื่อ filter nav
+async function loadUserPermissions() {
+  if (['owner','admin'].includes(CU.role)) return; // owner เห็นทุกอย่าง
+  try {
+    const perms = await api.get('/permissions/'+CU.role);
+    window._myPerms = new Set(perms);
+    applyPermissionsToNav();
+  } catch(e) { console.log('cannot load perms'); }
+}
+
+function applyPermissionsToNav() {
+  if (!window._myPerms) return;
+  const permNavMap = {
+    pos: 'pos', shifts: 'shifts', sales_view: 'sales',
+    quotations: 'quotations', invoices: 'invoices', credits: 'credits',
+    receipts: 'receipts', stock_view: 'stock', members: 'members',
+    contacts: 'contacts', products_view: 'products', reports: 'reports',
+    expenses_view: 'expenses', expense_docs: 'expense-docs',
+    promotions: 'promotions', debt_notes: 'debt-notes',
+    payroll: 'payroll', employees_view: 'employees',
+    users_manage: 'users',
+  };
+  // ซ่อน nav items ที่ไม่มีสิทธิ์
+  for (const [perm, pageId] of Object.entries(permNavMap)) {
+    if (!window._myPerms.has(perm)) {
+      const navEl = document.getElementById('nav-'+pageId);
+      if (navEl) navEl.style.display = 'none';
+    }
+  }
+}
+
+function hasPermission(perm) {
+  if (['owner','admin'].includes(CU.role)) return true;
+  if (!window._myPerms) return false;
+  return window._myPerms.has(perm);
 }
 
 const t=localStorage.getItem('es_token'),u=localStorage.getItem('es_user');
