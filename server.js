@@ -60,6 +60,11 @@ async function initSchema() {
 
     const eggCat = await pool.query(`SELECT id FROM product_categories WHERE name='ไข่ไก่'`);
     const catId = eggCat.rows[0].id;
+    // เพิ่มกลุ่มสินค้าใหม่ถ้ายังไม่มี
+    const extraCats = [['ไข่เสริม','stock'],['บรรจุภัณฑ์ไข่','stock']];
+    for (const [name, type] of extraCats) {
+      await pool.query(`INSERT INTO product_categories (name,type) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [name, type]);
+    }
     const eggProducts = [['EGG-0','ไข่ไก่เบอร์ 0'],['EGG-1','ไข่ไก่เบอร์ 1'],['EGG-2','ไข่ไก่เบอร์ 2'],['EGG-3','ไข่ไก่เบอร์ 3'],['EGG-4','ไข่ไก่เบอร์ 4'],['EGG-5','ไข่ไก่เบอร์ 5'],['EGG-6','ไข่ไก่เบอร์ 6'],['EGG-BANG-L','ไข่บางใหญ่'],['EGG-BANG-M','ไข่บางกลาง'],['EGG-BANG-S','ไข่บางเล็ก']];
     for (const [code,name] of eggProducts) await pool.query(`INSERT INTO products (category_id,code,name,unit,is_egg,track_stock) VALUES ($1,$2,$3,'ฟอง',true,true) ON CONFLICT (code) DO NOTHING`, [catId, code, name]);
 
@@ -232,7 +237,13 @@ app.put('/api/members/:id', auth, async (req, res) => { const { name, phone, bra
 
 // PRODUCTS
 app.get('/api/products', auth, async (req, res) => {
-  const r = await pool.query(`SELECT p.*,pc.name AS category_name,pc.type AS category_type FROM products p JOIN product_categories pc ON p.category_id=pc.id WHERE p.active=true ORDER BY pc.type,p.code`);
+  const { category_id, search } = req.query;
+  let q = `SELECT p.*,pc.name AS category_name,pc.type AS category_type FROM products p JOIN product_categories pc ON p.category_id=pc.id WHERE p.active=true`;
+  const params = [];
+  if (category_id) { params.push(category_id); q += ` AND p.category_id=$${params.length}`; }
+  if (search) { params.push('%'+search+'%'); q += ` AND (p.name ILIKE $${params.length} OR p.code ILIKE $${params.length})`; }
+  q += ' ORDER BY pc.type,p.code';
+  const r = await pool.query(q, params);
   res.json(r.rows);
 });
 app.post('/api/products', auth, role('owner','admin','manager'), async (req, res) => {
