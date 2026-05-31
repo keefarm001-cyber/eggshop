@@ -50,7 +50,7 @@ async function initSchema() {
     await pool.query(`CREATE TABLE IF NOT EXISTS product_categories (id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL, type VARCHAR(20) DEFAULT 'stock', active BOOLEAN DEFAULT true)`);
     const catCheck = await pool.query(`SELECT id FROM product_categories WHERE name='ไข่ไก่'`);
     if (catCheck.rows.length === 0) {
-      await pool.query(`INSERT INTO product_categories (name,type) VALUES ('ไข่ไก่','stock'),('ของชำ','stock'),('บรรจุภัณฑ์','stock'),('บริการ','service'),('อื่นๆ ไม่นับสต๊อก','nostock')`);
+      await pool.query(`INSERT INTO product_categories (name,type) VALUES ('ไข่ไก่','stock'),('ของชำ','stock'),('บรรจุภัณฑ์','stock'),('บริการ','service'),('อื่นๆ ไม่นับสต๊อก','nostock'),('ไข่เสริม','stock'),('บรรจุภัณฑ์ไข่','stock')`);
     }
 
     // products
@@ -60,10 +60,11 @@ async function initSchema() {
 
     const eggCat = await pool.query(`SELECT id FROM product_categories WHERE name='ไข่ไก่'`);
     const catId = eggCat.rows[0].id;
-    // เพิ่มกลุ่มสินค้าใหม่ถ้ายังไม่มี
-    const extraCats = [['ไข่เสริม','stock'],['บรรจุภัณฑ์ไข่','stock']];
-    for (const [name, type] of extraCats) {
-      await pool.query(`INSERT INTO product_categories (name,type) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [name, type]);
+    // เพิ่มกลุ่มสินค้าใหม่ถ้ายังไม่มี (ตรวจสอบก่อนเสมอ)
+    const extraCatNames = ['ไข่เสริม','บรรจุภัณฑ์ไข่'];
+    for (const name of extraCatNames) {
+      const ec = await pool.query('SELECT id FROM product_categories WHERE name=$1', [name]);
+      if (ec.rows.length === 0) await pool.query('INSERT INTO product_categories (name,type) VALUES ($1,$2)', [name, 'stock']);
     }
     const eggProducts = [['EGG-0','ไข่ไก่เบอร์ 0'],['EGG-1','ไข่ไก่เบอร์ 1'],['EGG-2','ไข่ไก่เบอร์ 2'],['EGG-3','ไข่ไก่เบอร์ 3'],['EGG-4','ไข่ไก่เบอร์ 4'],['EGG-5','ไข่ไก่เบอร์ 5'],['EGG-6','ไข่ไก่เบอร์ 6'],['EGG-BANG-L','ไข่บางใหญ่'],['EGG-BANG-M','ไข่บางกลาง'],['EGG-BANG-S','ไข่บางเล็ก']];
     for (const [code,name] of eggProducts) await pool.query(`INSERT INTO products (category_id,code,name,unit,is_egg,track_stock) VALUES ($1,$2,$3,'ฟอง',true,true) ON CONFLICT (code) DO NOTHING`, [catId, code, name]);
@@ -127,6 +128,47 @@ async function initSchema() {
 
     // damage_photos
     await pool.query(`CREATE TABLE IF NOT EXISTS damage_photos (id SERIAL PRIMARY KEY, branch_id INTEGER REFERENCES branches(id), product_id INTEGER REFERENCES products(id), photo_url TEXT NOT NULL, photo_date DATE NOT NULL DEFAULT CURRENT_DATE, note TEXT, uploaded_by INTEGER REFERENCES users(id), created_at TIMESTAMPTZ DEFAULT NOW())`);
+
+    // user_branch_access — สิทธิ์สาขาของแต่ละ user
+    await pool.query(`CREATE TABLE IF NOT EXISTS user_branch_access (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+      UNIQUE(user_id, branch_id)
+    )`);
+
+    // promotions table already exists, add expenses table
+    await pool.query(`CREATE TABLE IF NOT EXISTS expenses (
+      id SERIAL PRIMARY KEY,
+      branch_id INTEGER REFERENCES branches(id),
+      category_id INTEGER REFERENCES expense_categories(id),
+      amount NUMERIC(10,2) NOT NULL,
+      expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      note TEXT,
+      withholding_tax NUMERIC(10,2) DEFAULT 0,
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS withholding_tax NUMERIC(10,2) DEFAULT 0`);
+
+    // employees
+    await pool.query(`CREATE TABLE IF NOT EXISTS employees (
+      id SERIAL PRIMARY KEY,
+      code VARCHAR(20) UNIQUE,
+      full_name VARCHAR(100) NOT NULL,
+      nickname VARCHAR(50),
+      phone VARCHAR(20),
+      branch_id INTEGER REFERENCES branches(id),
+      position VARCHAR(100),
+      start_date DATE,
+      salary NUMERIC(10,2),
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+
+    // debt_notes already in schema
+    // add doc_sequence for debit/credit note
+    await pool.query(`INSERT INTO doc_sequences (doc_type, prefix) VALUES ('debit_note','DN'),('credit_note','CN') ON CONFLICT (doc_type) DO NOTHING`);
 
     // admin user
     const userCheck = await pool.query(`SELECT id FROM users WHERE username='admin'`);
@@ -192,8 +234,19 @@ app.post('/api/auth/login', async (req, res) => {
     const u = r.rows[0];
     if (!u || !await bcrypt.compare(password, u.password_hash)) return res.status(401).json({ error: 'username หรือ password ไม่ถูกต้อง' });
     await pool.query('UPDATE users SET last_login=NOW() WHERE id=$1', [u.id]);
+    // ดึงสาขาที่ user มีสิทธิ์
+    const branchAccess = await pool.query(`
+      SELECT b.id, b.code, b.name FROM user_branch_access uba
+      JOIN branches b ON uba.branch_id = b.id
+      WHERE uba.user_id = $1 AND b.active = true ORDER BY b.id
+    `, [u.id]);
+    const accessBranches = branchAccess.rows;
+    // owner/admin เข้าได้ทุกสาขา
+    const isOwner = ['owner','admin'].includes(u.role);
+    const allBranches = isOwner ? (await pool.query('SELECT id,code,name FROM branches WHERE active=true ORDER BY id')).rows : accessBranches;
+
     const token = jwt.sign({ id:u.id, username:u.username, full_name:u.full_name, role:u.role, branch_id:u.branch_id, branch_code:u.branch_code }, process.env.JWT_SECRET, { expiresIn: '8h' });
-    res.json({ token, user: { id:u.id, username:u.username, full_name:u.full_name, role:u.role, branch_id:u.branch_id, branch_code:u.branch_code, branch_name:u.branch_name } });
+    res.json({ token, user: { id:u.id, username:u.username, full_name:u.full_name, role:u.role, branch_id:u.branch_id, branch_code:u.branch_code, branch_name:u.branch_name, access_branches: allBranches } });
   } catch(e) { console.error(e); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
 });
 app.get('/api/auth/me', auth, async (req, res) => {
@@ -220,6 +273,43 @@ app.put('/api/users/:id', auth, role('owner','admin'), async (req, res) => {
   res.json({ message: 'แก้ไขเรียบร้อย' });
 });
 app.get('/api/roles', auth, async (req, res) => { const r = await pool.query('SELECT * FROM roles ORDER BY id'); res.json(r.rows); });
+
+// USER BRANCH ACCESS
+app.get('/api/users/:id/branches', auth, role('owner','admin'), async (req, res) => {
+  const r = await pool.query(`SELECT uba.branch_id, b.code, b.name FROM user_branch_access uba JOIN branches b ON uba.branch_id=b.id WHERE uba.user_id=$1`, [req.params.id]);
+  res.json(r.rows);
+});
+app.put('/api/users/:id/branches', auth, role('owner','admin'), async (req, res) => {
+  const { branch_ids } = req.body; // array of branch_id
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM user_branch_access WHERE user_id=$1', [req.params.id]);
+    for (const bid of (branch_ids||[])) {
+      await client.query('INSERT INTO user_branch_access (user_id,branch_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.id, bid]);
+    }
+    await client.query('COMMIT');
+    res.json({ message: 'อัพเดทสิทธิ์สาขาเรียบร้อย' });
+  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
+  finally { client.release(); }
+});
+
+// Switch branch (เปลี่ยนสาขาที่ทำงาน)
+app.post('/api/auth/switch-branch', auth, async (req, res) => {
+  const { branch_id } = req.body;
+  const isOwner = ['owner','admin'].includes(req.user.role);
+  if (!isOwner) {
+    const access = await pool.query('SELECT id FROM user_branch_access WHERE user_id=$1 AND branch_id=$2', [req.user.id, branch_id]);
+    if (!access.rows.length) return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงสาขานี้' });
+  }
+  const branchR = await pool.query('SELECT id,code,name FROM branches WHERE id=$1', [branch_id]);
+  const branch = branchR.rows[0];
+  if (!branch) return res.status(404).json({ error: 'ไม่พบสาขา' });
+  const userR = await pool.query(`SELECT u.*,r.name AS role FROM users u JOIN roles r ON u.role_id=r.id WHERE u.id=$1`, [req.user.id]);
+  const u = userR.rows[0];
+  const token = jwt.sign({ id:u.id, username:u.username, full_name:u.full_name, role:u.role, branch_id:branch.id, branch_code:branch.code }, process.env.JWT_SECRET, { expiresIn: '8h' });
+  res.json({ token, branch_id: branch.id, branch_code: branch.code, branch_name: branch.name });
+});
 
 // MEMBER SETTINGS
 app.get('/api/member-settings', auth, async (req, res) => { const r = await pool.query('SELECT * FROM member_settings LIMIT 1'); res.json(r.rows[0]); });
@@ -610,6 +700,111 @@ app.post('/api/credit-sales/:id/pay', auth, async (req, res) => {
     await client.query('COMMIT');
     res.json({ message: 'รับชำระเรียบร้อย' });
   } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); } finally { client.release(); }
+});
+
+// EXPENSES
+app.get('/api/expenses', auth, async (req, res) => {
+  const { branch_id, date_from, date_to } = req.query;
+  let q = `SELECT e.*,ec.name AS category_name,b.code AS branch_code,u.full_name AS created_by_name
+    FROM expenses e JOIN expense_categories ec ON e.category_id=ec.id
+    JOIN branches b ON e.branch_id=b.id LEFT JOIN users u ON e.created_by=u.id WHERE 1=1`;
+  const params = [];
+  if (branch_id) { params.push(branch_id); q += ` AND e.branch_id=$${params.length}`; }
+  if (date_from) { params.push(date_from); q += ` AND e.expense_date>=$${params.length}`; }
+  if (date_to) { params.push(date_to); q += ` AND e.expense_date<=$${params.length}`; }
+  q += ' ORDER BY e.expense_date DESC LIMIT 100';
+  const r = await pool.query(q, params);
+  res.json(r.rows);
+});
+app.post('/api/expenses', auth, async (req, res) => {
+  const { branch_id, category_id, amount, expense_date, note, withholding_tax } = req.body;
+  if (!branch_id||!category_id||!amount) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
+  try {
+    const r = await pool.query(`INSERT INTO expenses (branch_id,category_id,amount,expense_date,note,withholding_tax,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [branch_id, category_id, amount, expense_date||new Date().toISOString().slice(0,10), note, withholding_tax||0, req.user.id]);
+    res.status(201).json({ message: 'บันทึกค่าใช้จ่ายเรียบร้อย', expense: r.rows[0] });
+  } catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
+});
+app.delete('/api/expenses/:id', auth, role('owner','admin','manager'), async (req, res) => {
+  await pool.query('DELETE FROM expenses WHERE id=$1', [req.params.id]);
+  res.json({ message: 'ลบเรียบร้อย' });
+});
+app.get('/api/expense-categories', auth, async (req, res) => {
+  const r = await pool.query('SELECT * FROM expense_categories ORDER BY id');
+  res.json(r.rows);
+});
+app.post('/api/expense-categories', auth, role('owner','admin'), async (req, res) => {
+  const r = await pool.query('INSERT INTO expense_categories (name) VALUES ($1) RETURNING *', [req.body.name]);
+  res.status(201).json(r.rows[0]);
+});
+
+// DEBT NOTES (ใบลดหนี้ / ใบเพิ่มหนี้)
+app.get('/api/debt-notes', auth, async (req, res) => {
+  const r = await pool.query(`SELECT dn.*,c.business_name,c.contact_name,b.code AS branch_code,i.invoice_no AS ref_invoice_no
+    FROM debt_notes dn LEFT JOIN contacts c ON dn.contact_id=c.id JOIN branches b ON dn.branch_id=b.id
+    LEFT JOIN invoices i ON dn.ref_invoice_id=i.id ORDER BY dn.created_at DESC`);
+  res.json(r.rows);
+});
+app.post('/api/debt-notes', auth, role('owner','admin','manager'), async (req, res) => {
+  const { note_type, branch_id, contact_id, ref_invoice_id, amount, reason } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const docType = note_type === 'debit' ? 'debit_note' : 'credit_note';
+    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
+    const docNo = await genDocNo(docType, branchR.rows[0]?.code||'');
+    const r = await client.query(`INSERT INTO debt_notes (doc_no,note_type,branch_id,contact_id,ref_invoice_id,amount,reason,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [docNo, note_type, branch_id, contact_id||null, ref_invoice_id||null, amount, reason, req.user.id]);
+    // ปรับยอดใบแจ้งหนี้ถ้าอ้างอิง
+    if (ref_invoice_id) {
+      const adj = note_type === 'credit' ? -parseFloat(amount) : parseFloat(amount);
+      await client.query('UPDATE invoices SET total=total+$1 WHERE id=$2', [adj, ref_invoice_id]);
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ message: 'สร้างเอกสารเรียบร้อย', doc_no: docNo, note: r.rows[0] });
+  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
+  finally { client.release(); }
+});
+
+// PROMOTIONS
+app.get('/api/promotions', auth, async (req, res) => {
+  const r = await pool.query(`SELECT p.*,pr.name AS product_name,b.code AS branch_code FROM promotions p LEFT JOIN products pr ON p.product_id=pr.id LEFT JOIN branches b ON p.branch_id=b.id ORDER BY p.start_date DESC`);
+  res.json(r.rows);
+});
+app.post('/api/promotions', auth, role('owner','admin','manager'), async (req, res) => {
+  const { name, branch_id, promo_type, product_id, min_qty, discount_value, free_product_id, free_qty, start_date, end_date } = req.body;
+  try {
+    const r = await pool.query(`INSERT INTO promotions (name,branch_id,promo_type,product_id,min_qty,discount_value,free_product_id,free_qty,start_date,end_date,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [name, branch_id||null, promo_type, product_id||null, min_qty||1, discount_value||null, free_product_id||null, free_qty||null, start_date, end_date, req.user.id]);
+    res.status(201).json({ message: 'สร้างโปรโมชั่นเรียบร้อย', promotion: r.rows[0] });
+  } catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
+});
+app.put('/api/promotions/:id', auth, role('owner','admin','manager'), async (req, res) => {
+  const { active } = req.body;
+  await pool.query('UPDATE promotions SET active=$1 WHERE id=$2', [active, req.params.id]);
+  res.json({ message: 'อัพเดทเรียบร้อย' });
+});
+
+// EMPLOYEES
+app.get('/api/employees', auth, async (req, res) => {
+  const r = await pool.query(`SELECT e.*,b.code AS branch_code,b.name AS branch_name FROM employees e LEFT JOIN branches b ON e.branch_id=b.id WHERE e.active=true ORDER BY e.full_name`);
+  res.json(r.rows);
+});
+app.post('/api/employees', auth, role('owner','admin'), async (req, res) => {
+  const { full_name, nickname, phone, branch_id, position, start_date, salary } = req.body;
+  if (!full_name) return res.status(400).json({ error: 'กรุณากรอกชื่อ' });
+  try {
+    const code = 'EMP' + Date.now().toString().slice(-5);
+    const r = await pool.query(`INSERT INTO employees (code,full_name,nickname,phone,branch_id,position,start_date,salary) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [code, full_name, nickname, phone, branch_id||null, position, start_date||null, salary||null]);
+    res.status(201).json({ message: 'เพิ่มพนักงานเรียบร้อย', employee: r.rows[0] });
+  } catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
+});
+app.put('/api/employees/:id', auth, role('owner','admin'), async (req, res) => {
+  const { full_name, nickname, phone, branch_id, position, start_date, salary, active } = req.body;
+  await pool.query(`UPDATE employees SET full_name=$1,nickname=$2,phone=$3,branch_id=$4,position=$5,start_date=$6,salary=$7,active=$8 WHERE id=$9`,
+    [full_name, nickname, phone, branch_id||null, position, start_date||null, salary||null, active, req.params.id]);
+  res.json({ message: 'แก้ไขเรียบร้อย' });
 });
 
 // REPORTS
