@@ -16,8 +16,8 @@
 .finput{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:7px;padding:10px 13px;color:var(--text);font-family:'Sarabun',sans-serif;font-size:15px;outline:none;transition:border-color .2s}.finput:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}.finput::placeholder{color:var(--text-dim)}
 .btn-login{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;transition:background .2s}.btn-login:hover{background:var(--accent2)}.btn-login:disabled{opacity:.6;cursor:not-allowed}
 .err-box{background:var(--error-dim);border:1px solid var(--error-border);color:var(--error);border-radius:7px;padding:9px 13px;font-size:13px;margin-bottom:12px;display:none}.err-box.show{display:block}
-#appPage{display:none;height:100vh;width:100%;overflow:hidden}
-.app-layout{display:flex;height:100vh;width:100%;overflow:hidden;position:relative}
+#appPage{display:none;height:100vh;width:100vw;overflow:hidden}
+.app-layout{display:flex;height:100vh;width:100%;overflow:hidden}
 #sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;box-shadow:var(--shadow)}
 .nav-brand{display:flex;align-items:center;gap:8px;padding:16px 14px;font-size:16px;font-weight:700;color:var(--accent);border-bottom:1px solid var(--border)}
 .nav-branch{padding:6px 14px;font-size:11px;color:var(--text-muted);background:var(--surface2);border-bottom:1px solid var(--border);font-family:'IBM Plex Mono',monospace}
@@ -118,6 +118,26 @@ table{width:100%;border-collapse:collapse}thead{background:var(--surface2)}th{pa
 
       <div class="page" id="page-debt-notes"><div class="ph"><div class="pt">📋 ใบลดหนี้ / ใบเพิ่มหนี้</div><button class="btn btn-primary" onclick="showDebtNoteModal()">+ สร้างเอกสาร</button></div><div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>ประเภท</th><th>วันที่</th><th>ลูกค้า</th><th>อ้างอิงใบแจ้งหนี้</th><th>จำนวน</th><th>เหตุผล</th></tr></thead><tbody id="debtT"></tbody></table></div></div></div>
 
+      <div class="page" id="page-expense-docs">
+        <div class="ph">
+          <div><div class="pt">🧾 ค่าใช้จ่าย (เอกสาร)</div><div style="font-size:12px;color:var(--text-muted)">สร้างเอกสารค่าใช้จ่ายแบบเต็มรูปแบบ</div></div>
+          <button class="btn btn-primary" onclick="showExpenseDocForm()">+ สร้างเอกสาร</button>
+        </div>
+        <div class="pb">
+          <div class="card"><table><thead><tr><th>เลขที่</th><th>วันที่</th><th>สาขา</th><th>ผู้จำหน่าย</th><th>ยอดรวม</th><th>ภาษี</th><th>หัก ณ ที่จ่าย</th><th>สุทธิ</th><th>สถานะ</th><th></th></tr></thead><tbody id="expDocT"></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="page" id="page-payroll">
+        <div class="ph">
+          <div><div class="pt">💵 เงินเดือน / Payroll</div></div>
+          <button class="btn btn-primary" onclick="showCreatePayroll()">+ สร้าง Payroll</button>
+        </div>
+        <div class="pb">
+          <div class="card" style="margin-bottom:12px"><table><thead><tr><th>งวด</th><th>ช่วงวันที่</th><th>วันที่จ่าย</th><th>พนักงาน</th><th>ยอดรวม</th><th>สถานะ</th><th></th></tr></thead><tbody id="payrollT"></tbody></table></div>
+        </div>
+      </div>
+
       <div class="page" id="page-employees"><div class="ph"><div><div class="pt">👔 รายชื่อพนักงาน</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px">ตั้งค่าสิทธิ์การใช้งานระบบ → เมนู ผู้ใช้งาน</div></div><div style="display:flex;gap:7px"><button class="btn btn-secondary" onclick="showPage('users')">⚙️ ตั้งค่าสิทธิ์ระบบ</button><button class="btn btn-primary" onclick="showEmployeeModal()">+ เพิ่มพนักงาน</button></div></div><div class="pb"><div class="card"><table><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>สาขา</th><th>เบอร์โทร</th><th>เริ่มงาน</th><th>ผ่านโปร</th><th></th></tr></thead><tbody id="empT"></tbody></table></div></div></div>
     </div>
   </div>
@@ -149,9 +169,9 @@ async function doLogin(){const user=document.getElementById('loginUser').value.t
 function logout(){localStorage.removeItem('es_token');localStorage.removeItem('es_user');CU=null;document.getElementById('loginPage').style.display='flex';document.getElementById('appPage').style.display='none';}
 
 async function initApp(){
-  document.getElementById('loginPage').style.display='none';document.getElementById('appPage').style.display='block';
+  document.getElementById('loginPage').style.display='none';document.getElementById('appPage').style.display='flex';
   document.getElementById('navUserName').textContent=CU.full_name;document.getElementById('navUserRole').textContent=fmt.role(CU.role);document.getElementById('navBranch').textContent=CU.branch_code||'ทุกสาขา';
-  const navDef=[{sec:'การขาย'},{id:'pos',l:'ขายหน้าร้าน',i:'🛒',r:['owner','admin','manager','cashier']},{id:'shifts',l:'กะการขาย',i:'⏰',r:['owner','admin','manager','cashier']},{id:'sales',l:'ประวัติการขาย',i:'📑',r:['owner','admin','manager']},{sec:'เอกสาร'},{id:'quotations',l:'ใบเสนอราคา',i:'📝',r:['owner','admin','manager']},{id:'invoices',l:'ใบแจ้งหนี้',i:'📄',r:['owner','admin','manager']},{id:'credits',l:'ลูกค้าเชื่อ',i:'💳',r:['owner','admin','manager','cashier']},{id:'receipts',l:'ใบรับสินค้า',i:'📋',r:['owner','admin','manager','stock']},{sec:'สต๊อก'},{id:'stock',l:'สต๊อกสินค้า',i:'📦',r:['owner','admin','manager','stock']},{sec:'CRM'},{id:'members',l:'สมาชิก',i:'⭐',r:['owner','admin','manager','cashier']},{id:'contacts',l:'ผู้ติดต่อ',i:'👥',r:['owner','admin','manager']},{sec:'จัดการ'},{id:'products',l:'สินค้า',i:'🥚',r:['owner','admin','manager']},{id:'reports',l:'รายงาน',i:'📈',r:['owner','admin','manager','viewer']},{id:'users',l:'ผู้ใช้งาน',i:'⚙️',r:['owner','admin']},{sec:'HR'},{id:'employees',l:'พนักงาน',i:'👔',r:['owner','admin']},{sec:'การเงิน'},{id:'expenses',l:'ค่าใช้จ่าย',i:'💰',r:['owner','admin','manager']},{id:'promotions',l:'โปรโมชั่น',i:'🎁',r:['owner','admin','manager']},{id:'debt-notes',l:'ใบลดหนี้/เพิ่มหนี้',i:'📋',r:['owner','admin','manager']}];
+  const navDef=[{sec:'การขาย'},{id:'pos',l:'ขายหน้าร้าน',i:'🛒',r:['owner','admin','manager','cashier']},{id:'shifts',l:'กะการขาย',i:'⏰',r:['owner','admin','manager','cashier']},{id:'sales',l:'ประวัติการขาย',i:'📑',r:['owner','admin','manager']},{sec:'เอกสาร'},{id:'quotations',l:'ใบเสนอราคา',i:'📝',r:['owner','admin','manager']},{id:'invoices',l:'ใบแจ้งหนี้',i:'📄',r:['owner','admin','manager']},{id:'credits',l:'ลูกค้าเชื่อ',i:'💳',r:['owner','admin','manager','cashier']},{id:'receipts',l:'ใบรับสินค้า',i:'📋',r:['owner','admin','manager','stock']},{sec:'สต๊อก'},{id:'stock',l:'สต๊อกสินค้า',i:'📦',r:['owner','admin','manager','stock']},{sec:'CRM'},{id:'members',l:'สมาชิก',i:'⭐',r:['owner','admin','manager','cashier']},{id:'contacts',l:'ผู้ติดต่อ',i:'👥',r:['owner','admin','manager']},{sec:'จัดการ'},{id:'products',l:'สินค้า',i:'🥚',r:['owner','admin','manager']},{id:'reports',l:'รายงาน',i:'📈',r:['owner','admin','manager','viewer']},{id:'users',l:'ผู้ใช้งาน',i:'⚙️',r:['owner','admin']},{sec:'HR'},{id:'employees',l:'พนักงาน',i:'👔',r:['owner','admin']},{sec:'การเงิน'},{id:'expenses',l:'ค่าใช้จ่าย',i:'💰',r:['owner','admin','manager']},{id:'promotions',l:'โปรโมชั่น',i:'🎁',r:['owner','admin','manager']},{id:'debt-notes',l:'ใบลดหนี้/เพิ่มหนี้',i:'📋',r:['owner','admin','manager']},{id:'expense-docs',l:'ค่าใช้จ่าย (เอกสาร)',i:'🧾',r:['owner','admin','manager']},{id:'payroll',l:'เงินเดือน/Payroll',i:'💵',r:['owner','admin']}];
   document.getElementById('navLinks').innerHTML=navDef.map(x=>x.sec?`<div class="nav-section">${x.sec}</div>`:x.r.includes(CU.role)?`<div class="nav-link" onclick="showPage('${x.id}')" id="nav-${x.id}"><span class="nav-icon">${x.i}</span><span>${x.l}</span></div>`:'').join('');
   try{branches=await api.get('/branches');['stBranch','mvBranch','sBranch','expBranch'].forEach(id=>{const el=document.getElementById(id);if(el)branches.forEach(b=>{el.innerHTML+=`<option value="${b.id}">${b.name}</option>`;});});mSet=await api.get('/member-settings');}catch(e){}
   // ตรวจสอบว่าต้องเลือกสาขาไหม
@@ -165,7 +185,7 @@ async function initApp(){
 function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
   const page=document.getElementById('page-'+id);if(page)page.classList.add('active');const nl=document.getElementById('nav-'+id);if(nl)nl.classList.add('active');
-  const L={dashboard:loadDash,pos:()=>{loadShiftSt();loadPosProds();loadPosMem();},shifts:loadShifts,sales:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('sFrom').value=t;document.getElementById('sTo').value=t;loadSales();},stock:loadStock,smv:()=>{loadMvProds();loadMv();},receipts:loadRecv,quotations:loadQt,invoices:loadInv,credits:loadCred,members:loadMembers,contacts:loadCts,products:()=>{loadProdCats();loadProds();},reports:()=>{document.getElementById('rptDate').value=new Date().toISOString().slice(0,10);loadReport();},users:loadUsers,expenses:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('expFrom').value=t;document.getElementById('expTo').value=t;loadExpenses();},promotions:loadPromos,'debt-notes':loadDebtNotes,employees:loadEmployees};
+  const L={dashboard:loadDash,pos:()=>{loadShiftSt();loadPosProds();loadPosMem();},shifts:loadShifts,sales:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('sFrom').value=t;document.getElementById('sTo').value=t;loadSales();},stock:loadStock,smv:()=>{loadMvProds();loadMv();},receipts:loadRecv,quotations:loadQt,invoices:loadInv,credits:loadCred,members:loadMembers,contacts:loadCts,products:()=>{loadProdCats();loadProds();},reports:()=>{document.getElementById('rptDate').value=new Date().toISOString().slice(0,10);loadReport();},users:loadUsers,expenses:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('expFrom').value=t;document.getElementById('expTo').value=t;loadExpenses();},promotions:loadPromos,'debt-notes':loadDebtNotes,employees:loadEmployees,'expense-docs':loadExpenseDocs,payroll:loadPayroll};
   if(L[id])L[id]();
 }
 
@@ -695,6 +715,487 @@ async function showUserBranchModal(userId, userName) {
 async function saveUserBranches(userId) {
   const branchIds = branches.filter(b=>document.getElementById('ub_'+b.id)?.checked).map(b=>b.id);
   try{await api.put(`/users/${userId}/branches`,{branch_ids:branchIds});toast('บันทึกสิทธิ์สาขาเรียบร้อย','success');CM();loadUsers();}catch(e){toast(e.message,'error');}
+}
+
+
+// ============================================================
+// EXPENSE DOCS (ค่าใช้จ่ายแบบ document)
+// ============================================================
+async function loadExpenseDocs() {
+  try {
+    const data = await api.get('/expense-docs');
+    document.getElementById('expDocT').innerHTML = data.length ? data.map(d=>`<tr>
+      <td>${fmt.dn(d.doc_no)}</td>
+      <td>${fmt.d(d.doc_date)}</td>
+      <td>${d.branch_code}</td>
+      <td>${d.contact_name||d.business_name||'-'}</td>
+      <td>${fmt.b(d.subtotal)}</td>
+      <td style="color:var(--text-muted)">${d.vat_amt>0?fmt.b(d.vat_amt):'-'}</td>
+      <td style="color:var(--warning)">${d.withholding_tax>0?fmt.b(d.withholding_tax):'-'}</td>
+      <td style="font-weight:700;color:var(--accent)">${fmt.b(d.total)}</td>
+      <td>${fmt.badge(d.status)}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-secondary btn-sm" onclick="showExpenseDocDetail(${d.id})">ดู</button>
+        ${d.attachment_url?`<a href="${d.attachment_url}" target="_blank" class="btn btn-info btn-sm">📎</a>`:''}
+      </td>
+    </tr>`).join('') : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">ยังไม่มีเอกสาร</td></tr>';
+  } catch(e) { console.error(e); }
+}
+
+async function showExpenseDocForm(docId) {
+  try {
+    const [brs, contacts, products] = await Promise.all([api.get('/branches'), api.get('/contacts?type=supplier'), api.get('/products')]);
+    let existDoc = null;
+    let existItems = [{description:'',qty:1,unit:'',unit_price:0}];
+    if (docId) {
+      existDoc = await api.get('/expense-docs/'+docId);
+      existItems = existDoc.items || existItems;
+    }
+    const d = existDoc || {};
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:780px;padding:0">
+      <!-- Header -->
+      <div style="background:var(--accent);color:#fff;padding:16px 22px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between">
+        <div><div style="font-size:16px;font-weight:700">🧾 ${docId?'แก้ไข':'สร้าง'}เอกสารค่าใช้จ่าย</div><div style="font-size:12px;opacity:.85">${d.doc_no||'เลขที่จะสร้างอัตโนมัติ'}</div></div>
+        <button onclick="CM()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:16px">✕</button>
+      </div>
+      <div style="padding:20px;overflow-y:auto;max-height:80vh">
+
+        <!-- ผู้จำหน่าย + วันที่ -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px">ผู้จำหน่าย / ซัพพลายเออร์</div>
+            <select class="ctrl" id="edContact" style="margin-bottom:6px" onchange="fillExpDocContact(${JSON.stringify(contacts).replace(/'/g,'&#39;').replace(/"/g,'&quot;')})">
+              <option value="">— เลือกจากรายชื่อ หรือพิมพ์ด้านล่าง —</option>
+              ${contacts.map(c=>`<option value="${c.id}" data-name="${c.business_name||c.contact_name||''}" data-addr="${c.address||''}" data-tax="${c.tax_id||''}">${c.business_name||c.contact_name}</option>`).join('')}
+            </select>
+            <input type="text" class="ctrl" id="edContactName" placeholder="ชื่อผู้จำหน่าย" value="${d.contact_name||''}" style="margin-bottom:6px">
+            <textarea class="ctrl" id="edContactAddr" placeholder="ที่อยู่" rows="2" style="resize:none;margin-bottom:6px">${d.contact_address||''}</textarea>
+            <input type="text" class="ctrl" id="edContactTax" placeholder="เลขผู้เสียภาษี" value="${d.contact_tax_id||''}">
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px">รายละเอียดเอกสาร</div>
+            <div style="display:grid;gap:7px">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+                <div><label class="lbl">สาขา</label><select class="ctrl" id="edBranch" style="margin-top:4px">${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
+                <div><label class="lbl">วันที่เอกสาร</label><input type="date" class="ctrl" id="edDate" value="${d.doc_date?d.doc_date.slice(0,10):new Date().toISOString().slice(0,10)}" style="margin-top:4px"></div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+                <div><label class="lbl">เลขที่อ้างอิง</label><input type="text" class="ctrl" id="edRef" value="${d.ref_no||''}" placeholder="Invoice No. ฯลฯ" style="margin-top:4px"></div>
+                <div><label class="lbl">เครดิต (วัน)</label><input type="number" class="ctrl" id="edCredit" value="${d.credit_days||0}" min="0" style="margin-top:4px" onchange="calcEdDue()"></div>
+              </div>
+              <div><label class="lbl">ครบกำหนด</label><input type="date" class="ctrl" id="edDue" value="${d.due_date?d.due_date.slice(0,10):''}" style="margin-top:4px"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ตารางรายการ -->
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="background:var(--surface2)">
+              <tr><th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--text-muted);width:40px">#</th><th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--text-muted)">รายละเอียด</th><th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-muted);width:80px">จำนวน</th><th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--text-muted);width:70px">หน่วย</th><th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-muted);width:110px">ราคา/หน่วย</th><th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-muted);width:110px">รวม</th><th style="width:36px"></th></tr>
+            </thead>
+            <tbody id="edItemsBody">${existItems.map((it,i)=>edItemRow(i+1,it)).join('')}</tbody>
+          </table>
+          <div style="padding:8px 10px;border-top:1px solid var(--border)">
+            <button class="btn btn-secondary btn-sm" onclick="addEdItem()">+ เพิ่มรายการ</button>
+          </div>
+        </div>
+
+        <!-- ยอดรวม + ส่วนลด + VAT -->
+        <div style="display:grid;grid-template-columns:1fr 280px;gap:16px;margin-bottom:14px">
+          <div>
+            <div style="display:grid;gap:7px">
+              <div><label class="lbl">หมายเหตุ (แสดงในเอกสาร)</label><textarea class="ctrl" id="edNote" rows="2" style="margin-top:4px;resize:none" placeholder="หมายเหตุ...">${d.note||''}</textarea></div>
+              <div><label class="lbl">โน้ตภายใน</label><textarea class="ctrl" id="edInternalNote" rows="2" style="margin-top:4px;resize:none" placeholder="โน้ตภายใน...">${d.internal_note||''}</textarea></div>
+              <div><label class="lbl">แนบไฟล์ (ใบเสร็จ/ใบกำกับ)</label><input type="file" id="edFile" class="ctrl" style="margin-top:4px;padding:5px" accept=".pdf,image/*"></div>
+            </div>
+          </div>
+          <div style="background:var(--surface2);border-radius:8px;padding:14px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px"><span>รวมเงิน</span><span id="edSubtotal" style="font-weight:600">฿0.00</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px">
+              <span>ส่วนลด</span>
+              <div style="display:flex;align-items:center;gap:5px"><input type="number" id="edDiscPct" value="${d.discount_pct||0}" min="0" max="100" step="0.01" style="width:55px;text-align:right;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="calcEdTotal()"> <span style="font-size:11px">%</span> <span id="edDiscAmt" style="color:var(--error)">-฿0.00</span></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px"><span>หลังหักส่วนลด</span><span id="edAfterDisc">฿0.00</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px">
+              <span>ภาษีมูลค่าเพิ่ม</span>
+              <div style="display:flex;align-items:center;gap:5px">
+                <select id="edVatPct" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" onchange="calcEdTotal()">
+                  <option value="0">ไม่มี</option><option value="7" ${!d.vat_pct||d.vat_pct==7?'selected':''}>7%</option>
+                </select>
+                <span id="edVatAmt" style="color:var(--info)">฿0.00</span>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px">
+              <span>หัก ณ ที่จ่าย</span>
+              <input type="number" id="edWHT" value="${d.withholding_tax||0}" min="0" step="0.01" style="width:90px;text-align:right;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="calcEdTotal()">
+            </div>
+            <div style="border-top:2px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:var(--accent)">
+              <span>ยอดสุทธิ</span><span id="edTotal">฿0.00</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="saveExpenseDoc(${docId||0})" style="width:100%;padding:12px;font-size:14px">💾 บันทึกเอกสาร</button>
+      </div>
+    </div></div>`;
+    calcEdTotal();
+  } catch(e) { toast('เกิดข้อผิดพลาด: '+e.message,'error'); console.error(e); }
+}
+
+function edItemRow(no, item={}) {
+  return `<tr id="edRow_${no}">
+    <td style="padding:6px 10px;color:var(--text-muted);font-size:12px">${no}</td>
+    <td style="padding:6px 10px"><input type="text" class="ctrl ed-desc" placeholder="รายละเอียดสินค้า/บริการ" value="${item.description||''}" oninput="calcEdTotal()" style="font-size:13px"></td>
+    <td style="padding:6px 10px"><input type="number" class="ctrl ed-qty" value="${item.qty||1}" min="0" step="0.01" oninput="calcEdTotal()" style="text-align:right;font-size:13px"></td>
+    <td style="padding:6px 10px"><input type="text" class="ctrl ed-unit" value="${item.unit||''}" placeholder="หน่วย" style="font-size:13px"></td>
+    <td style="padding:6px 10px"><input type="number" class="ctrl ed-price" value="${item.unit_price||0}" min="0" step="0.01" oninput="calcEdTotal()" style="text-align:right;font-size:13px"></td>
+    <td style="padding:6px 10px;text-align:right;font-weight:600;font-size:13px" id="edRowTotal_${no}">฿0.00</td>
+    <td style="padding:6px 10px"><button onclick="removeEdRow(this)" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:14px">✕</button></td>
+  </tr>`;
+}
+
+let _edRowCount = 1;
+function addEdItem() {
+  _edRowCount++;
+  const tbody = document.getElementById('edItemsBody');
+  const tr = document.createElement('tr');
+  tr.id = 'edRow_'+_edRowCount;
+  tr.innerHTML = edItemRow(_edRowCount).replace(`<tr id="edRow_${_edRowCount}">`, '').replace('</tr>','');
+  tbody.appendChild(tr);
+  calcEdTotal();
+}
+function removeEdRow(btn) {
+  btn.closest('tr').remove();
+  calcEdTotal();
+}
+function calcEdTotal() {
+  const rows = document.querySelectorAll('#edItemsBody tr');
+  let sub = 0;
+  rows.forEach((row,i) => {
+    const qty = parseFloat(row.querySelector('.ed-qty')?.value||1);
+    const price = parseFloat(row.querySelector('.ed-price')?.value||0);
+    const st = qty * price;
+    sub += st;
+    const tot = row.querySelector(`[id^="edRowTotal"]`);
+    if (tot) tot.textContent = fmt.b(st);
+  });
+  const discPct = parseFloat(document.getElementById('edDiscPct')?.value||0);
+  const discAmt = sub * discPct / 100;
+  const afterDisc = sub - discAmt;
+  const vatPct = parseFloat(document.getElementById('edVatPct')?.value||0);
+  const vatAmt = afterDisc * vatPct / 100;
+  const wht = parseFloat(document.getElementById('edWHT')?.value||0);
+  const total = afterDisc + vatAmt - wht;
+  const s = id => { const el = document.getElementById(id); if(el) el.textContent = fmt.b(id==='edDiscAmt'?-discAmt:id==='edVatAmt'?vatAmt:id==='edAfterDisc'?afterDisc:total); };
+  ['edSubtotal','edDiscAmt','edAfterDisc','edVatAmt','edTotal'].forEach(s);
+  if(document.getElementById('edSubtotal')) document.getElementById('edSubtotal').textContent = fmt.b(sub);
+  if(document.getElementById('edTotal')) document.getElementById('edTotal').textContent = fmt.b(total);
+}
+function fillExpDocContact(contacts) {
+  const sel = document.getElementById('edContact');
+  const opt = sel.options[sel.selectedIndex];
+  if (opt && opt.dataset.name) {
+    document.getElementById('edContactName').value = opt.dataset.name;
+    document.getElementById('edContactAddr').value = opt.dataset.addr||'';
+    document.getElementById('edContactTax').value = opt.dataset.tax||'';
+  }
+}
+function calcEdDue() {
+  const days = parseInt(document.getElementById('edCredit')?.value||0);
+  const docDate = document.getElementById('edDate')?.value;
+  if (days>0 && docDate) {
+    const due = new Date(docDate);
+    due.setDate(due.getDate()+days);
+    document.getElementById('edDue').value = due.toISOString().slice(0,10);
+  }
+}
+async function saveExpenseDoc(docId) {
+  const rows = document.querySelectorAll('#edItemsBody tr');
+  const items = [];
+  rows.forEach(row => {
+    const desc = row.querySelector('.ed-desc')?.value?.trim();
+    const qty = parseFloat(row.querySelector('.ed-qty')?.value||1);
+    const unit = row.querySelector('.ed-unit')?.value||'';
+    const price = parseFloat(row.querySelector('.ed-price')?.value||0);
+    if (desc) items.push({description:desc, qty, unit, unit_price:price});
+  });
+  if (!items.length) { toast('กรุณาเพิ่มรายการอย่างน้อย 1 รายการ','error'); return; }
+  const body = {
+    branch_id: parseInt(document.getElementById('edBranch').value),
+    contact_id: document.getElementById('edContact').value || null,
+    contact_name: document.getElementById('edContactName').value,
+    contact_address: document.getElementById('edContactAddr').value,
+    contact_tax_id: document.getElementById('edContactTax').value,
+    doc_date: document.getElementById('edDate').value,
+    due_date: document.getElementById('edDue').value || null,
+    credit_days: parseInt(document.getElementById('edCredit').value)||0,
+    discount_pct: parseFloat(document.getElementById('edDiscPct').value)||0,
+    vat_pct: parseFloat(document.getElementById('edVatPct').value)||0,
+    withholding_tax: parseFloat(document.getElementById('edWHT').value)||0,
+    ref_no: document.getElementById('edRef').value,
+    note: document.getElementById('edNote').value,
+    internal_note: document.getElementById('edInternalNote').value,
+    items,
+  };
+  try {
+    const res = await api.post('/expense-docs', body);
+    // upload attachment
+    const file = document.getElementById('edFile')?.files[0];
+    if (file && res.id) {
+      const fd = new FormData(); fd.append('file', file);
+      await fetch(`/api/expense-docs/${res.id}/attachment`,{method:'POST',headers:{'Authorization':'Bearer '+api.tok()},body:fd});
+    }
+    toast(`บันทึกเอกสาร ${res.doc_no} เรียบร้อย`,'success');
+    CM(); loadExpenseDocs();
+  } catch(e) { toast(e.message,'error'); }
+}
+async function showExpenseDocDetail(id) {
+  try {
+    const d = await api.get('/expense-docs/'+id);
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:700px;padding:0">
+      <div style="background:var(--accent);color:#fff;padding:14px 20px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-size:15px;font-weight:700">🧾 ${fmt.docno(d.doc_no)}</div><div style="font-size:12px;opacity:.85">วันที่ ${fmt.d(d.doc_date)} | สาขา ${d.branch_code}</div></div>
+        <button onclick="CM()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:18px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+          <div style="background:var(--surface2);border-radius:7px;padding:12px"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">ผู้จำหน่าย</div><div style="font-weight:600">${d.contact_name||'-'}</div><div style="font-size:12px;color:var(--text-muted)">${d.contact_address||''}</div><div style="font-size:11px;color:var(--text-muted)">เลขภาษี: ${d.contact_tax_id||'-'}</div></div>
+          <div style="background:var(--surface2);border-radius:7px;padding:12px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:11px;color:var(--text-muted)">อ้างอิง</span><span style="font-size:12px">${d.ref_no||'-'}</span></div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:11px;color:var(--text-muted)">ครบกำหนด</span><span style="font-size:12px">${fmt.d(d.due_date)}</span></div><div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--text-muted)">เครดิต</span><span style="font-size:12px">${d.credit_days||0} วัน</span></div></div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:14px;border:1px solid var(--border);border-radius:7px;overflow:hidden">
+          <thead style="background:var(--surface2)"><tr><th style="padding:7px 10px;text-align:left;font-size:11px;color:var(--text-muted)">#</th><th style="padding:7px 10px;text-align:left;font-size:11px;color:var(--text-muted)">รายละเอียด</th><th style="padding:7px 10px;text-align:right;font-size:11px;color:var(--text-muted)">จำนวน</th><th style="padding:7px 10px;text-align:left;font-size:11px;color:var(--text-muted)">หน่วย</th><th style="padding:7px 10px;text-align:right;font-size:11px;color:var(--text-muted)">ราคา/หน่วย</th><th style="padding:7px 10px;text-align:right;font-size:11px;color:var(--text-muted)">รวม</th></tr></thead>
+          <tbody>${(d.items||[]).map((it,i)=>`<tr style="border-top:1px solid var(--border)"><td style="padding:8px 10px;color:var(--text-muted)">${i+1}</td><td style="padding:8px 10px">${it.description}</td><td style="padding:8px 10px;text-align:right">${it.qty}</td><td style="padding:8px 10px;color:var(--text-muted)">${it.unit||'-'}</td><td style="padding:8px 10px;text-align:right">${fmt.b(it.unit_price)}</td><td style="padding:8px 10px;text-align:right;font-weight:600">${fmt.b(it.subtotal)}</td></tr>`).join('')}</tbody>
+        </table>
+        <div style="display:flex;justify-content:flex-end"><div style="width:260px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px"><span>รวมเงิน</span><span>${fmt.b(d.subtotal)}</span></div>
+          ${d.discount_amt>0?`<div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px;color:var(--error)"><span>ส่วนลด ${d.discount_pct}%</span><span>-${fmt.b(d.discount_amt)}</span></div>`:''}
+          ${d.vat_amt>0?`<div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px;color:var(--info)"><span>VAT ${d.vat_pct}%</span><span>${fmt.b(d.vat_amt)}</span></div>`:''}
+          ${d.withholding_tax>0?`<div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px;color:var(--warning)"><span>หัก ณ ที่จ่าย</span><span>-${fmt.b(d.withholding_tax)}</span></div>`:''}
+          <div style="border-top:2px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:var(--accent)"><span>ยอดสุทธิ</span><span>${fmt.b(d.total)}</span></div>
+        </div></div>
+        ${d.note?`<div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:7px;font-size:13px"><span style="color:var(--text-muted)">หมายเหตุ:</span> ${d.note}</div>`:''}
+        ${d.attachment_url?`<div style="margin-top:10px"><a href="${d.attachment_url}" target="_blank" class="btn btn-info btn-sm">📎 ดูเอกสารแนบ</a></div>`:''}
+      </div>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// PAYROLL
+// ============================================================
+async function loadPayroll() {
+  try {
+    const data = await api.get('/payroll');
+    document.getElementById('payrollT').innerHTML = data.length ? data.map(p=>`<tr>
+      <td><strong>${p.name}</strong></td>
+      <td style="font-size:12px">${fmt.d(p.period_from)} — ${fmt.d(p.period_to)}</td>
+      <td>${fmt.d(p.payment_date)}</td>
+      <td style="text-align:center">${p.emp_count} คน</td>
+      <td style="font-weight:700;color:var(--accent)">${fmt.b(p.total_net)}</td>
+      <td>${p.status==='approved'?'<span class="badge bs">อนุมัติแล้ว</span>':'<span class="badge bw">รอดำเนินการ</span>'}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-primary btn-sm" onclick="showPayrollDetail(${p.id},'${p.name}')">จัดการ</button>
+        ${p.status!=='approved'?`<button class="btn btn-success btn-sm" onclick="approvePayroll(${p.id})">✅ อนุมัติ</button>`:''}
+      </td>
+    </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ยังไม่มีรายการ Payroll</td></tr>';
+  } catch(e) { console.error(e); }
+}
+
+function showCreatePayroll() {
+  const today = new Date().toISOString().slice(0,10);
+  const firstDay = today.slice(0,8)+'01';
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">💵 สร้าง Payroll ใหม่</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="display:grid;gap:10px">
+    <div><label class="lbl">ชื่องวด *</label><input type="text" class="ctrl" id="plName" value="เงินเดือน ${new Date().toLocaleDateString('th-TH',{month:'long',year:'numeric'})}" style="margin-top:4px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="lbl">จากวันที่</label><input type="date" class="ctrl" id="plFrom" value="${firstDay}" style="margin-top:4px"></div>
+      <div><label class="lbl">ถึงวันที่</label><input type="date" class="ctrl" id="plTo" value="${today}" style="margin-top:4px"></div>
+    </div>
+    <div><label class="lbl">วันที่จ่าย</label><input type="date" class="ctrl" id="plPayDate" value="${today}" style="margin-top:4px"></div>
+  </div>
+  <div style="background:var(--info-dim);border-radius:7px;padding:10px;margin-top:12px;font-size:12px;color:var(--info)">
+    💡 ระบบจะดึงพนักงาน Active ทั้งหมด และคำนวณประกันสังคม 5% (ไม่เกิน 750 บาท) อัตโนมัติ
+  </div>
+  <button class="btn btn-primary" onclick="submitCreatePayroll()" style="width:100%;margin-top:14px">สร้าง Payroll</button></div></div>`;
+}
+
+async function submitCreatePayroll() {
+  const body = { name:document.getElementById('plName').value, period_from:document.getElementById('plFrom').value, period_to:document.getElementById('plTo').value, payment_date:document.getElementById('plPayDate').value };
+  if (!body.name||!body.period_from||!body.period_to) { toast('กรุณากรอกข้อมูลให้ครบ','error'); return; }
+  try { const res = await api.post('/payroll',body); toast(`สร้าง Payroll เรียบร้อย (${res.emp_count} คน)`,'success'); CM(); loadPayroll(); } catch(e) { toast(e.message,'error'); }
+}
+
+async function approvePayroll(id) {
+  if (!confirm('ยืนยันการอนุมัติ Payroll นี้?')) return;
+  try { await api.post('/payroll/'+id+'/approve',{}); toast('อนุมัติเรียบร้อย','success'); loadPayroll(); } catch(e) { toast(e.message,'error'); }
+}
+
+async function showPayrollDetail(periodId, periodName) {
+  try {
+    const items = await api.get('/payroll/'+periodId+'/items');
+    const totalIncome = items.reduce((s,i)=>s+parseFloat(i.total_income||0),0);
+    const totalDeduct = items.reduce((s,i)=>s+parseFloat(i.total_deduct||0),0);
+    const totalNet = items.reduce((s,i)=>s+parseFloat(i.net_pay||0),0);
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:900px;padding:0">
+      <div style="background:var(--accent);color:#fff;padding:14px 20px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-size:15px;font-weight:700">💵 ${periodName}</div><div style="font-size:12px;opacity:.85">${items.length} คน | รวมสุทธิ ${fmt.b(totalNet)}</div></div>
+        <button onclick="CM()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:0">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-bottom:1px solid var(--border)">
+          <div style="padding:12px 16px;border-right:1px solid var(--border)"><div style="font-size:11px;color:var(--text-muted)">รวมรายได้</div><div style="font-size:18px;font-weight:700;color:var(--success)">${fmt.b(totalIncome)}</div></div>
+          <div style="padding:12px 16px;border-right:1px solid var(--border)"><div style="font-size:11px;color:var(--text-muted)">รวมรายการหัก</div><div style="font-size:18px;font-weight:700;color:var(--error)">${fmt.b(totalDeduct)}</div></div>
+          <div style="padding:12px 16px"><div style="font-size:11px;color:var(--text-muted)">รวมจ่ายสุทธิ</div><div style="font-size:18px;font-weight:700;color:var(--accent)">${fmt.b(totalNet)}</div></div>
+        </div>
+        <div style="overflow-y:auto;max-height:55vh">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="background:var(--surface2);position:sticky;top:0">
+              <tr>
+                <th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--text-muted)">พนักงาน</th>
+                <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-muted)">เงินเดือน</th>
+                <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-muted)">OT</th>
+                <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-muted)">โบนัส</th>
+                <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-muted)">รวมรายได้</th>
+                <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-muted)">ประกันสังคม</th>
+                <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-muted)">ภาษี</th>
+                <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-muted)">รวมหัก</th>
+                <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--text-muted);color:var(--accent)">สุทธิ</th>
+                <th style="padding:8px 10px"></th>
+              </tr>
+            </thead>
+            <tbody>${items.map(it=>`<tr style="border-top:1px solid var(--border)" id="plRow_${it.id}">
+              <td style="padding:8px 10px">
+                <div style="font-weight:600;font-size:13px">${it.full_name}${it.nickname?` <span style="font-size:11px;color:var(--text-muted)">(${it.nickname})</span>`:''}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${it.emp_code} | ${it.position||'-'}</div>
+                ${it.bank_account?`<div style="font-size:11px;color:var(--text-muted)">${it.bank_name||''} ${it.bank_account}</div>`:''}
+              </td>
+              <td style="padding:8px 10px;text-align:right;font-size:13px">${fmt.b(it.base_salary)}</td>
+              <td style="padding:8px 10px;text-align:right;font-size:13px;color:${it.overtime>0?'var(--success)':'var(--text-muted)'}">${it.overtime>0?fmt.b(it.overtime):'-'}</td>
+              <td style="padding:8px 10px;text-align:right;font-size:13px;color:${it.bonus>0?'var(--success)':'var(--text-muted)'}">${it.bonus>0?fmt.b(it.bonus):'-'}</td>
+              <td style="padding:8px 10px;text-align:right;font-weight:600;color:var(--success)">${fmt.b(it.total_income)}</td>
+              <td style="padding:8px 10px;text-align:right;font-size:13px;color:var(--warning)">${fmt.b(it.social_security)}</td>
+              <td style="padding:8px 10px;text-align:right;font-size:13px;color:var(--warning)">${it.withholding_tax>0?fmt.b(it.withholding_tax):'-'}</td>
+              <td style="padding:8px 10px;text-align:right;font-weight:600;color:var(--error)">${fmt.b(it.total_deduct)}</td>
+              <td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--accent);font-size:14px">${fmt.b(it.net_pay)}</td>
+              <td style="padding:8px 10px">
+                <button class="btn btn-secondary btn-sm" onclick='showEditPayItem(${JSON.stringify(it).replace(/'/g,"&#39;")},${periodId},"${periodName}")'>แก้ไข</button>
+                <button class="btn btn-info btn-sm" style="margin-top:3px" onclick="printPaySlip(${JSON.stringify(it).replace(/'/g,'&#39;')},'${periodName}')">🖨️ สลิป</button>
+              </td>
+            </tr>`).join('')}</tbody>
+          </table>
+        </div>
+      </div>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); console.error(e); }
+}
+
+function showEditPayItem(item, periodId, periodName) {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:500px"><div class="mh"><div class="mt">✏️ แก้ไขรายการ: ${item.full_name}</div><button class="mc" onclick="showPayrollDetail(${periodId},'${periodName}')">← กลับ</button></div>
+  <div style="background:var(--surface2);border-radius:7px;padding:10px;margin-bottom:14px;font-size:13px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div><span style="color:var(--text-muted)">ตำแหน่ง:</span> ${item.position||'-'}</div>
+      <div><span style="color:var(--text-muted)">ธนาคาร:</span> ${item.bank_name||'-'} ${item.bank_account||''}</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+    <div style="grid-column:1/-1;background:var(--success-dim);border-radius:7px;padding:10px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">รายได้</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+        <div><label class="lbl">เงินเดือนฐาน</label><input type="number" class="ctrl" id="piBase" value="${item.base_salary}" readonly style="margin-top:3px;background:var(--surface3)"></div>
+        <div><label class="lbl">OT / ค่าล่วงเวลา</label><input type="number" class="ctrl" id="piOT" value="${item.overtime||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">โบนัส</label><input type="number" class="ctrl" id="piBonus" value="${item.bonus||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">ค่านายหน้า</label><input type="number" class="ctrl" id="piComm" value="${item.commission||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">ค่าเบี้ยเลี้ยง</label><input type="number" class="ctrl" id="piAllow" value="${item.allowance||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">รายได้อื่นๆ</label><input type="number" class="ctrl" id="piOther" value="${item.other_income||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+      </div>
+    </div>
+    <div style="grid-column:1/-1;background:var(--error-dim);border-radius:7px;padding:10px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">รายการหัก</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+        <div><label class="lbl">ประกันสังคม</label><input type="number" class="ctrl" id="piSS" value="${item.social_security||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">ภาษี ณ ที่จ่าย</label><input type="number" class="ctrl" id="piTax" value="${item.withholding_tax||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">กองทุนกู้ยืม</label><input type="number" class="ctrl" id="piLoan" value="${item.student_loan||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">หัก ขาด/ลา/มาสาย</label><input type="number" class="ctrl" id="piAbsent" value="${item.absent_deduct||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">เงินประกัน</label><input type="number" class="ctrl" id="piDeposit" value="${item.deposit||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">รายการหักอื่นๆ</label><input type="number" class="ctrl" id="piOtherD" value="${item.other_deduct||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+      </div>
+    </div>
+  </div>
+  <div style="background:var(--accent-dim);border-radius:7px;padding:12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:14px;font-weight:600">เงินได้สุทธิ</span>
+    <span id="piNetDisplay" style="font-size:22px;font-weight:700;color:var(--accent)">${fmt.b(item.net_pay)}</span>
+  </div>
+  <div><label class="lbl">หมายเหตุ</label><input type="text" class="ctrl" id="piNote" value="${item.note||''}" style="margin-top:4px"></div>
+  <button class="btn btn-primary" onclick="savePayItem(${item.id},${periodId},'${periodName}')" style="width:100%;margin-top:14px">💾 บันทึก</button>
+  </div></div>`;
+}
+
+function calcPayItemTotal() {
+  const g = id => parseFloat(document.getElementById(id)?.value||0);
+  const base = g('piBase');
+  const income = base + g('piOT') + g('piBonus') + g('piComm') + g('piAllow') + g('piOther');
+  const deduct = g('piSS') + g('piTax') + g('piLoan') + g('piAbsent') + g('piDeposit') + g('piOtherD');
+  const net = income - deduct;
+  const el = document.getElementById('piNetDisplay');
+  if (el) { el.textContent = fmt.b(net); el.style.color = net < 0 ? 'var(--error)' : 'var(--accent)'; }
+}
+
+async function savePayItem(itemId, periodId, periodName) {
+  const g = id => parseFloat(document.getElementById(id)?.value||0);
+  const body = { overtime:g('piOT'), bonus:g('piBonus'), commission:g('piComm'), allowance:g('piAllow'), other_income:g('piOther'), withholding_tax:g('piTax'), student_loan:g('piLoan'), absent_deduct:g('piAbsent'), other_deduct:g('piOtherD'), deposit:g('piDeposit'), note:document.getElementById('piNote')?.value||'' };
+  try { await api.put(`/payroll/${periodId}/items/${itemId}`,body); toast('บันทึกเรียบร้อย','success'); showPayrollDetail(periodId,periodName); } catch(e) { toast(e.message,'error'); }
+}
+
+function printPaySlip(item, periodName) {
+  const win = window.open('','_blank','width=800,height:600');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>สลิปเงินเดือน</title>
+  <style>body{font-family:'Sarabun',sans-serif;font-size:13px;color:#333;margin:0;padding:20px}
+  .slip{max-width:700px;margin:0 auto;border:1px solid #ddd;border-radius:8px;overflow:hidden}
+  .slip-header{background:#e67e00;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+  .slip-header h1{font-size:18px;margin:0}
+  .slip-header .sub{font-size:12px;opacity:.85}
+  .slip-body{padding:16px 20px}
+  .emp-info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;padding:12px;background:#f9f9f9;border-radius:6px}
+  .emp-info .lbl{font-size:11px;color:#888}
+  .emp-info .val{font-weight:600}
+  table{width:100%;border-collapse:collapse;margin-bottom:16px}
+  th{background:#f0f0f0;padding:7px 10px;text-align:left;font-size:12px;color:#666}
+  td{padding:7px 10px;border-bottom:1px solid #eee;font-size:13px}
+  .total-row{font-weight:700;background:#fff8f0}
+  .net{background:#e67e00;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;font-size:16px;font-weight:700}
+  .footer{padding:12px 20px;font-size:11px;color:#888;border-top:1px solid #eee;text-align:center}
+  @media print{body{padding:0}.slip{border:none;border-radius:0}}
+  </style></head><body>
+  <div class="slip">
+    <div class="slip-header">
+      <div><h1>สลิปเงินเดือน / Pay Slip</h1><div class="sub">${periodName}</div></div>
+      <div style="text-align:right"><div style="font-size:20px">🥚 Egg Station</div><div class="sub">วันที่จ่าย: ${fmt.d(new Date().toISOString().slice(0,10))}</div></div>
+    </div>
+    <div class="slip-body">
+      <div class="emp-info">
+        <div><div class="lbl">ชื่อพนักงาน (รหัส)</div><div class="val">${item.full_name} (${item.emp_code})</div></div>
+        <div><div class="lbl">ตำแหน่ง</div><div class="val">${item.position||'-'}</div></div>
+        <div><div class="lbl">บัญชีธนาคาร</div><div class="val">${item.bank_name||'-'} ${item.bank_account||''}</div></div>
+        <div><div class="lbl">งวดเงินเดือน</div><div class="val">${periodName}</div></div>
+      </div>
+      <table>
+        <tr><th colspan="2">รายได้ (Earnings)</th><th colspan="2">รายการหัก (Deductions)</th></tr>
+        <tr><td>เงินเดือน/ค่าจ้าง</td><td style="text-align:right">${parseFloat(item.base_salary).toLocaleString('th-TH',{minimumFractionDigits:2})}</td><td>ประกันสังคม</td><td style="text-align:right">${parseFloat(item.social_security||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td></tr>
+        <tr><td>ค่าล่วงเวลา</td><td style="text-align:right">${parseFloat(item.overtime||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td><td>ภาษี ณ ที่จ่าย</td><td style="text-align:right">${parseFloat(item.withholding_tax||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td></tr>
+        <tr><td>โบนัส</td><td style="text-align:right">${parseFloat(item.bonus||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td><td>กองทุนกู้ยืม</td><td style="text-align:right">${parseFloat(item.student_loan||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td></tr>
+        <tr><td>ค่าเบี้ยเลี้ยง</td><td style="text-align:right">${parseFloat(item.allowance||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td><td>หัก ขาด/ลา/มาสาย</td><td style="text-align:right">${parseFloat(item.absent_deduct||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td></tr>
+        <tr><td>รายได้อื่นๆ</td><td style="text-align:right">${parseFloat(item.other_income||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td><td>รายการหักอื่นๆ</td><td style="text-align:right">${parseFloat(item.other_deduct||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td></tr>
+        <tr class="total-row"><td><strong>รวมรายได้</strong></td><td style="text-align:right"><strong>${parseFloat(item.total_income||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</strong></td><td><strong>รวมรายการหัก</strong></td><td style="text-align:right"><strong>${parseFloat(item.total_deduct||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</strong></td></tr>
+      </table>
+    </div>
+    <div class="net"><span>เงินได้สุทธิ / Net Pay</span><span>${parseFloat(item.net_pay||0).toLocaleString('th-TH',{minimumFractionDigits:2})} บาท</span></div>
+    <div class="footer">เงินเดือนและค่าจ้างเป็นความลับ ห้ามเปิดเผย • Salary and wages are confidential<br>ลายเซ็นผู้จ่าย: ________________________</div>
+  </div>
+  <div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:10px 24px;background:#e67e00;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer">🖨️ พิมพ์สลิป</button></div>
+  </body></html>`);
+  win.document.close();
 }
 
 const t=localStorage.getItem('es_token'),u=localStorage.getItem('es_user');
