@@ -195,6 +195,98 @@ async function initSchema() {
     // add doc_sequence for debit/credit note
     await pool.query(`INSERT INTO doc_sequences (doc_type, prefix) VALUES ('debit_note','DN'),('credit_note','CN') ON CONFLICT (doc_type) DO NOTHING`);
 
+    // PAYROLL TABLES
+    await pool.query(`CREATE TABLE IF NOT EXISTS payroll_periods (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      period_from DATE NOT NULL,
+      period_to DATE NOT NULL,
+      payment_date DATE,
+      status VARCHAR(20) DEFAULT 'draft',
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS payroll_items (
+      id SERIAL PRIMARY KEY,
+      period_id INTEGER REFERENCES payroll_periods(id) ON DELETE CASCADE,
+      employee_id INTEGER REFERENCES employees(id),
+      base_salary NUMERIC(10,2) DEFAULT 0,
+      overtime NUMERIC(10,2) DEFAULT 0,
+      bonus NUMERIC(10,2) DEFAULT 0,
+      commission NUMERIC(10,2) DEFAULT 0,
+      allowance NUMERIC(10,2) DEFAULT 0,
+      other_income NUMERIC(10,2) DEFAULT 0,
+      social_security NUMERIC(10,2) DEFAULT 0,
+      withholding_tax NUMERIC(10,2) DEFAULT 0,
+      student_loan NUMERIC(10,2) DEFAULT 0,
+      absent_deduct NUMERIC(10,2) DEFAULT 0,
+      other_deduct NUMERIC(10,2) DEFAULT 0,
+      deposit NUMERIC(10,2) DEFAULT 0,
+      total_income NUMERIC(10,2) DEFAULT 0,
+      total_deduct NUMERIC(10,2) DEFAULT 0,
+      net_pay NUMERIC(10,2) DEFAULT 0,
+      note TEXT,
+      status VARCHAR(20) DEFAULT 'pending'
+    )`);
+
+    // EXPENSE DOCUMENTS (ค่าใช้จ่ายแบบ document)
+    await pool.query(`CREATE TABLE IF NOT EXISTS expense_docs (
+      id SERIAL PRIMARY KEY,
+      doc_no VARCHAR(30) UNIQUE NOT NULL,
+      branch_id INTEGER REFERENCES branches(id),
+      contact_id INTEGER REFERENCES contacts(id),
+      contact_name TEXT,
+      contact_address TEXT,
+      contact_tax_id VARCHAR(20),
+      doc_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      due_date DATE,
+      credit_days INTEGER DEFAULT 0,
+      subtotal NUMERIC(10,2) DEFAULT 0,
+      discount_pct NUMERIC(5,2) DEFAULT 0,
+      discount_amt NUMERIC(10,2) DEFAULT 0,
+      after_discount NUMERIC(10,2) DEFAULT 0,
+      vat_pct NUMERIC(5,2) DEFAULT 0,
+      vat_amt NUMERIC(10,2) DEFAULT 0,
+      withholding_tax NUMERIC(10,2) DEFAULT 0,
+      total NUMERIC(10,2) DEFAULT 0,
+      ref_no TEXT,
+      note TEXT,
+      internal_note TEXT,
+      attachment_url TEXT,
+      status VARCHAR(20) DEFAULT 'draft',
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS contact_name TEXT`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS contact_address TEXT`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS contact_tax_id VARCHAR(20)`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS credit_days INTEGER DEFAULT 0`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS due_date DATE`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS discount_pct NUMERIC(5,2) DEFAULT 0`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS after_discount NUMERIC(10,2) DEFAULT 0`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS vat_pct NUMERIC(5,2) DEFAULT 0`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS vat_amt NUMERIC(10,2) DEFAULT 0`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS ref_no TEXT`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS internal_note TEXT`);
+    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS attachment_url TEXT`);
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS expense_doc_items (
+      id SERIAL PRIMARY KEY,
+      doc_id INTEGER REFERENCES expense_docs(id) ON DELETE CASCADE,
+      item_no INTEGER DEFAULT 1,
+      description TEXT NOT NULL,
+      product_id INTEGER REFERENCES products(id),
+      qty NUMERIC(10,4) DEFAULT 1,
+      unit VARCHAR(50),
+      unit_price NUMERIC(10,4) DEFAULT 0,
+      subtotal NUMERIC(10,2) DEFAULT 0
+    )`);
+
+    // doc sequence for expense
+    await pool.query(`INSERT INTO doc_sequences (doc_type,prefix) VALUES ('expense_doc','EXP') ON CONFLICT (doc_type) DO NOTHING`);
+    await pool.query(`INSERT INTO doc_sequences (doc_type,prefix) VALUES ('payroll','PAY') ON CONFLICT (doc_type) DO NOTHING`);
+
     // admin user
     const userCheck = await pool.query(`SELECT id FROM users WHERE username='admin'`);
     if (userCheck.rows.length === 0) {
@@ -844,6 +936,124 @@ app.post('/api/employees/:id/doc', auth, role('owner','admin'), upload.single('d
   if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
   await pool.query('UPDATE employees SET doc_url=$1 WHERE id=$2', ['/uploads/'+req.file.filename, req.params.id]);
   res.json({ message: 'อัพโหลดเอกสารเรียบร้อย', url: '/uploads/'+req.file.filename });
+});
+
+// ============================================================
+// EXPENSE DOCS API
+// ============================================================
+app.get('/api/expense-docs', auth, async (req, res) => {
+  const r = await pool.query(`SELECT ed.*,b.code AS branch_code,c.business_name,c.contact_name AS ct_name
+    FROM expense_docs ed JOIN branches b ON ed.branch_id=b.id
+    LEFT JOIN contacts c ON ed.contact_id=c.id
+    ORDER BY ed.created_at DESC`);
+  res.json(r.rows);
+});
+
+app.get('/api/expense-docs/:id', auth, async (req, res) => {
+  const doc = await pool.query(`SELECT ed.*,b.code AS branch_code FROM expense_docs ed JOIN branches b ON ed.branch_id=b.id WHERE ed.id=$1`,[req.params.id]);
+  const items = await pool.query('SELECT * FROM expense_doc_items WHERE doc_id=$1 ORDER BY item_no',[req.params.id]);
+  if (!doc.rows[0]) return res.status(404).json({error:'ไม่พบเอกสาร'});
+  res.json({...doc.rows[0], items: items.rows});
+});
+
+app.post('/api/expense-docs', auth, async (req, res) => {
+  const { branch_id, contact_id, contact_name, contact_address, contact_tax_id, doc_date, due_date, credit_days, items, discount_pct, vat_pct, withholding_tax, ref_no, note, internal_note } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const branchR = await client.query('SELECT code FROM branches WHERE id=$1',[branch_id]);
+    const docNo = await genDocNo('expense_doc', branchR.rows[0]?.code||'');
+    let subtotal = 0;
+    (items||[]).forEach(i => subtotal += parseFloat(i.qty||1) * parseFloat(i.unit_price||0));
+    const discAmt = subtotal * (parseFloat(discount_pct)||0) / 100;
+    const afterDisc = subtotal - discAmt;
+    const vatAmt = afterDisc * (parseFloat(vat_pct)||0) / 100;
+    const wht = parseFloat(withholding_tax)||0;
+    const total = afterDisc + vatAmt - wht;
+    const r = await client.query(`INSERT INTO expense_docs
+      (doc_no,branch_id,contact_id,contact_name,contact_address,contact_tax_id,doc_date,due_date,credit_days,subtotal,discount_pct,discount_amt,after_discount,vat_pct,vat_amt,withholding_tax,total,ref_no,note,internal_note,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING id`,
+      [docNo,branch_id,contact_id||null,contact_name||null,contact_address||null,contact_tax_id||null,
+       doc_date||new Date().toISOString().slice(0,10),due_date||null,credit_days||0,
+       subtotal,discount_pct||0,discAmt,afterDisc,vat_pct||0,vatAmt,wht,total,
+       ref_no||null,note||null,internal_note||null,req.user.id]);
+    const docId = r.rows[0].id;
+    for (let i=0; i<(items||[]).length; i++) {
+      const item = items[i];
+      const st = parseFloat(item.qty||1)*parseFloat(item.unit_price||0);
+      await client.query('INSERT INTO expense_doc_items (doc_id,item_no,description,product_id,qty,unit,unit_price,subtotal) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [docId,i+1,item.description,item.product_id||null,item.qty||1,item.unit||'',item.unit_price||0,st]);
+    }
+    await client.query('COMMIT');
+    res.status(201).json({message:'สร้างเอกสารเรียบร้อย',doc_no:docNo,id:docId});
+  } catch(e){await client.query('ROLLBACK');console.error(e);res.status(500).json({error:'เกิดข้อผิดพลาด'});}
+  finally{client.release();}
+});
+
+app.post('/api/expense-docs/:id/attachment', auth, upload.single('file'), async (req,res) => {
+  if (!req.file) return res.status(400).json({error:'กรุณาเลือกไฟล์'});
+  await pool.query('UPDATE expense_docs SET attachment_url=$1 WHERE id=$2',['/uploads/'+req.file.filename,req.params.id]);
+  res.json({message:'อัพโหลดเรียบร้อย',url:'/uploads/'+req.file.filename});
+});
+
+// ============================================================
+// PAYROLL API
+// ============================================================
+app.get('/api/payroll', auth, role('owner','admin'), async (req, res) => {
+  const r = await pool.query(`SELECT pp.*,u.full_name AS created_by_name,
+    (SELECT COUNT(*) FROM payroll_items WHERE period_id=pp.id) AS emp_count,
+    (SELECT COALESCE(SUM(net_pay),0) FROM payroll_items WHERE period_id=pp.id) AS total_net
+    FROM payroll_periods pp LEFT JOIN users u ON pp.created_by=u.id
+    ORDER BY pp.created_at DESC`);
+  res.json(r.rows);
+});
+
+app.post('/api/payroll', auth, role('owner','admin'), async (req, res) => {
+  const { name, period_from, period_to, payment_date } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const pp = await client.query(`INSERT INTO payroll_periods (name,period_from,period_to,payment_date,created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [name, period_from, period_to, payment_date||null, req.user.id]);
+    const periodId = pp.rows[0].id;
+    // ดึงพนักงาน active ทั้งหมด + เพิ่มเข้า payroll
+    const emps = await client.query(`SELECT * FROM employees WHERE active=true`);
+    for (const e of emps.rows) {
+      const base = parseFloat(e.salary)||0;
+      const ss = Math.min(base*0.05, 750); // ประกันสังคม 5% ไม่เกิน 750
+      await client.query(`INSERT INTO payroll_items (period_id,employee_id,base_salary,social_security,total_income,total_deduct,net_pay)
+        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [periodId, e.id, base, ss, base, ss, base-ss]);
+    }
+    await client.query('COMMIT');
+    res.status(201).json({message:'สร้าง Payroll เรียบร้อย', id: periodId, emp_count: emps.rows.length});
+  } catch(e){await client.query('ROLLBACK');console.error(e);res.status(500).json({error:'เกิดข้อผิดพลาด'});}
+  finally{client.release();}
+});
+
+app.get('/api/payroll/:id/items', auth, role('owner','admin'), async (req, res) => {
+  const r = await pool.query(`SELECT pi.*,e.full_name,e.nickname,e.code AS emp_code,e.position,e.bank_name,e.bank_account
+    FROM payroll_items pi JOIN employees e ON pi.employee_id=e.id
+    WHERE pi.period_id=$1 ORDER BY e.full_name`, [req.params.id]);
+  res.json(r.rows);
+});
+
+app.put('/api/payroll/:periodId/items/:itemId', auth, role('owner','admin'), async (req, res) => {
+  const { overtime, bonus, commission, allowance, other_income, withholding_tax, student_loan, absent_deduct, other_deduct, deposit, note } = req.body;
+  const item = await pool.query('SELECT * FROM payroll_items WHERE id=$1', [req.params.itemId]);
+  const it = item.rows[0];
+  const totalIncome = parseFloat(it.base_salary)+parseFloat(overtime||0)+parseFloat(bonus||0)+parseFloat(commission||0)+parseFloat(allowance||0)+parseFloat(other_income||0);
+  const totalDeduct = parseFloat(it.social_security)+parseFloat(withholding_tax||0)+parseFloat(student_loan||0)+parseFloat(absent_deduct||0)+parseFloat(other_deduct||0)+parseFloat(deposit||0);
+  const netPay = totalIncome - totalDeduct;
+  await pool.query(`UPDATE payroll_items SET overtime=$1,bonus=$2,commission=$3,allowance=$4,other_income=$5,withholding_tax=$6,student_loan=$7,absent_deduct=$8,other_deduct=$9,deposit=$10,note=$11,total_income=$12,total_deduct=$13,net_pay=$14 WHERE id=$15`,
+    [overtime||0,bonus||0,commission||0,allowance||0,other_income||0,withholding_tax||0,student_loan||0,absent_deduct||0,other_deduct||0,deposit||0,note,totalIncome,totalDeduct,netPay,req.params.itemId]);
+  res.json({message:'อัพเดทเรียบร้อย',net_pay:netPay});
+});
+
+app.post('/api/payroll/:id/approve', auth, role('owner','admin'), async (req, res) => {
+  await pool.query(`UPDATE payroll_periods SET status='approved' WHERE id=$1`, [req.params.id]);
+  await pool.query(`UPDATE payroll_items SET status='approved' WHERE period_id=$1`, [req.params.id]);
+  res.json({message:'อนุมัติ Payroll เรียบร้อย'});
 });
 
 // REPORTS
