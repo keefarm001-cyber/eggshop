@@ -157,14 +157,39 @@ async function initSchema() {
       code VARCHAR(20) UNIQUE,
       full_name VARCHAR(100) NOT NULL,
       nickname VARCHAR(50),
+      national_id VARCHAR(20),
       phone VARCHAR(20),
+      email VARCHAR(150),
+      address TEXT,
       branch_id INTEGER REFERENCES branches(id),
       position VARCHAR(100),
       start_date DATE,
+      probation_end_date DATE,
       salary NUMERIC(10,2),
+      salary_base NUMERIC(10,2),
+      bank_name VARCHAR(100),
+      bank_account VARCHAR(50),
+      education TEXT,
+      work_history TEXT,
+      emergency_contact TEXT,
+      photo_url TEXT,
+      doc_url TEXT,
       active BOOLEAN DEFAULT true,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
+    -- เพิ่ม columns ใหม่ถ้ายังไม่มี
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS national_id VARCHAR(20)`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS email VARCHAR(150)`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS address TEXT`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS probation_end_date DATE`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS salary_base NUMERIC(10,2)`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_account VARCHAR(50)`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS education TEXT`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS work_history TEXT`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS emergency_contact TEXT`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_url TEXT`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS doc_url TEXT`);
 
     // debt_notes already in schema
     // add doc_sequence for debit/credit note
@@ -801,10 +826,24 @@ app.post('/api/employees', auth, role('owner','admin'), async (req, res) => {
   } catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
 });
 app.put('/api/employees/:id', auth, role('owner','admin'), async (req, res) => {
-  const { full_name, nickname, phone, branch_id, position, start_date, salary, active } = req.body;
-  await pool.query(`UPDATE employees SET full_name=$1,nickname=$2,phone=$3,branch_id=$4,position=$5,start_date=$6,salary=$7,active=$8 WHERE id=$9`,
-    [full_name, nickname, phone, branch_id||null, position, start_date||null, salary||null, active, req.params.id]);
+  const { full_name, nickname, national_id, phone, email, address, branch_id, position, start_date, probation_end_date, salary, salary_base, bank_name, bank_account, education, work_history, emergency_contact, active } = req.body;
+  await pool.query(`UPDATE employees SET full_name=$1,nickname=$2,national_id=$3,phone=$4,email=$5,address=$6,branch_id=$7,position=$8,start_date=$9,probation_end_date=$10,salary=$11,salary_base=$12,bank_name=$13,bank_account=$14,education=$15,work_history=$16,emergency_contact=$17,active=$18 WHERE id=$19`,
+    [full_name, nickname, national_id, phone, email, address, branch_id||null, position, start_date||null, probation_end_date||null, salary||null, salary_base||null, bank_name, bank_account, education, work_history, emergency_contact, active, req.params.id]);
   res.json({ message: 'แก้ไขเรียบร้อย' });
+});
+
+// Upload รูปพนักงาน
+app.post('/api/employees/:id/photo', auth, role('owner','admin'), upload.single('photo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกรูป' });
+  await pool.query('UPDATE employees SET photo_url=$1 WHERE id=$2', ['/uploads/'+req.file.filename, req.params.id]);
+  res.json({ message: 'อัพโหลดรูปเรียบร้อย', url: '/uploads/'+req.file.filename });
+});
+
+// Upload เอกสารพนักงาน
+app.post('/api/employees/:id/doc', auth, role('owner','admin'), upload.single('doc'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
+  await pool.query('UPDATE employees SET doc_url=$1 WHERE id=$2', ['/uploads/'+req.file.filename, req.params.id]);
+  res.json({ message: 'อัพโหลดเอกสารเรียบร้อย', url: '/uploads/'+req.file.filename });
 });
 
 // REPORTS
