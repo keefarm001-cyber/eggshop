@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 3000;
 // ============================================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+ssl: false
 });
 
 // ============================================================
@@ -27,7 +27,7 @@ async function initSchema() {
     await pool.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS branches (
+      CREATE TABLE IF NOT EXIT branches (
         id SERIAL PRIMARY KEY,
         code VARCHAR(10) UNIQUE NOT NULL,
         name VARCHAR(100) NOT NULL,
