@@ -16,8 +16,8 @@
 .finput{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:7px;padding:10px 13px;color:var(--text);font-family:'Sarabun',sans-serif;font-size:15px;outline:none;transition:border-color .2s}.finput:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}.finput::placeholder{color:var(--text-dim)}
 .btn-login{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;transition:background .2s}.btn-login:hover{background:var(--accent2)}.btn-login:disabled{opacity:.6;cursor:not-allowed}
 .err-box{background:var(--error-dim);border:1px solid var(--error-border);color:var(--error);border-radius:7px;padding:9px 13px;font-size:13px;margin-bottom:12px;display:none}.err-box.show{display:block}
-#appPage{display:none;height:100vh}
-.app-layout{display:flex;height:100vh;overflow:hidden;width:100%}
+#appPage{display:none;height:100vh;width:100%;overflow:hidden}
+.app-layout{display:flex;height:100vh;width:100%;overflow:hidden;position:relative}
 #sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;box-shadow:var(--shadow)}
 .nav-brand{display:flex;align-items:center;gap:8px;padding:16px 14px;font-size:16px;font-weight:700;color:var(--accent);border-bottom:1px solid var(--border)}
 .nav-branch{padding:6px 14px;font-size:11px;color:var(--text-muted);background:var(--surface2);border-bottom:1px solid var(--border);font-family:'IBM Plex Mono',monospace}
@@ -28,9 +28,9 @@
 .nav-user{padding:12px 14px;border-top:1px solid var(--border);background:var(--surface2)}.nav-user-name{font-size:13px;font-weight:600}.nav-user-role{font-size:11px;color:var(--text-muted);margin-bottom:7px}
 .btn-logout{width:100%;padding:6px;background:var(--surface);border:1px solid var(--border);color:var(--text-muted);border-radius:6px;font-size:12px;cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .15s}.btn-logout:hover{background:var(--error-dim);color:var(--error);border-color:var(--error-border)}
 .main-content{flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;width:100%}
-.page{display:none;flex:1;flex-direction:column;min-height:0;overflow:hidden}.page.active{display:flex}
+.page{display:none;flex:1;flex-direction:column;min-height:0;overflow:hidden;width:100%}.page.active{display:flex}
 .ph{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface)}.pt{font-size:17px;font-weight:700}
-.pb{flex:1;padding:18px 22px;overflow-y:auto;min-height:0}
+.pb{flex:1;padding:18px 22px;overflow-y:auto;min-height:0;width:100%}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}.ct{font-size:14px;font-weight:600;margin-bottom:12px}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 15px;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
 .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
@@ -118,7 +118,7 @@ table{width:100%;border-collapse:collapse}thead{background:var(--surface2)}th{pa
 
       <div class="page" id="page-debt-notes"><div class="ph"><div class="pt">📋 ใบลดหนี้ / ใบเพิ่มหนี้</div><button class="btn btn-primary" onclick="showDebtNoteModal()">+ สร้างเอกสาร</button></div><div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>ประเภท</th><th>วันที่</th><th>ลูกค้า</th><th>อ้างอิงใบแจ้งหนี้</th><th>จำนวน</th><th>เหตุผล</th></tr></thead><tbody id="debtT"></tbody></table></div></div></div>
 
-      <div class="page" id="page-employees"><div class="ph"><div class="pt">👔 รายชื่อพนักงาน</div><button class="btn btn-primary" onclick="showEmployeeModal()">+ เพิ่มพนักงาน</button></div><div class="pb"><div class="card"><table><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ชื่อเล่น</th><th>ตำแหน่ง</th><th>สาขา</th><th>เบอร์โทร</th><th>เริ่มงาน</th><th></th></tr></thead><tbody id="empT"></tbody></table></div></div></div>
+      <div class="page" id="page-employees"><div class="ph"><div><div class="pt">👔 รายชื่อพนักงาน</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px">ตั้งค่าสิทธิ์การใช้งานระบบ → เมนู ผู้ใช้งาน</div></div><div style="display:flex;gap:7px"><button class="btn btn-secondary" onclick="showPage('users')">⚙️ ตั้งค่าสิทธิ์ระบบ</button><button class="btn btn-primary" onclick="showEmployeeModal()">+ เพิ่มพนักงาน</button></div></div><div class="pb"><div class="card"><table><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>สาขา</th><th>เบอร์โทร</th><th>เริ่มงาน</th><th>ผ่านโปร</th><th></th></tr></thead><tbody id="empT"></tbody></table></div></div></div>
     </div>
   </div>
 </div>
@@ -326,19 +326,36 @@ async function loadExpenses() {
   } catch(e) {}
 }
 async function showExpenseModal() {
-  const cats = await api.get('/expense-categories');
-  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">💰 เพิ่มค่าใช้จ่าย</div><button class="mc" onclick="CM()">✕</button></div>
-  <div style="display:grid;gap:10px">
-    <div><label class="lbl">สาขา</label><select class="ctrl" id="exBr" style="margin-top:4px">${branches.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
-    <div><label class="lbl">หมวดหมู่</label><select class="ctrl" id="exCat" style="margin-top:4px">${cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div><label class="lbl">จำนวนเงิน (บาท) *</label><input type="number" class="ctrl" id="exAmt" value="0" min="0" step="0.01" style="margin-top:4px"></div>
-      <div><label class="lbl">หัก ณ ที่จ่าย (บาท)</label><input type="number" class="ctrl" id="exWHT" value="0" min="0" step="0.01" style="margin-top:4px"></div>
+  try {
+    const [cats, brs] = await Promise.all([api.get('/expense-categories'), api.get('/branches')]);
+    if (!brs.length) { toast('ไม่พบข้อมูลสาขา','error'); return; }
+    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">💰 เพิ่มค่าใช้จ่าย</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:10px">
+      <div><label class="lbl">สาขา *</label><select class="ctrl" id="exBr" style="margin-top:4px">${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
+      <div><label class="lbl">หมวดหมู่ *</label>
+        <div style="display:flex;gap:6px;margin-top:4px">
+          <select class="ctrl" id="exCat">${cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}</select>
+          <button class="btn btn-secondary btn-sm" onclick="addExpCat()" style="white-space:nowrap">+ เพิ่มหมวด</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label class="lbl">จำนวนเงิน (บาท) *</label><input type="number" class="ctrl" id="exAmt" value="0" min="0" step="0.01" style="margin-top:4px" placeholder="0.00"></div>
+        <div><label class="lbl">หัก ณ ที่จ่าย (บาท)</label><input type="number" class="ctrl" id="exWHT" value="0" min="0" step="0.01" style="margin-top:4px" placeholder="0.00"></div>
+      </div>
+      <div><label class="lbl">วันที่</label><input type="date" class="ctrl" id="exDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px"></div>
+      <div><label class="lbl">หมายเหตุ</label><input type="text" class="ctrl" id="exNote" style="margin-top:4px" placeholder="รายละเอียดค่าใช้จ่าย"></div>
     </div>
-    <div><label class="lbl">วันที่</label><input type="date" class="ctrl" id="exDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px"></div>
-    <div><label class="lbl">หมายเหตุ</label><input type="text" class="ctrl" id="exNote" style="margin-top:4px"></div>
-  </div>
-  <button class="btn btn-primary" onclick="saveExpense()" style="width:100%;margin-top:14px">บันทึก</button></div></div>`;
+    <button class="btn btn-primary" onclick="saveExpense()" style="width:100%;margin-top:14px">💾 บันทึกค่าใช้จ่าย</button></div></div>`;
+  } catch(e) { toast('เกิดข้อผิดพลาด: '+e.message,'error'); }
+}
+async function addExpCat() {
+  const name = prompt('ชื่อหมวดหมู่ใหม่:');
+  if (!name) return;
+  try {
+    await api.post('/expense-categories', { name });
+    toast('เพิ่มหมวดหมู่เรียบร้อย','success');
+    showExpenseModal();
+  } catch(e) { toast(e.message,'error'); }
 }
 async function saveExpense() {
   const body={branch_id:parseInt(document.getElementById('exBr').value),category_id:parseInt(document.getElementById('exCat').value),amount:parseFloat(document.getElementById('exAmt').value),withholding_tax:parseFloat(document.getElementById('exWHT').value)||0,expense_date:document.getElementById('exDate').value,note:document.getElementById('exNote').value};
@@ -367,12 +384,13 @@ async function loadPromos() {
   } catch(e) {}
 }
 async function showPromoModal() {
-  const products = await api.get('/products');
-  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:560px"><div class="mh"><div class="mt">🎁 เพิ่มโปรโมชั่น</div><button class="mc" onclick="CM()">✕</button></div>
+  try {
+    const [products, brs] = await Promise.all([api.get('/products'), api.get('/branches')]);
+    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:560px"><div class="mh"><div class="mt">🎁 เพิ่มโปรโมชั่น</div><button class="mc" onclick="CM()">✕</button></div>
   <div style="display:grid;gap:10px">
-    <div><label class="lbl">ชื่อโปรโมชั่น *</label><input type="text" class="ctrl" id="pmName" style="margin-top:4px"></div>
+    <div><label class="lbl">ชื่อโปรโมชั่น *</label><input type="text" class="ctrl" id="pmName" style="margin-top:4px" placeholder="เช่น ซื้อ 30 ฟองแถม 5 ฟอง"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div><label class="lbl">สาขา</label><select class="ctrl" id="pmBr" style="margin-top:4px"><option value="">ทุกสาขา</option>${branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}</select></div>
+      <div><label class="lbl">สาขา</label><select class="ctrl" id="pmBr" style="margin-top:4px"><option value="">ทุกสาขา</option>${brs.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}</select></div>
       <div><label class="lbl">ประเภท</label><select class="ctrl" id="pmType" style="margin-top:4px" onchange="updatePromoForm()"><option value="discount_percent">ลดราคา (%)</option><option value="discount_fixed">ลดราคา (บาท)</option><option value="free_item">ซื้อ X แถม Y</option></select></div>
     </div>
     <div><label class="lbl">สินค้าที่ร่วมรายการ</label><select class="ctrl" id="pmProd" style="margin-top:4px"><option value="">ทุกสินค้า</option>${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
@@ -381,11 +399,12 @@ async function showPromoModal() {
       <div><label class="lbl">ส่วนลด/ค่าแถม</label><input type="number" class="ctrl" id="pmDiscVal" value="0" min="0" step="0.01" style="margin-top:4px"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div><label class="lbl">วันเริ่ม *</label><input type="date" class="ctrl" id="pmStart" style="margin-top:4px"></div>
+      <div><label class="lbl">วันเริ่ม *</label><input type="date" class="ctrl" id="pmStart" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px"></div>
       <div><label class="lbl">วันสิ้นสุด *</label><input type="date" class="ctrl" id="pmEnd" style="margin-top:4px"></div>
     </div>
   </div>
-  <button class="btn btn-primary" onclick="savePromo()" style="width:100%;margin-top:14px">สร้างโปรโมชั่น</button></div></div>`;
+  <button class="btn btn-primary" onclick="savePromo()" style="width:100%;margin-top:14px">✅ สร้างโปรโมชั่น</button></div></div>`;
+  } catch(e) { toast('เกิดข้อผิดพลาด: '+e.message,'error'); }
 }
 function updatePromoForm() {
   const type=document.getElementById('pmType').value;
@@ -418,18 +437,102 @@ async function loadDebtNotes() {
   } catch(e) {}
 }
 async function showDebtNoteModal() {
-  if(!allContacts.length) allContacts=await api.get('/contacts');
-  const invoices=await api.get('/invoices');
-  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">📋 สร้างใบลดหนี้/เพิ่มหนี้</div><button class="mc" onclick="CM()">✕</button></div>
-  <div style="display:grid;gap:10px">
-    <div><label class="lbl">ประเภทเอกสาร</label><select class="ctrl" id="dnType" style="margin-top:4px"><option value="credit">ใบลดหนี้ (Credit Note)</option><option value="debit">ใบเพิ่มหนี้ (Debit Note)</option></select></div>
-    <div><label class="lbl">สาขา</label><select class="ctrl" id="dnBr" style="margin-top:4px">${branches.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
-    <div><label class="lbl">ลูกค้า</label><select class="ctrl" id="dnCt" style="margin-top:4px"><option value="">— ไม่ระบุ —</option>${allContacts.filter(c=>c.is_customer).map(c=>`<option value="${c.id}">${c.business_name||c.contact_name}</option>`).join('')}</select></div>
-    <div><label class="lbl">อ้างอิงใบแจ้งหนี้</label><select class="ctrl" id="dnInv" style="margin-top:4px"><option value="">— ไม่อ้างอิง —</option>${invoices.filter(i=>i.status!=='paid').map(i=>`<option value="${i.id}">${i.invoice_no} - ${i.business_name||i.contact_name||''} (${fmt.b(i.total)})</option>`).join('')}</select></div>
-    <div><label class="lbl">จำนวนเงิน (บาท) *</label><input type="number" class="ctrl" id="dnAmt" value="0" min="0" step="0.01" style="margin-top:4px"></div>
-    <div><label class="lbl">เหตุผล</label><input type="text" class="ctrl" id="dnReason" style="margin-top:4px"></div>
-  </div>
-  <button class="btn btn-primary" onclick="saveDebtNote()" style="width:100%;margin-top:14px">สร้างเอกสาร</button></div></div>`;
+  try {
+    const [contacts, invoices, brs] = await Promise.all([
+      api.get('/contacts?type=customer'),
+      api.get('/invoices'),
+      api.get('/branches')
+    ]);
+    const pendingInvoices = invoices.filter(i => i.status !== 'paid');
+    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:540px"><div class="mh"><div class="mt">📋 สร้างใบลดหนี้/ใบเพิ่มหนี้</div><button class="mc" onclick="CM()">✕</button></div>
+
+    <div style="display:grid;gap:12px">
+      <div><label class="lbl">ประเภทเอกสาร *</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+          <label style="display:flex;align-items:center;gap:8px;padding:10px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer" id="dnTypeCreditLbl">
+            <input type="radio" name="dnType" value="credit" id="dnTypeCredit" checked onchange="updateDnTypeStyle()"> 
+            <span><strong style="color:var(--success)">ใบลดหนี้</strong><br><span style="font-size:11px;color:var(--text-muted)">Credit Note — ลดยอดหนี้</span></span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;padding:10px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer" id="dnTypeDebitLbl">
+            <input type="radio" name="dnType" value="debit" id="dnTypeDebit" onchange="updateDnTypeStyle()">
+            <span><strong style="color:var(--error)">ใบเพิ่มหนี้</strong><br><span style="font-size:11px;color:var(--text-muted)">Debit Note — เพิ่มยอดหนี้</span></span>
+          </label>
+        </div>
+      </div>
+
+      <div><label class="lbl">อ้างอิงใบแจ้งหนี้ (เลือกเพื่อดึงข้อมูลอัตโนมัติ)</label>
+        <select class="ctrl" id="dnInv" style="margin-top:4px" onchange="onDnInvChange(${JSON.stringify(pendingInvoices).replace(/'/g,'&#39;').replace(/"/g,'&quot;')})">
+          <option value="">— ไม่อ้างอิงใบแจ้งหนี้ —</option>
+          ${pendingInvoices.map(i=>`<option value="${i.id}" data-total="${i.total}" data-paid="${i.paid_amount}" data-contact="${i.contact_id||''}" data-name="${i.business_name||i.contact_name||''}">${i.invoice_no} — ${i.business_name||i.contact_name||''} — ยอด ${fmt.b(i.total)} / ค้าง ${fmt.b(i.total-i.paid_amount)}</option>`).join('')}
+        </select>
+      </div>
+
+      <div id="dnInvDetail" style="display:none;background:var(--info-dim);border:1px solid #bfdbfe;border-radius:8px;padding:12px;font-size:13px"></div>
+
+      <div><label class="lbl">สาขา *</label>
+        <select class="ctrl" id="dnBr" style="margin-top:4px">${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}</select>
+      </div>
+
+      <div><label class="lbl">ลูกค้า</label>
+        <select class="ctrl" id="dnCt" style="margin-top:4px">
+          <option value="">— ไม่ระบุ —</option>
+          ${contacts.map(c=>`<option value="${c.id}">${c.business_name||c.contact_name}</option>`).join('')}
+        </select>
+      </div>
+
+      <div><label class="lbl">จำนวนเงินที่ปรับ (บาท) *</label>
+        <input type="number" class="ctrl" id="dnAmt" value="0" min="0" step="0.01" style="margin-top:4px" placeholder="0.00">
+        <div id="dnAmtHint" style="font-size:11px;color:var(--text-muted);margin-top:4px"></div>
+      </div>
+
+      <div><label class="lbl">เหตุผล / หมายเหตุ</label>
+        <input type="text" class="ctrl" id="dnReason" style="margin-top:4px" placeholder="เช่น สินค้าไม่ครบ, ส่งเกิน, ส่วนลดพิเศษ">
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="saveDebtNote()" style="width:100%;margin-top:16px">✅ สร้างเอกสาร</button>
+    </div></div>`;
+    updateDnTypeStyle();
+  } catch(e) { toast('เกิดข้อผิดพลาด: '+e.message,'error'); console.error(e); }
+}
+
+function updateDnTypeStyle() {
+  const isCredit = document.getElementById('dnTypeCredit')?.checked;
+  const cLbl = document.getElementById('dnTypeCreditLbl');
+  const dLbl = document.getElementById('dnTypeDebitLbl');
+  if (cLbl && dLbl) {
+    cLbl.style.borderColor = isCredit ? 'var(--success)' : 'var(--border)';
+    cLbl.style.background = isCredit ? 'var(--success-dim)' : '';
+    dLbl.style.borderColor = !isCredit ? 'var(--error)' : 'var(--border)';
+    dLbl.style.background = !isCredit ? 'var(--error-dim)' : '';
+  }
+}
+
+function onDnInvChange(invoices) {
+  const sel = document.getElementById('dnInv');
+  const invId = parseInt(sel.value);
+  const detail = document.getElementById('dnInvDetail');
+  const hint = document.getElementById('dnAmtHint');
+  if (!invId) { detail.style.display='none'; if(hint) hint.textContent=''; return; }
+  const inv = invoices.find(i => i.id === invId);
+  if (!inv) return;
+  const remaining = parseFloat(inv.total) - parseFloat(inv.paid_amount);
+  detail.style.display = 'block';
+  detail.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div><div style="color:var(--text-muted);font-size:11px">ยอดในใบแจ้งหนี้</div><div style="font-weight:700">${fmt.b(inv.total)}</div></div>
+      <div><div style="color:var(--text-muted);font-size:11px">ชำระแล้ว</div><div style="font-weight:700;color:var(--success)">${fmt.b(inv.paid_amount)}</div></div>
+      <div><div style="color:var(--text-muted);font-size:11px">ยอดค้างชำระ</div><div style="font-weight:700;color:var(--error)">${fmt.b(remaining)}</div></div>
+    </div>`;
+  // auto-fill ลูกค้า
+  if (inv.contact_id) {
+    const ctSel = document.getElementById('dnCt');
+    if (ctSel) { for(let i=0;i<ctSel.options.length;i++) { if(ctSel.options[i].value==inv.contact_id) { ctSel.selectedIndex=i; break; } } }
+  }
+  // hint จำนวนเงิน
+  if (hint) hint.innerHTML = `<span style="color:var(--info)">💡 ยอดค้างชำระ: <strong>${fmt.b(remaining)}</strong> — ใส่จำนวนเงินที่ต้องการปรับ</span>`;
+  // auto-fill amount
+  document.getElementById('dnAmt').value = remaining.toFixed(2);
 }
 async function saveDebtNote() {
   const body={note_type:document.getElementById('dnType').value,branch_id:parseInt(document.getElementById('dnBr').value),contact_id:document.getElementById('dnCt').value?parseInt(document.getElementById('dnCt').value):null,ref_invoice_id:document.getElementById('dnInv').value?parseInt(document.getElementById('dnInv').value):null,amount:parseFloat(document.getElementById('dnAmt').value)||0,reason:document.getElementById('dnReason').value};
@@ -445,39 +548,130 @@ async function loadEmployees() {
     const data=await api.get('/employees');
     document.getElementById('empT').innerHTML=data.length?data.map(e=>`<tr>
       <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${e.code}</td>
-      <td><strong>${e.full_name}</strong></td>
-      <td>${e.nickname||'-'}</td>
+      <td>
+        ${e.photo_url?`<img src="${e.photo_url}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:6px;vertical-align:middle">`:
+        `<span style="display:inline-flex;width:32px;height:32px;border-radius:50%;background:var(--surface2);align-items:center;justify-content:center;margin-right:6px;font-size:14px;vertical-align:middle">👤</span>`}
+        <strong>${e.full_name}</strong>${e.nickname?` <span style="color:var(--text-muted);font-size:11px">(${e.nickname})</span>`:''}
+      </td>
       <td>${e.position||'-'}</td>
       <td>${e.branch_name||'ทุกสาขา'}</td>
       <td>${e.phone||'-'}</td>
       <td>${fmt.d(e.start_date)}</td>
-      <td><button class="btn btn-secondary btn-sm" onclick='showEmployeeModal(${JSON.stringify(e).replace(/'/g,"&#39;")})'>แก้ไข</button></td>
+      <td>${e.probation_end_date?`<span style="font-size:11px;color:${new Date(e.probation_end_date)>new Date()?'var(--warning)':'var(--success)'}">${fmt.d(e.probation_end_date)}</span>`:'-'}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-secondary btn-sm" onclick='showEmployeeModal(${JSON.stringify(e).replace(/'/g,"&#39;")})'>แก้ไข</button>
+      </td>
     </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">ยังไม่มีพนักงาน</td></tr>';
   } catch(e) {}
 }
 function showEmployeeModal(e={}) {
-  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">${e.id?'แก้ไข':'เพิ่ม'}พนักงาน</div><button class="mc" onclick="CM()">✕</button></div>
-  <div style="display:grid;gap:10px">
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:660px"><div class="mh"><div class="mt">${e.id?'แก้ไข':'เพิ่ม'}พนักงาน</div><button class="mc" onclick="CM()">✕</button></div>
+
+  <!-- แท็บ -->
+  <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border)">
+    <button class="emp-tab active" onclick="switchEmpTab('info',this)" style="padding:8px 16px;background:none;border:none;border-bottom:2px solid var(--accent);color:var(--accent);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer">ข้อมูลทั่วไป</button>
+    <button class="emp-tab" onclick="switchEmpTab('pay',this)" style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer">เงินเดือน/ธนาคาร</button>
+    <button class="emp-tab" onclick="switchEmpTab('edu',this)" style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer">ประวัติ</button>
+    ${e.id?`<button class="emp-tab" onclick="switchEmpTab('docs',this)" style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer">เอกสาร/รูป</button>`:''}
+  </div>
+
+  <!-- แท็บ: ข้อมูลทั่วไป -->
+  <div id="empTab-info" style="display:grid;gap:10px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div><label class="lbl">ชื่อ-นามสกุล *</label><input type="text" class="ctrl" id="emName" value="${e.full_name||''}" style="margin-top:4px"></div>
       <div><label class="lbl">ชื่อเล่น</label><input type="text" class="ctrl" id="emNick" value="${e.nickname||''}" style="margin-top:4px"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div><label class="lbl">ตำแหน่ง</label><input type="text" class="ctrl" id="emPos" value="${e.position||''}" style="margin-top:4px"></div>
+      <div><label class="lbl">เลขบัตรประชาชน</label><input type="text" class="ctrl" id="emNID" value="${e.national_id||''}" style="margin-top:4px" maxlength="13"></div>
       <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="emPhone" value="${e.phone||''}" style="margin-top:4px"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div><label class="lbl">สาขา</label><select class="ctrl" id="emBr" style="margin-top:4px"><option value="">ทุกสาขา</option>${branches.map(b=>`<option value="${b.id}" ${b.id===e.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
-      <div><label class="lbl">วันเริ่มงาน</label><input type="date" class="ctrl" id="emStart" value="${e.start_date?e.start_date.slice(0,10):''}" style="margin-top:4px"></div>
+      <div><label class="lbl">อีเมล</label><input type="email" class="ctrl" id="emEmail" value="${e.email||''}" style="margin-top:4px"></div>
+      <div><label class="lbl">ตำแหน่ง</label><input type="text" class="ctrl" id="emPos" value="${e.position||''}" style="margin-top:4px"></div>
     </div>
-    <div><label class="lbl">เงินเดือน (บาท)</label><input type="number" class="ctrl" id="emSal" value="${e.salary||0}" min="0" style="margin-top:4px"></div>
+    <div><label class="lbl">ที่อยู่</label><input type="text" class="ctrl" id="emAddr" value="${e.address||''}" style="margin-top:4px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="lbl">สาขา</label><select class="ctrl" id="emBr" style="margin-top:4px"><option value="">ทุกสาขา</option>${branches.map(b=>`<option value="${b.id}" ${b.id===e.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
+      <div><label class="lbl">ผู้ติดต่อฉุกเฉิน</label><input type="text" class="ctrl" id="emEmerg" value="${e.emergency_contact||''}" style="margin-top:4px"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="lbl">วันเริ่มงาน</label><input type="date" class="ctrl" id="emStart" value="${e.start_date?e.start_date.slice(0,10):''}" style="margin-top:4px"></div>
+      <div><label class="lbl">วันผ่านโปร</label><input type="date" class="ctrl" id="emProb" value="${e.probation_end_date?e.probation_end_date.slice(0,10):''}" style="margin-top:4px"></div>
+    </div>
     ${e.id?`<label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="emAct" ${e.active?'checked':''}> เปิดใช้งาน</label>`:''}
   </div>
-  <button class="btn btn-primary" onclick="saveEmployee(${e.id||0})" style="width:100%;margin-top:14px">บันทึก</button></div></div>`;
+
+  <!-- แท็บ: เงินเดือน -->
+  <div id="empTab-pay" style="display:none;gap:10px;grid-template-columns:1fr 1fr">
+    <div><label class="lbl">ฐานเงินเดือน (บาท)</label><input type="number" class="ctrl" id="emSalBase" value="${e.salary_base||0}" min="0" style="margin-top:4px"></div>
+    <div><label class="lbl">เงินเดือนปัจจุบัน (บาท)</label><input type="number" class="ctrl" id="emSal" value="${e.salary||0}" min="0" style="margin-top:4px"></div>
+    <div><label class="lbl">ธนาคาร</label><input type="text" class="ctrl" id="emBank" value="${e.bank_name||''}" style="margin-top:4px" placeholder="เช่น กสิกรไทย, ไทยพาณิชย์"></div>
+    <div><label class="lbl">เลขบัญชี</label><input type="text" class="ctrl" id="emBankAcc" value="${e.bank_account||''}" style="margin-top:4px"></div>
+  </div>
+
+  <!-- แท็บ: ประวัติ -->
+  <div id="empTab-edu" style="display:none;gap:10px">
+    <div><label class="lbl">ประวัติการศึกษา</label><textarea class="ctrl" id="emEdu" rows="4" style="margin-top:4px;resize:vertical">${e.education||''}</textarea></div>
+    <div><label class="lbl">ประวัติการทำงาน (ที่ผ่านมา)</label><textarea class="ctrl" id="emWork" rows="4" style="margin-top:4px;resize:vertical">${e.work_history||''}</textarea></div>
+  </div>
+
+  <!-- แท็บ: เอกสาร -->
+  ${e.id?`<div id="empTab-docs" style="display:none;gap:10px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div style="text-align:center">
+        <label class="lbl">รูปถ่ายใบหน้า</label>
+        ${e.photo_url?`<img src="${e.photo_url}" style="width:100px;height:100px;border-radius:50%;object-fit:cover;margin:8px auto;display:block;border:2px solid var(--border)">`:
+        `<div style="width:100px;height:100px;border-radius:50%;background:var(--surface2);margin:8px auto;display:flex;align-items:center;justify-content:center;font-size:32px;border:2px dashed var(--border)">👤</div>`}
+        <input type="file" id="empPhotoFile" accept="image/*" class="ctrl" style="margin-top:6px;padding:5px;font-size:11px">
+        <button class="btn btn-secondary btn-sm" onclick="uploadEmpFile(${e.id},'photo')" style="margin-top:6px;width:100%">อัพโหลดรูป</button>
+      </div>
+      <div>
+        <label class="lbl">เอกสารใบสมัคร</label>
+        ${e.doc_url?`<div style="margin:8px 0"><a href="${e.doc_url}" target="_blank" class="btn btn-info btn-sm">📄 ดูเอกสาร</a></div>`:'<p style="font-size:12px;color:var(--text-muted);margin:8px 0">ยังไม่มีเอกสาร</p>'}
+        <input type="file" id="empDocFile" accept=".pdf,image/*" class="ctrl" style="margin-top:6px;padding:5px;font-size:11px">
+        <button class="btn btn-secondary btn-sm" onclick="uploadEmpFile(${e.id},'doc')" style="margin-top:6px;width:100%">อัพโหลดเอกสาร</button>
+      </div>
+    </div>
+  </div>`:''}
+
+  <button class="btn btn-primary" onclick="saveEmployee(${e.id||0})" style="width:100%;margin-top:16px">💾 บันทึกข้อมูลพนักงาน</button>
+  </div></div>`;
+}
+
+function switchEmpTab(tab, btn) {
+  document.querySelectorAll('[id^="empTab-"]').forEach(el=>{el.style.display='none';});
+  const el = document.getElementById('empTab-'+tab);
+  if(el) { el.style.display = tab==='pay'||tab==='edu'?'grid':'block'; }
+  document.querySelectorAll('.emp-tab').forEach(b=>{b.style.borderBottomColor='transparent';b.style.color='var(--text-muted)';b.style.fontWeight='400';});
+  btn.style.borderBottomColor='var(--accent)';btn.style.color='var(--accent)';btn.style.fontWeight='600';
+}
+
+async function uploadEmpFile(empId, type) {
+  const fileInput = document.getElementById(type==='photo'?'empPhotoFile':'empDocFile');
+  const file = fileInput.files[0];
+  if (!file) { toast('กรุณาเลือกไฟล์','error'); return; }
+  const fd = new FormData(); fd.append(type==='photo'?'photo':'doc', file);
+  try {
+    const res = await fetch(`/api/employees/${empId}/${type}`, { method:'POST', headers:{'Authorization':'Bearer '+api.tok()}, body:fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    toast('อัพโหลดเรียบร้อย','success');
+    loadEmployees();
+  } catch(e) { toast(e.message,'error'); }
 }
 async function saveEmployee(id) {
-  const body={full_name:document.getElementById('emName').value,nickname:document.getElementById('emNick').value,position:document.getElementById('emPos').value,phone:document.getElementById('emPhone').value,branch_id:document.getElementById('emBr').value?parseInt(document.getElementById('emBr').value):null,start_date:document.getElementById('emStart').value||null,salary:parseFloat(document.getElementById('emSal').value)||null};
-  if(id) body.active=document.getElementById('emAct').checked;
+  const g = id => { const el=document.getElementById(id); return el?el.value:''; };
+  const body={
+    full_name:g('emName'), nickname:g('emNick'), national_id:g('emNID'),
+    phone:g('emPhone'), email:g('emEmail'), address:g('emAddr'),
+    position:g('emPos'), emergency_contact:g('emEmerg'),
+    branch_id:g('emBr')?parseInt(g('emBr')):null,
+    start_date:g('emStart')||null, probation_end_date:g('emProb')||null,
+    salary:parseFloat(g('emSal'))||null, salary_base:parseFloat(g('emSalBase'))||null,
+    bank_name:g('emBank'), bank_account:g('emBankAcc'),
+    education:g('emEdu'), work_history:g('emWork'),
+  };
+  if(id) body.active=document.getElementById('emAct')?.checked??true;
   if(!body.full_name){toast('กรุณากรอกชื่อ','error');return;}
   try{if(id) await api.put('/employees/'+id,body);else await api.post('/employees',body);toast('บันทึกเรียบร้อย','success');CM();loadEmployees();}catch(e){toast(e.message,'error');}
 }
