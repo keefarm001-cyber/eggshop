@@ -129,6 +129,30 @@ async function initSchema() {
     // damage_photos
     await pool.query(`CREATE TABLE IF NOT EXISTS damage_photos (id SERIAL PRIMARY KEY, branch_id INTEGER REFERENCES branches(id), product_id INTEGER REFERENCES products(id), photo_url TEXT NOT NULL, photo_date DATE NOT NULL DEFAULT CURRENT_DATE, note TEXT, uploaded_by INTEGER REFERENCES users(id), created_at TIMESTAMPTZ DEFAULT NOW())`);
 
+    // role_permissions — สิทธิ์ตาม role
+    await pool.query(`CREATE TABLE IF NOT EXISTS role_permissions (
+      id SERIAL PRIMARY KEY,
+      role_name VARCHAR(50) NOT NULL,
+      permission VARCHAR(100) NOT NULL,
+      granted BOOLEAN DEFAULT true,
+      UNIQUE(role_name, permission)
+    )`);
+
+    // seed default permissions สำหรับแต่ละ role
+    const defaultPerms = {
+      owner: ['*'],
+      admin: ['*'],
+      manager: ['pos','shifts','sales_view','sales_void','quotations','invoices','credits','receipts','receipts_approve','stock_view','stock_receive','stock_transfer','members','contacts','products_view','products_edit','reports','expenses_view','expenses_edit','promotions','debt_notes','employees_view'],
+      cashier: ['pos','shifts','sales_view','credits','members','stock_view'],
+      stock: ['stock_view','stock_receive','stock_transfer','receipts'],
+      viewer: ['sales_view','stock_view','reports'],
+    };
+    for (const [role, perms] of Object.entries(defaultPerms)) {
+      for (const perm of perms) {
+        await pool.query('INSERT INTO role_permissions (role_name,permission,granted) VALUES ($1,$2,true) ON CONFLICT (role_name,permission) DO NOTHING', [role, perm]);
+      }
+    }
+
     // user_branch_access — สิทธิ์สาขาของแต่ละ user
     await pool.query(`CREATE TABLE IF NOT EXISTS user_branch_access (
       id SERIAL PRIMARY KEY,
@@ -390,6 +414,88 @@ app.put('/api/users/:id', auth, role('owner','admin'), async (req, res) => {
   res.json({ message: 'แก้ไขเรียบร้อย' });
 });
 app.get('/api/roles', auth, async (req, res) => { const r = await pool.query('SELECT * FROM roles ORDER BY id'); res.json(r.rows); });
+
+// ============================================================
+// ROLE PERMISSIONS API
+// ============================================================
+// list ของ permissions ทั้งหมดในระบบ
+const ALL_PERMISSIONS = [
+  { group:'การขาย', items:[
+    { key:'pos', label:'ขายหน้าร้าน' },
+    { key:'shifts', label:'เปิด/ปิดกะ' },
+    { key:'sales_view', label:'ดูประวัติการขาย' },
+    { key:'sales_void', label:'ยกเลิกบิล' },
+  ]},
+  { group:'เอกสาร', items:[
+    { key:'quotations', label:'ใบเสนอราคา' },
+    { key:'invoices', label:'ใบแจ้งหนี้' },
+    { key:'credits', label:'ลูกค้าเชื่อหน้าร้าน' },
+    { key:'receipts', label:'ดูใบรับสินค้า (Pre)' },
+    { key:'receipts_approve', label:'อนุมัติใบรับสินค้า (ใส่ราคา)' },
+    { key:'debt_notes', label:'ใบลดหนี้/ใบเพิ่มหนี้' },
+  ]},
+  { group:'สต๊อก', items:[
+    { key:'stock_view', label:'ดูสต๊อกสินค้า' },
+    { key:'stock_receive', label:'รับสินค้าเข้า' },
+    { key:'stock_transfer', label:'โอนย้ายสินค้า' },
+  ]},
+  { group:'CRM', items:[
+    { key:'members', label:'สมาชิก' },
+    { key:'contacts', label:'รายชื่อผู้ติดต่อ' },
+  ]},
+  { group:'การเงิน', items:[
+    { key:'expenses_view', label:'ดูค่าใช้จ่าย' },
+    { key:'expenses_edit', label:'เพิ่ม/แก้ไขค่าใช้จ่าย' },
+    { key:'expense_docs', label:'เอกสารค่าใช้จ่าย' },
+    { key:'promotions', label:'โปรโมชั่น' },
+    { key:'payroll', label:'Payroll/เงินเดือน' },
+  ]},
+  { group:'จัดการ', items:[
+    { key:'products_view', label:'ดูสินค้า' },
+    { key:'products_edit', label:'แก้ไขสินค้า' },
+    { key:'reports', label:'ดูรายงาน' },
+    { key:'employees_view', label:'ดูรายชื่อพนักงาน' },
+    { key:'users_manage', label:'จัดการผู้ใช้งาน' },
+  ]},
+];
+
+app.get('/api/permissions/schema', auth, role('owner','admin'), async (req, res) => {
+  res.json(ALL_PERMISSIONS);
+});
+
+app.get('/api/permissions/:roleName', auth, role('owner','admin'), async (req, res) => {
+  const r = await pool.query('SELECT permission FROM role_permissions WHERE role_name=$1 AND granted=true', [req.params.roleName]);
+  res.json(r.rows.map(x => x.permission));
+});
+
+app.put('/api/permissions/:roleName', auth, role('owner','admin'), async (req, res) => {
+  const { permissions } = req.body; // array of permission keys
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // ไม่แก้ owner/admin
+    if (['owner','admin'].includes(req.params.roleName)) {
+      return res.status(403).json({ error: 'ไม่สามารถแก้ไขสิทธิ์ของ owner/admin ได้' });
+    }
+    await client.query('DELETE FROM role_permissions WHERE role_name=$1', [req.params.roleName]);
+    for (const perm of (permissions||[])) {
+      await client.query('INSERT INTO role_permissions (role_name,permission,granted) VALUES ($1,$2,true) ON CONFLICT DO NOTHING', [req.params.roleName, perm]);
+    }
+    await client.query('COMMIT');
+    res.json({ message: 'บันทึกสิทธิ์เรียบร้อย' });
+  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
+  finally { client.release(); }
+});
+
+// middleware ตรวจ permission (ใช้ใน API ที่ต้องการ)
+async function checkPerm(perm) {
+  return async (req, res, next) => {
+    if (['owner','admin'].includes(req.user.role)) return next();
+    const r = await pool.query('SELECT id FROM role_permissions WHERE role_name=$1 AND permission=$2 AND granted=true', [req.user.role, perm]);
+    if (r.rows.length > 0) return next();
+    return res.status(403).json({ error: `ไม่มีสิทธิ์: ${perm}` });
+  };
+}
 
 // USER BRANCH ACCESS
 app.get('/api/users/:id/branches', auth, role('owner','admin'), async (req, res) => {
