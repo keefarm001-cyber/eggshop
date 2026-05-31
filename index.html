@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#f4f6f9;--surface:#fff;--surface2:#f0f2f5;--surface3:#e8eaed;--border:#d1d5db;--accent:#e67e00;--accent2:#d97706;--accent-dim:#fff3e0;--text:#1f2937;--text-muted:#6b7280;--text-dim:#9ca3af;--error:#dc2626;--error-dim:#fef2f2;--error-border:#fca5a5;--success:#16a34a;--success-dim:#f0fdf4;--success-border:#86efac;--info:#2563eb;--info-dim:#eff6ff;--warning:#d97706;--warning-dim:#fffbeb;--shadow:0 1px 3px rgba(0,0,0,.1);--shadow-md:0 4px 6px rgba(0,0,0,.07);}
-*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+*{box-sizing:border-box;margin:0;padding:0}html{height:100%;overflow:hidden}body{height:100%;width:100%;overflow:hidden;font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);font-size:15px}
 #loginPage{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fff8f0,#fff 50%,#f0f7ff)}
 .login-wrap{width:100%;max-width:400px;padding:20px;animation:fadeUp .4s ease}
 .brand{text-align:center;margin-bottom:24px}.brand-icon{font-size:52px;display:block;margin-bottom:8px}.brand h1{font-size:26px;font-weight:700;letter-spacing:1px;color:var(--accent)}.brand p{font-size:13px;color:var(--text-muted);margin-top:3px}
@@ -16,9 +16,9 @@
 .finput{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:7px;padding:10px 13px;color:var(--text);font-family:'Sarabun',sans-serif;font-size:15px;outline:none;transition:border-color .2s}.finput:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}.finput::placeholder{color:var(--text-dim)}
 .btn-login{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;transition:background .2s}.btn-login:hover{background:var(--accent2)}.btn-login:disabled{opacity:.6;cursor:not-allowed}
 .err-box{background:var(--error-dim);border:1px solid var(--error-border);color:var(--error);border-radius:7px;padding:9px 13px;font-size:13px;margin-bottom:12px;display:none}.err-box.show{display:block}
-#appPage{display:none;height:100vh;width:100vw;overflow:hidden}
-.app-layout{display:flex;height:100vh;width:100%;overflow:hidden}
-#sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;box-shadow:var(--shadow)}
+#appPage{display:none;position:fixed;inset:0;width:100%;height:100%;overflow:hidden}
+.app-layout{display:flex;position:absolute;inset:0;overflow:hidden}
+#sidebar{width:220px;min-width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;box-shadow:var(--shadow);z-index:10}
 .nav-brand{display:flex;align-items:center;gap:8px;padding:16px 14px;font-size:16px;font-weight:700;color:var(--accent);border-bottom:1px solid var(--border)}
 .nav-branch{padding:6px 14px;font-size:11px;color:var(--text-muted);background:var(--surface2);border-bottom:1px solid var(--border);font-family:'IBM Plex Mono',monospace}
 .nav-links{flex:1;padding:6px 0}
@@ -27,10 +27,10 @@
 .nav-icon{font-size:14px;width:16px;text-align:center}
 .nav-user{padding:12px 14px;border-top:1px solid var(--border);background:var(--surface2)}.nav-user-name{font-size:13px;font-weight:600}.nav-user-role{font-size:11px;color:var(--text-muted);margin-bottom:7px}
 .btn-logout{width:100%;padding:6px;background:var(--surface);border:1px solid var(--border);color:var(--text-muted);border-radius:6px;font-size:12px;cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .15s}.btn-logout:hover{background:var(--error-dim);color:var(--error);border-color:var(--error-border)}
-.main-content{flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;width:100%}
-.page{display:none;flex:1;flex-direction:column;min-height:0;overflow:hidden;width:100%}.page.active{display:flex}
+.main-content{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.page{display:none;flex:1;flex-direction:column;overflow:hidden}.page.active{display:flex;min-height:0}
 .ph{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface)}.pt{font-size:17px;font-weight:700}
-.pb{flex:1;padding:18px 22px;overflow-y:auto;min-height:0;width:100%}
+.pb{flex:1;padding:18px 22px;overflow-y:auto;min-height:0}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}.ct{font-size:14px;font-weight:600;margin-bottom:12px}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 15px;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
 .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
@@ -186,7 +186,7 @@ async function doLogin(){const user=document.getElementById('loginUser').value.t
 function logout(){localStorage.removeItem('es_token');localStorage.removeItem('es_user');CU=null;document.getElementById('loginPage').style.display='flex';document.getElementById('appPage').style.display='none';}
 
 async function initApp(){
-  document.getElementById('loginPage').style.display='none';document.getElementById('appPage').style.display='flex';
+  document.getElementById('loginPage').style.display='none';document.getElementById('appPage').style.display='flex';document.getElementById('appPage').style.flexDirection='column';
   document.getElementById('navUserName').textContent=CU.full_name;document.getElementById('navUserRole').textContent=fmt.role(CU.role);document.getElementById('navBranch').textContent=CU.branch_code||'ทุกสาขา';
   const navDef=[{sec:'การขาย'},{id:'pos',l:'ขายหน้าร้าน',i:'🛒',r:['owner','admin','manager','cashier']},{id:'shifts',l:'กะการขาย',i:'⏰',r:['owner','admin','manager','cashier']},{id:'sales',l:'ประวัติการขาย',i:'📑',r:['owner','admin','manager']},{sec:'เอกสาร'},{id:'quotations',l:'ใบเสนอราคา',i:'📝',r:['owner','admin','manager']},{id:'invoices',l:'ใบแจ้งหนี้',i:'📄',r:['owner','admin','manager']},{id:'credits',l:'ลูกค้าเชื่อ',i:'💳',r:['owner','admin','manager','cashier']},{id:'receipts',l:'ใบรับสินค้า',i:'📋',r:['owner','admin','manager','stock']},{sec:'สต๊อก'},{id:'stock',l:'สต๊อกสินค้า',i:'📦',r:['owner','admin','manager','stock']},{sec:'CRM'},{id:'members',l:'สมาชิก',i:'⭐',r:['owner','admin','manager','cashier']},{id:'contacts',l:'ผู้ติดต่อ',i:'👥',r:['owner','admin','manager']},{sec:'จัดการ'},{id:'products',l:'สินค้า',i:'🥚',r:['owner','admin','manager']},{id:'reports',l:'รายงาน',i:'📈',r:['owner','admin','manager','viewer']},{id:'users',l:'ผู้ใช้งาน',i:'⚙️',r:['owner','admin']},{id:'permissions',l:'ตั้งค่าสิทธิ์',i:'🔐',r:['owner','admin']},{sec:'HR'},{id:'employees',l:'พนักงาน',i:'👔',r:['owner','admin']},{sec:'การเงิน'},{id:'expenses',l:'ค่าใช้จ่าย',i:'💰',r:['owner','admin','manager']},{id:'promotions',l:'โปรโมชั่น',i:'🎁',r:['owner','admin','manager']},{id:'debt-notes',l:'ใบลดหนี้/เพิ่มหนี้',i:'📋',r:['owner','admin','manager']},{id:'expense-docs',l:'ค่าใช้จ่าย (เอกสาร)',i:'🧾',r:['owner','admin','manager']},{id:'payroll',l:'เงินเดือน/Payroll',i:'💵',r:['owner','admin']}];
   document.getElementById('navLinks').innerHTML=navDef.map(x=>x.sec?`<div class="nav-section">${x.sec}</div>`:x.r.includes(CU.role)?`<div class="nav-link" onclick="showPage('${x.id}')" id="nav-${x.id}"><span class="nav-icon">${x.i}</span><span>${x.l}</span></div>`:'').join('');
