@@ -16,7 +16,9 @@ const PORT = process.env.PORT || 3000;
 // ============================================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-ssl: false
+  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('railway') 
+    ? { rejectUnauthorized: false } 
+    : false
 });
 
 // ============================================================
@@ -27,7 +29,7 @@ async function initSchema() {
     await pool.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXIT branches (
+      CREATE TABLE IF NOT EXISTS branches (
         id SERIAL PRIMARY KEY,
         code VARCHAR(10) UNIQUE NOT NULL,
         name VARCHAR(100) NOT NULL,
@@ -89,13 +91,10 @@ async function initSchema() {
       )
     `);
 
-    await pool.query(`
-      INSERT INTO product_categories (name, type) VALUES
-        ('ไข่ไก่', 'egg'),
-        ('ของชำ', 'grocery'),
-        ('บรรจุภัณฑ์', 'other')
-      ON CONFLICT DO NOTHING
-    `);
+    const catCheck = await pool.query(`SELECT id FROM product_categories WHERE name = 'ไข่ไก่'`);
+    if (catCheck.rows.length === 0) {
+      await pool.query(`INSERT INTO product_categories (name, type) VALUES ('ไข่ไก่', 'egg'), ('ของชำ', 'grocery'), ('บรรจุภัณฑ์', 'other')`);
+    }
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS products (
@@ -309,12 +308,10 @@ async function initSchema() {
       )
     `);
 
-    await pool.query(`
-      INSERT INTO expense_categories (name) VALUES
-        ('ค่าแรงพนักงาน'), ('ค่าน้ำมัน'), ('ค่าเช่าร้าน'),
-        ('ค่าบรรจุภัณฑ์'), ('ค่าสาธารณูปโภค'), ('อื่นๆ')
-      ON CONFLICT DO NOTHING
-    `);
+    const expCheck = await pool.query(`SELECT id FROM expense_categories WHERE name = 'ค่าแรงพนักงาน'`);
+    if (expCheck.rows.length === 0) {
+      await pool.query(`INSERT INTO expense_categories (name) VALUES ('ค่าแรงพนักงาน'), ('ค่าน้ำมัน'), ('ค่าเช่าร้าน'), ('ค่าบรรจุภัณฑ์'), ('ค่าสาธารณูปโภค'), ('อื่นๆ')`);
+    }
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS expenses (
