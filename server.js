@@ -177,7 +177,7 @@ async function initSchema() {
       active BOOLEAN DEFAULT true,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
-    -- เพิ่ม columns ใหม่ถ้ายังไม่มี
+    // เพิ่ม columns ใหม่ถ้ายังไม่มี
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS national_id VARCHAR(20)`);
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS email VARCHAR(150)`);
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS address TEXT`);
