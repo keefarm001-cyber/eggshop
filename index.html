@@ -1601,5 +1601,8 @@ async function saveManualInv(){
   try{const res=await api.post('/invoices/manual',{contact_id:cid?parseInt(cid):null,branch_id:parseInt(bid),items,discount:disc,due_date:due,note});toast(`✅ สร้างใบแจ้งหนี้ ${res.invoice_no} เรียบร้อย`,'success');CM();loadInv();}
   catch(e){toast(e.message,'error');}
 }
-
-
+const t=localStorage.getItem('es_token'),u=localStorage.getItem('es_user');
+if(t&&u){CU=JSON.parse(u);initApp();}
+</script>
+</body>
+</html>
