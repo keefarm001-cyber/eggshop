@@ -437,6 +437,14 @@ async function initSchema() {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
 app.use(express.static(__dirname));
 const uploadDir = './uploads';
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
@@ -1026,8 +1034,29 @@ app.post('/api/invoices/manual', auth, role('owner','admin','manager'), async (r
     const total = subtotal - discAmt;
     const r = await client.query(`INSERT INTO invoices (invoice_no,contact_id,branch_id,due_date,total,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
       [docNo, contact_id||null, branch_id, due_date||null, total, note||null, req.user.id]);
+    const invId = r.rows[0].id;
+    // ตัดสต๊อกสินค้าที่เป็น egg ตามหน่วย
+    for (const item of (items||[])) {
+      if (!item.product_id) continue;
+      // แปลงหน่วย: ฟอง=1, แผง(30ฟ.)=30, ลัง(300ฟ.)=300
+      const mult = (item.unit||'').includes('แผง') ? 30
+                 : (item.unit||'').includes('ลัง') ? 300
+                 : 1;
+      const qtyEggs = parseFloat(item.qty||1) * mult;
+      // ตัดสต๊อก
+      await client.query(
+        `UPDATE stock SET qty_unit=qty_unit-$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3`,
+        [qtyEggs, item.product_id, parseInt(branch_id)]
+      );
+      // บันทึก movement
+      await client.query(
+        `INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note)
+         VALUES ($1,$2,'out',$3,$4,$5)`,
+        [item.product_id, parseInt(branch_id), qtyEggs, docNo, `ใบแจ้งหนี้ ${item.description||''}`]
+      ).catch(()=>{});
+    }
     await client.query('COMMIT');
-    res.status(201).json({ message:'สร้างใบแจ้งหนี้เรียบร้อย', invoice_no:docNo, id:r.rows[0].id });
+    res.status(201).json({ message:'สร้างใบแจ้งหนี้เรียบร้อย', invoice_no:docNo, id:invId });
   } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error:'เกิดข้อผิดพลาด' }); }
   finally { client.release(); }
 });
