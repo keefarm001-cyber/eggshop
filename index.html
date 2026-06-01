@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=1280, initial-scale=1.0">
 <title>Egg Station</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -64,7 +64,7 @@ table{width:100%;border-collapse:collapse}thead{background:var(--surface2)}th{pa
 .mc-card{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:8px;padding:10px 12px;margin-bottom:8px}.mc-name{font-size:13px;font-weight:700}.mc-info{font-size:11px;opacity:.85;margin-top:1px}
 .doc-no{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--info);background:var(--info-dim);padding:2px 7px;border-radius:4px;display:inline-block}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:768px){#sidebar{width:100%;height:auto;flex-direction:row;border-right:none;border-bottom:1px solid var(--border);overflow-x:auto}.nav-brand{border-bottom:none;border-right:1px solid var(--border);padding:10px 12px;white-space:nowrap}.nav-branch,.nav-section{display:none}.nav-links{display:flex;flex-direction:row;padding:0}.nav-link{flex-direction:column;padding:8px 11px;border-left:none;border-bottom:3px solid transparent;font-size:10px;white-space:nowrap;gap:2px}.nav-link.active{border-left:none;border-bottom-color:var(--accent)}.nav-icon{font-size:15px}.nav-user{border-top:none;border-left:1px solid var(--border);margin-left:auto;white-space:nowrap}.nav-user-role{display:none}.app-layout{flex-direction:column}.pos-layout{grid-template-columns:1fr}.pos-right{display:none}.g2,.g3,.g4{grid-template-columns:1fr}.pb{padding:14px}.ph{padding:12px 14px}}
+@media(max-width:768px){#sidebar{width:100%;height:auto;flex-direction:row;border-right:none;border-bottom:1px solid var(--border);overflow-x:auto}.nav-brand{border-bottom:none;border-right:1px solid var(--border);padding:10px 12px;white-space:nowrap}.nav-branch,.nav-section{display:none}.nav-links{display:flex;flex-direction:row;padding:0}.nav-link{flex-direction:column;padding:8px 11px;border-left:none;border-bottom:3px solid transparent;font-size:10px;white-space:nowrap;gap:2px}.nav-link.active{border-left:none;border-bottom-color:var(--accent)}.nav-icon{font-size:15px}.nav-user{border-top:none;border-left:1px solid var(--border);margin-left:auto;white-space:nowrap}.nav-user-role{display:none}.app-layout{display:flex!important;flex-direction:column!important;grid-template-columns:none!important}.pos-layout{grid-template-columns:1fr}.pos-right{display:none}.g2,.g3,.g4{grid-template-columns:1fr}.pb{padding:14px}.ph{padding:12px 14px}}
 </style>
 </head>
 <body>
@@ -80,7 +80,7 @@ table{width:100%;border-collapse:collapse}thead{background:var(--surface2)}th{pa
   </div>
 </div>
 <div id="appPage" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;overflow:hidden;z-index:1">
-  <div class="app-layout" style="display:grid;grid-template-columns:220px 1fr;width:100%;height:100%;overflow:hidden">
+  <div class="app-layout" style="display:grid!important;grid-template-columns:220px 1fr!important;width:100%!important;height:100%!important;overflow:hidden!important">
     <div id="sidebar" style="display:flex;flex-direction:column;overflow-y:auto;background:var(--surface);border-right:1px solid var(--border);box-shadow:var(--shadow)">
       <div class="nav-brand">🥚 <span>Egg Station</span></div>
       <div class="nav-branch" id="navBranch">—</div>
