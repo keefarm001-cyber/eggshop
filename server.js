@@ -389,6 +389,38 @@ async function initSchema() {
     )`);
     await pool.query(`ALTER TABLE daily_closes ADD COLUMN IF NOT EXISTS other_income NUMERIC(10,2) DEFAULT 0`);
 
+    // company_settings
+    await pool.query(`CREATE TABLE IF NOT EXISTS company_settings (
+      id SERIAL PRIMARY KEY,
+      company_name VARCHAR(200) DEFAULT 'Egg Station',
+      company_name_en VARCHAR(200) DEFAULT 'Egg Station',
+      tax_id VARCHAR(20),
+      address TEXT,
+      phone VARCHAR(50),
+      email VARCHAR(150),
+      website VARCHAR(150),
+      logo_url TEXT,
+      bank_name VARCHAR(100),
+      bank_account VARCHAR(50),
+      bank_account_name VARCHAR(100),
+      invoice_note TEXT DEFAULT 'ขอบคุณที่ใช้บริการ',
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    const cs = await pool.query('SELECT id FROM company_settings');
+    if (cs.rows.length === 0) {
+      await pool.query(`INSERT INTO company_settings
+        (company_name, company_name_en, tax_id, address, phone, invoice_note)
+        VALUES ($1,$2,$3,$4,$5,$6)`,
+        [
+          'บริษัท เจ เอ็น คอมพาเนียน กรุ๊ป จำกัด (สำนักงานใหญ่)',
+          'J.N. Companion Group Co., Ltd. (Head Office)',
+          '0745567000735',
+          '219/791 หมู่ที่ 12 ต.อ้อมน้อย อ.กระทุ่มแบน จ.สมุทรสาคร 74130',
+          '064-949-0589',
+          'ขอบคุณที่ใช้บริการ กรุณาชำระเงินภายในกำหนด'
+        ]);
+    }
+
     // admin user
     const userCheck = await pool.query(`SELECT id FROM users WHERE username='admin'`);
     if (userCheck.rows.length === 0) {
@@ -978,7 +1010,7 @@ app.get('/api/sales/:id/items', auth, async (req, res) => {
 
 // INVOICES
 app.get('/api/invoices', auth, async (req, res) => {
-  const r = await pool.query(`SELECT i.*,c.contact_name,c.business_name,b.code AS branch_code FROM invoices i LEFT JOIN contacts c ON i.contact_id=c.id JOIN branches b ON i.branch_id=b.id ORDER BY i.created_at DESC`);
+  const r = await pool.query(`SELECT i.*,c.contact_name,c.business_name,c.address AS contact_address,c.tax_id AS contact_tax_id,b.code AS branch_code,u.full_name AS created_by_name FROM invoices i LEFT JOIN contacts c ON i.contact_id=c.id JOIN branches b ON i.branch_id=b.id LEFT JOIN users u ON i.created_by=u.id ORDER BY i.created_at DESC`);
   res.json(r.rows);
 });
 app.post('/api/invoices/manual', auth, role('owner','admin','manager'), async (req, res) => {
@@ -1725,6 +1757,27 @@ app.get('/api/daily-close/history', auth, async (req, res) => {
   q += ' ORDER BY dc.close_date DESC LIMIT 30';
   const r = await pool.query(q, params);
   res.json(r.rows);
+});
+
+// ============================================================
+// COMPANY SETTINGS API
+// ============================================================
+app.get('/api/company-settings', auth, async (req, res) => {
+  const r = await pool.query('SELECT * FROM company_settings LIMIT 1');
+  res.json(r.rows[0] || {});
+});
+
+app.put('/api/company-settings', auth, role('owner','admin'), async (req, res) => {
+  const { company_name, company_name_en, tax_id, address, phone, email, website, bank_name, bank_account, bank_account_name, invoice_note } = req.body;
+  await pool.query(`UPDATE company_settings SET company_name=$1,company_name_en=$2,tax_id=$3,address=$4,phone=$5,email=$6,website=$7,bank_name=$8,bank_account=$9,bank_account_name=$10,invoice_note=$11,updated_at=NOW()`,
+    [company_name, company_name_en, tax_id, address, phone, email, website, bank_name, bank_account, bank_account_name, invoice_note]);
+  res.json({ message: 'บันทึกเรียบร้อย' });
+});
+
+app.post('/api/company-settings/logo', auth, role('owner','admin'), upload.single('logo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
+  await pool.query('UPDATE company_settings SET logo_url=$1', ['/uploads/'+req.file.filename]);
+  res.json({ message: 'อัพโหลดโลโก้เรียบร้อย', url: '/uploads/'+req.file.filename });
 });
 
 // REPORTS
