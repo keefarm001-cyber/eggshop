@@ -48,9 +48,22 @@ async function initSchema() {
 
     // product_categories
     await pool.query(`CREATE TABLE IF NOT EXISTS product_categories (id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL, type VARCHAR(20) DEFAULT 'stock', active BOOLEAN DEFAULT true)`);
-    const catCheck = await pool.query(`SELECT id FROM product_categories WHERE name='ไข่ไก่'`);
-    if (catCheck.rows.length === 0) {
-      await pool.query(`INSERT INTO product_categories (name,type) VALUES ('ไข่ไก่','stock'),('ของชำ','stock'),('บรรจุภัณฑ์','stock'),('บริการ','service'),('อื่นๆ ไม่นับสต๊อก','nostock'),('ไข่เสริม','stock'),('บรรจุภัณฑ์ไข่','stock')`);
+    // ลบกลุ่มสินค้าซ้ำที่มีอยู่แล้วใน database
+    await pool.query(`
+      DELETE FROM product_categories WHERE id NOT IN (
+        SELECT MIN(id) FROM product_categories GROUP BY name
+      )
+    `).catch(e => console.log('dedup skip:', e.message));
+
+    // seed กลุ่มสินค้า - ใช้ unique constraint ป้องกันซ้ำ
+    await pool.query(`ALTER TABLE product_categories ADD CONSTRAINT IF NOT EXISTS product_categories_name_unique UNIQUE (name)`).catch(()=>{});
+    const defaultCats = [
+      ['ไข่ไก่','stock'],['ของชำ','stock'],['บรรจุภัณฑ์','stock'],
+      ['บริการ','service'],['อื่นๆ ไม่นับสต๊อก','nostock'],
+      ['ไข่เสริม','stock'],['บรรจุภัณฑ์ไข่','stock'],
+    ];
+    for (const [name, type] of defaultCats) {
+      await pool.query(`INSERT INTO product_categories (name,type) VALUES ($1,$2) ON CONFLICT (name) DO NOTHING`, [name, type]);
     }
 
     // products
@@ -60,12 +73,6 @@ async function initSchema() {
 
     const eggCat = await pool.query(`SELECT id FROM product_categories WHERE name='ไข่ไก่'`);
     const catId = eggCat.rows[0].id;
-    // เพิ่มกลุ่มสินค้าใหม่ถ้ายังไม่มี (ตรวจสอบก่อนเสมอ)
-    const extraCatNames = ['ไข่เสริม','บรรจุภัณฑ์ไข่'];
-    for (const name of extraCatNames) {
-      const ec = await pool.query('SELECT id FROM product_categories WHERE name=$1', [name]);
-      if (ec.rows.length === 0) await pool.query('INSERT INTO product_categories (name,type) VALUES ($1,$2)', [name, 'stock']);
-    }
     const eggProducts = [['EGG-0','ไข่ไก่เบอร์ 0'],['EGG-1','ไข่ไก่เบอร์ 1'],['EGG-2','ไข่ไก่เบอร์ 2'],['EGG-3','ไข่ไก่เบอร์ 3'],['EGG-4','ไข่ไก่เบอร์ 4'],['EGG-5','ไข่ไก่เบอร์ 5'],['EGG-6','ไข่ไก่เบอร์ 6'],['EGG-BANG-L','ไข่บางใหญ่'],['EGG-BANG-M','ไข่บางกลาง'],['EGG-BANG-S','ไข่บางเล็ก']];
     for (const [code,name] of eggProducts) await pool.query(`INSERT INTO products (category_id,code,name,unit,is_egg,track_stock) VALUES ($1,$2,$3,'ฟอง',true,true) ON CONFLICT (code) DO NOTHING`, [catId, code, name]);
 
@@ -313,6 +320,75 @@ async function initSchema() {
     // doc sequence for expense
     await pool.query(`INSERT INTO doc_sequences (doc_type,prefix) VALUES ('expense_doc','EXP') ON CONFLICT (doc_type) DO NOTHING`);
     await pool.query(`INSERT INTO doc_sequences (doc_type,prefix) VALUES ('payroll','PAY') ON CONFLICT (doc_type) DO NOTHING`);
+
+    // product_bundles (สินค้าเป็นชุด เช่น ไข่ 10 ฟอง/ชุด)
+    await pool.query(`CREATE TABLE IF NOT EXISTS product_bundles (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(150) NOT NULL,
+      branch_id INTEGER REFERENCES branches(id),
+      product_id INTEGER REFERENCES products(id),
+      qty_per_bundle INTEGER NOT NULL DEFAULT 10,
+      price NUMERIC(10,2) NOT NULL DEFAULT 0,
+      customer_type VARCHAR(20) DEFAULT 'retail',
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+
+    // damaged_eggs — บันทึกไข่บุบรายวัน
+    await pool.query(`CREATE TABLE IF NOT EXISTS damaged_eggs (
+      id SERIAL PRIMARY KEY,
+      branch_id INTEGER REFERENCES branches(id),
+      damage_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      product_id INTEGER REFERENCES products(id),
+      product_name TEXT,
+      qty INTEGER NOT NULL DEFAULT 0,
+      note TEXT,
+      photo_url TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+
+    // daily_attachments — เอกสารแนบรายวัน (บิล, ใบส่งของ ฯลฯ)
+    await pool.query(`CREATE TABLE IF NOT EXISTS daily_attachments (
+      id SERIAL PRIMARY KEY,
+      branch_id INTEGER REFERENCES branches(id),
+      attach_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      file_url TEXT NOT NULL,
+      file_type VARCHAR(20) DEFAULT 'image',
+      doc_type VARCHAR(50) DEFAULT 'other',
+      note TEXT,
+      uploaded_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+
+    // daily_close — ปิดยอดประจำวัน
+    await pool.query(`CREATE TABLE IF NOT EXISTS daily_closes (
+      id SERIAL PRIMARY KEY,
+      branch_id INTEGER REFERENCES branches(id),
+      close_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      -- ยอดเงิน
+      cash_system NUMERIC(10,2) DEFAULT 0,
+      cash_actual NUMERIC(10,2) DEFAULT 0,
+      cash_diff NUMERIC(10,2) DEFAULT 0,
+      transfer_system NUMERIC(10,2) DEFAULT 0,
+      transfer_actual NUMERIC(10,2) DEFAULT 0,
+      transfer_diff NUMERIC(10,2) DEFAULT 0,
+      other_income NUMERIC(10,2) DEFAULT 0,
+      total_system NUMERIC(10,2) DEFAULT 0,
+      total_actual NUMERIC(10,2) DEFAULT 0,
+      total_diff NUMERIC(10,2) DEFAULT 0,
+      -- สรุปไข่
+      egg_sold_total INTEGER DEFAULT 0,
+      egg_variance INTEGER DEFAULT 0,
+      egg_variance_value NUMERIC(10,2) DEFAULT 0,
+      -- หมายเหตุ
+      note TEXT,
+      items JSONB DEFAULT '[]',
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(branch_id, close_date)
+    )`);
+    await pool.query(`ALTER TABLE daily_closes ADD COLUMN IF NOT EXISTS other_income NUMERIC(10,2) DEFAULT 0`);
 
     // admin user
     const userCheck = await pool.query(`SELECT id FROM users WHERE username='admin'`);
@@ -613,8 +689,14 @@ app.get('/api/pos/products', auth, async (req, res) => {
   if (!branch_id || !customer_type) return res.status(400).json({ error: 'กรุณาระบุ branch_id และ customer_type' });
   const r = await pool.query(`SELECT p.id AS product_id,p.code,p.name,p.unit,p.is_egg,pp.qty,pp.price,COALESCE(s.qty_unit,0) AS stock_qty FROM product_prices pp JOIN products p ON pp.product_id=p.id LEFT JOIN stock s ON s.product_id=p.id AND s.branch_id=$1 WHERE pp.branch_id=$1 AND pp.customer_type=$2 AND pp.active=true AND p.active=true ORDER BY p.is_egg DESC,p.code,pp.qty`, [branch_id, customer_type]);
   const grouped = {};
-  r.rows.forEach(row => { if (!grouped[row.product_id]) grouped[row.product_id] = { product_id:row.product_id, code:row.code, name:row.name, unit:row.unit, is_egg:row.is_egg, stock_qty:parseInt(row.stock_qty), prices:[] }; grouped[row.product_id].prices.push({ qty:row.qty, price:parseFloat(row.price) }); });
-  res.json(Object.values(grouped));
+  r.rows.forEach(row => { if (!grouped[row.product_id]) grouped[row.product_id] = { product_id:row.product_id, code:row.code, name:row.name, unit:row.unit, is_egg:row.is_egg, stock_qty:parseInt(row.stock_qty), prices:[], is_bundle:false }; grouped[row.product_id].prices.push({ qty:row.qty, price:parseFloat(row.price) }); });
+  // เพิ่ม bundles
+  const bundles = await pool.query(`SELECT pb.*,p.name AS product_name,p.code,p.is_egg,COALESCE(s.qty_unit,0) AS stock_qty FROM product_bundles pb JOIN products p ON pb.product_id=p.id LEFT JOIN stock s ON s.product_id=p.id AND s.branch_id=$1 WHERE pb.active=true AND (pb.branch_id=$1 OR pb.branch_id IS NULL) AND (pb.customer_type=$2 OR pb.customer_type='all') ORDER BY pb.name`, [branch_id, customer_type]);
+  const result = Object.values(grouped);
+  bundles.rows.forEach(b => {
+    result.push({ product_id: b.product_id, code: b.code, name: b.name+' (ชุด '+b.qty_per_bundle+'ฟ.)', unit: 'ชุด', is_egg: b.is_egg, stock_qty: Math.floor(parseInt(b.stock_qty)/b.qty_per_bundle), prices:[{qty:b.qty_per_bundle, price:parseFloat(b.price)}], is_bundle:true, bundle_id:b.id, qty_per_bundle:b.qty_per_bundle });
+  });
+  res.json(result);
 });
 
 // SHIFTS
@@ -1042,14 +1124,37 @@ app.get('/api/employees', auth, async (req, res) => {
   res.json(r.rows);
 });
 app.post('/api/employees', auth, role('owner','admin'), async (req, res) => {
-  const { full_name, nickname, phone, branch_id, position, start_date, salary } = req.body;
+  const { full_name, nickname, phone, branch_id, position, start_date, salary,
+          create_user, username, password, role_name, branch_access } = req.body;
   if (!full_name) return res.status(400).json({ error: 'กรุณากรอกชื่อ' });
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const code = 'EMP' + Date.now().toString().slice(-5);
-    const r = await pool.query(`INSERT INTO employees (code,full_name,nickname,phone,branch_id,position,start_date,salary) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    const emp = await client.query(`INSERT INTO employees (code,full_name,nickname,phone,branch_id,position,start_date,salary) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [code, full_name, nickname, phone, branch_id||null, position, start_date||null, salary||null]);
-    res.status(201).json({ message: 'เพิ่มพนักงานเรียบร้อย', employee: r.rows[0] });
-  } catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
+    const empId = emp.rows[0].id;
+    let userId = null;
+    // สร้าง user account ถ้าต้องการ
+    if (create_user && username && password) {
+      const hash = await bcrypt.hash(password, 10);
+      const roleR = await client.query('SELECT id FROM roles WHERE name=$1', [role_name||'cashier']);
+      const roleId = roleR.rows[0]?.id || 4;
+      const userR = await client.query('INSERT INTO users (username,password_hash,full_name,role_id,branch_id,phone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+        [username, hash, full_name, roleId, branch_id||null, phone||null]);
+      userId = userR.rows[0].id;
+      // สิทธิ์สาขา
+      for (const bid of (branch_access||[])) {
+        await client.query('INSERT INTO user_branch_access (user_id,branch_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [userId, bid]);
+      }
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ message: 'เพิ่มพนักงานเรียบร้อย', employee: emp.rows[0], user_id: userId });
+  } catch(e) {
+    await client.query('ROLLBACK');
+    if (e.code==='23505') return res.status(409).json({ error: 'username นี้มีอยู่แล้ว' });
+    res.status(500).json({ error: 'เกิดข้อผิดพลาด' });
+  } finally { client.release(); }
 });
 app.put('/api/employees/:id', auth, role('owner','admin'), async (req, res) => {
   const { full_name, nickname, national_id, phone, email, address, branch_id, position, start_date, probation_end_date, salary, salary_base, bank_name, bank_account, education, work_history, emergency_contact, active } = req.body;
@@ -1070,6 +1175,41 @@ app.post('/api/employees/:id/doc', auth, role('owner','admin'), upload.single('d
   if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
   await pool.query('UPDATE employees SET doc_url=$1 WHERE id=$2', ['/uploads/'+req.file.filename, req.params.id]);
   res.json({ message: 'อัพโหลดเอกสารเรียบร้อย', url: '/uploads/'+req.file.filename });
+});
+
+// ============================================================
+// PRODUCT BUNDLES API
+// ============================================================
+app.get('/api/bundles', auth, async (req, res) => {
+  const { branch_id } = req.query;
+  let q = `SELECT pb.*,p.name AS product_name,p.code AS product_code,b.code AS branch_code
+    FROM product_bundles pb JOIN products p ON pb.product_id=p.id
+    LEFT JOIN branches b ON pb.branch_id=b.id WHERE pb.active=true`;
+  const params = [];
+  if (branch_id) { params.push(branch_id); q += ` AND (pb.branch_id=$${params.length} OR pb.branch_id IS NULL)`; }
+  q += ' ORDER BY pb.name';
+  const r = await pool.query(q, params);
+  res.json(r.rows);
+});
+
+app.post('/api/bundles', auth, role('owner','admin','manager'), async (req, res) => {
+  const { name, branch_id, product_id, qty_per_bundle, price, customer_type } = req.body;
+  if (!name||!product_id||!qty_per_bundle||!price) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
+  const r = await pool.query(`INSERT INTO product_bundles (name,branch_id,product_id,qty_per_bundle,price,customer_type) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [name, branch_id||null, parseInt(product_id), parseInt(qty_per_bundle), parseFloat(price), customer_type||'retail']);
+  res.status(201).json({ message: 'สร้างชุดสินค้าเรียบร้อย', bundle: r.rows[0] });
+});
+
+app.put('/api/bundles/:id', auth, role('owner','admin','manager'), async (req, res) => {
+  const { name, qty_per_bundle, price, customer_type, active } = req.body;
+  await pool.query('UPDATE product_bundles SET name=$1,qty_per_bundle=$2,price=$3,customer_type=$4,active=$5 WHERE id=$6',
+    [name, qty_per_bundle, price, customer_type, active, req.params.id]);
+  res.json({ message: 'แก้ไขเรียบร้อย' });
+});
+
+app.delete('/api/bundles/:id', auth, role('owner','admin','manager'), async (req, res) => {
+  await pool.query('UPDATE product_bundles SET active=false WHERE id=$1', [req.params.id]);
+  res.json({ message: 'ลบเรียบร้อย' });
 });
 
 // ============================================================
@@ -1188,6 +1328,399 @@ app.post('/api/payroll/:id/approve', auth, role('owner','admin'), async (req, re
   await pool.query(`UPDATE payroll_periods SET status='approved' WHERE id=$1`, [req.params.id]);
   await pool.query(`UPDATE payroll_items SET status='approved' WHERE period_id=$1`, [req.params.id]);
   res.json({message:'อนุมัติ Payroll เรียบร้อย'});
+});
+
+// ============================================================
+// DAMAGED EGGS API
+// ============================================================
+app.get('/api/damaged-eggs', auth, async (req, res) => {
+  const { branch_id, date } = req.query;
+  let q = `SELECT de.*,b.code AS branch_code,u.full_name AS created_by_name
+    FROM damaged_eggs de JOIN branches b ON de.branch_id=b.id
+    LEFT JOIN users u ON de.created_by=u.id WHERE 1=1`;
+  const params = [];
+  if (branch_id) { params.push(branch_id); q += ` AND de.branch_id=$${params.length}`; }
+  if (date) { params.push(date); q += ` AND de.damage_date=$${params.length}`; }
+  q += ' ORDER BY de.created_at DESC';
+  const r = await pool.query(q, params);
+  res.json(r.rows);
+});
+
+app.post('/api/damaged-eggs', auth, upload.single('photo'), async (req, res) => {
+  const { branch_id, damage_date, product_id, product_name, qty, note } = req.body;
+  const photo_url = req.file ? '/uploads/'+req.file.filename : null;
+  if (!branch_id || !qty) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
+  try {
+    const r = await pool.query(`INSERT INTO damaged_eggs (branch_id,damage_date,product_id,product_name,qty,note,photo_url,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [branch_id, damage_date||new Date().toISOString().slice(0,10),
+       product_id||null, product_name||null, parseInt(qty), note||null, photo_url, req.user.id]);
+    res.status(201).json({ message: 'บันทึกไข่บุบเรียบร้อย', record: r.rows[0] });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/damaged-eggs/:id', auth, async (req, res) => {
+  await pool.query('DELETE FROM damaged_eggs WHERE id=$1', [req.params.id]);
+  res.json({ message: 'ลบเรียบร้อย' });
+});
+
+// ============================================================
+// DAILY ATTACHMENTS API (เอกสารแนบรายวัน)
+// ============================================================
+app.get('/api/daily-attachments', auth, async (req, res) => {
+  const { branch_id, date } = req.query;
+  let q = `SELECT da.*,b.code AS branch_code,u.full_name AS uploaded_by_name
+    FROM daily_attachments da JOIN branches b ON da.branch_id=b.id
+    LEFT JOIN users u ON da.uploaded_by=u.id WHERE 1=1`;
+  const params = [];
+  if (branch_id) { params.push(branch_id); q += ` AND da.branch_id=$${params.length}`; }
+  if (date) { params.push(date); q += ` AND da.attach_date=$${params.length}`; }
+  q += ' ORDER BY da.created_at DESC';
+  const r = await pool.query(q, params);
+  res.json(r.rows);
+});
+
+// Upload จาก desktop/mobile (ต้องมี token)
+app.post('/api/daily-attachments', auth, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
+  const { branch_id, attach_date, doc_type, note } = req.body;
+  const ext = req.file.originalname.split('.').pop().toLowerCase();
+  const file_type = ['pdf'].includes(ext) ? 'pdf' : 'image';
+  try {
+    const r = await pool.query(`INSERT INTO daily_attachments (branch_id,attach_date,file_url,file_type,doc_type,note,uploaded_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [branch_id, attach_date||new Date().toISOString().slice(0,10),
+       '/uploads/'+req.file.filename, file_type,
+       doc_type||'other', note||null, req.user.id]);
+    res.status(201).json({ message: 'อัพโหลดเรียบร้อย', attachment: r.rows[0], url: '/uploads/'+req.file.filename });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUBLIC upload สำหรับ QR scan (ไม่ต้อง login แต่ต้องมี token พิเศษ)
+app.post('/api/daily-attachments/qr-upload', upload.single('file'), async (req, res) => {
+  const { qr_token, branch_id, attach_date, doc_type, note } = req.body;
+  // verify QR token (format: branchId_date_secret)
+  const expectedToken = Buffer.from(`${branch_id}_${attach_date}_${process.env.JWT_SECRET}`).toString('base64').slice(0,16);
+  if (qr_token !== expectedToken) return res.status(403).json({ error: 'QR Token ไม่ถูกต้องหรือหมดอายุ' });
+  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
+  const ext = req.file.originalname.split('.').pop().toLowerCase();
+  const file_type = ['pdf'].includes(ext) ? 'pdf' : 'image';
+  try {
+    const r = await pool.query(`INSERT INTO daily_attachments (branch_id,attach_date,file_url,file_type,doc_type,note)
+      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [branch_id, attach_date, '/uploads/'+req.file.filename, file_type, doc_type||'other', note||null]);
+    res.status(201).json({ message: 'อัพโหลดเรียบร้อย', url: '/uploads/'+req.file.filename });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// สร้าง QR token
+app.get('/api/daily-attachments/qr-token', auth, (req, res) => {
+  const { branch_id, date } = req.query;
+  const token = Buffer.from(`${branch_id}_${date}_${process.env.JWT_SECRET}`).toString('base64').slice(0,16);
+  const baseUrl = process.env.APP_URL || req.protocol+'://'+req.get('host');
+  const uploadUrl = `${baseUrl}/upload-qr?branch_id=${branch_id}&date=${date}&token=${token}`;
+  res.json({ token, upload_url: uploadUrl });
+});
+
+app.delete('/api/daily-attachments/:id', auth, async (req, res) => {
+  await pool.query('DELETE FROM daily_attachments WHERE id=$1', [req.params.id]);
+  res.json({ message: 'ลบเรียบร้อย' });
+});
+
+// ============================================================
+// PUBLIC QR Upload Page (สำหรับมือถือสแกน QR)
+// ============================================================
+app.get('/upload-qr', (req, res) => {
+  const { branch_id, date, token } = req.query;
+  const branchId = branch_id || '';
+  const uploadDate = date || new Date().toISOString().slice(0,10);
+  res.send(`<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>📎 แนบเอกสาร - Egg Station</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f4f6f9;color:#1f2937;font-size:16px;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+.card{background:#fff;border-radius:14px;padding:24px;width:100%;max-width:400px;box-shadow:0 4px 20px rgba(0,0,0,.1)}
+.header{text-align:center;margin-bottom:24px}
+.header .icon{font-size:48px;display:block;margin-bottom:8px}
+.header h1{font-size:20px;font-weight:700;color:#e67e00}
+.header p{font-size:13px;color:#6b7280;margin-top:4px}
+.info-box{background:#fff3e0;border:1px solid #fed7aa;border-radius:8px;padding:12px;margin-bottom:20px;font-size:13px}
+.info-box strong{color:#e67e00}
+.form-group{margin-bottom:16px}
+label{display:block;font-size:13px;font-weight:600;color:#6b7280;margin-bottom:6px}
+select,input[type="text"],textarea{width:100%;border:1.5px solid #d1d5db;border-radius:8px;padding:10px 13px;font-family:'Sarabun',sans-serif;font-size:15px;outline:none;color:#1f2937}
+select:focus,input:focus,textarea:focus{border-color:#e67e00}
+.upload-area{border:2px dashed #d1d5db;border-radius:10px;padding:30px 20px;text-align:center;cursor:pointer;transition:all .2s;background:#f9fafb}
+.upload-area:hover,.upload-area.drag{border-color:#e67e00;background:#fff3e0}
+.upload-area input{display:none}
+.upload-area .icon{font-size:40px;margin-bottom:8px}
+.upload-area p{font-size:14px;color:#6b7280}
+.upload-area .hint{font-size:12px;color:#9ca3af;margin-top:4px}
+.preview{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}
+.preview img{width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #d1d5db}
+.preview .pdf-icon{width:80px;height:80px;background:#eff6ff;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:28px;border:1px solid #bfdbfe}
+.btn{width:100%;padding:14px;background:#e67e00;color:#fff;border:none;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:16px;font-weight:700;cursor:pointer;margin-top:8px}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.btn-secondary{background:#f0f2f5;color:#1f2937;margin-top:6px}
+.result{margin-top:16px;padding:14px;border-radius:8px;font-size:14px;text-align:center;display:none}
+.result.success{background:#f0fdf4;color:#16a34a;border:1px solid #86efac}
+.result.error{background:#fef2f2;color:#dc2626;border:1px solid #fca5a5}
+.progress{background:#e5e7eb;border-radius:4px;height:6px;margin-top:10px;overflow:hidden;display:none}
+.progress-bar{height:100%;background:#e67e00;border-radius:4px;transition:width .3s}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <span class="icon">📎</span>
+    <h1>แนบเอกสาร</h1>
+    <p>Egg Station - อัพโหลดเอกสารจากมือถือ</p>
+  </div>
+  <div class="info-box">
+    <strong>📅 วันที่:</strong> ${uploadDate}<br>
+    <strong>🏪 สาขา:</strong> รหัส ${branchId}
+  </div>
+  <div class="form-group">
+    <label>ประเภทเอกสาร</label>
+    <select id="docType">
+      <option value="delivery_bill">บิลส่งไข่ / ใบส่งของ</option>
+      <option value="receipt_bill">ใบรับสินค้า / บิลซื้อ</option>
+      <option value="damaged_egg">รูปไข่บุบ / เสียหาย</option>
+      <option value="daily_report">รายงานประจำวัน</option>
+      <option value="other">อื่นๆ</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>หมายเหตุ (ถ้ามี)</label>
+    <input type="text" id="noteInput" placeholder="เช่น บิลเบอร์ 123 จากฟาร์มA">
+  </div>
+  <div class="form-group">
+    <label>เลือกรูป/เอกสาร (เลือกได้หลายไฟล์)</label>
+    <div class="upload-area" onclick="document.getElementById('fileInput').click()" id="dropArea">
+      <div class="icon">📷</div>
+      <p>กดเพื่อถ่ายรูปหรือเลือกไฟล์</p>
+      <div class="hint">รองรับ JPG, PNG, PDF ขนาดไม่เกิน 10MB/ไฟล์</div>
+      <input type="file" id="fileInput" multiple accept="image/*,.pdf" capture="environment" onchange="handleFiles(this.files)">
+    </div>
+    <div class="preview" id="preview"></div>
+  </div>
+  <div class="progress" id="progress"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+  <button class="btn" id="uploadBtn" onclick="doUpload()" disabled>📤 อัพโหลด</button>
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+const TOKEN = '${token}';
+const BRANCH_ID = '${branchId}';
+const DATE = '${uploadDate}';
+let selectedFiles = [];
+
+function handleFiles(files) {
+  selectedFiles = Array.from(files);
+  const preview = document.getElementById('preview');
+  preview.innerHTML = '';
+  selectedFiles.forEach(f => {
+    if (f.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = e => { preview.innerHTML += '<img src="'+e.target.result+'">'; };
+      reader.readAsDataURL(f);
+    } else {
+      preview.innerHTML += '<div class="pdf-icon">📄</div>';
+    }
+  });
+  document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
+}
+
+// Drag & Drop
+const dropArea = document.getElementById('dropArea');
+['dragenter','dragover'].forEach(e => dropArea.addEventListener(e, ev => { ev.preventDefault(); dropArea.classList.add('drag'); }));
+['dragleave','drop'].forEach(e => dropArea.addEventListener(e, ev => { ev.preventDefault(); dropArea.classList.remove('drag'); if(ev.dataTransfer?.files) handleFiles(ev.dataTransfer.files); }));
+
+async function doUpload() {
+  const btn = document.getElementById('uploadBtn');
+  const result = document.getElementById('result');
+  const progress = document.getElementById('progress');
+  const bar = document.getElementById('progressBar');
+  if (!selectedFiles.length) return;
+
+  btn.disabled = true;
+  btn.textContent = 'กำลังอัพโหลด...';
+  progress.style.display = 'block';
+  result.style.display = 'none';
+
+  const docType = document.getElementById('docType').value;
+  const note = document.getElementById('noteInput').value;
+  let uploaded = 0, failed = 0;
+
+  for (let i = 0; i < selectedFiles.length; i++) {
+    const fd = new FormData();
+    fd.append('file', selectedFiles[i]);
+    fd.append('qr_token', TOKEN);
+    fd.append('branch_id', BRANCH_ID);
+    fd.append('attach_date', DATE);
+    fd.append('doc_type', docType);
+    fd.append('note', note);
+    try {
+      const res = await fetch('/api/daily-attachments/qr-upload', { method:'POST', body:fd });
+      const data = await res.json();
+      if (res.ok) uploaded++;
+      else failed++;
+    } catch(e) { failed++; }
+    bar.style.width = ((i+1)/selectedFiles.length*100)+'%';
+  }
+
+  btn.disabled = false;
+  btn.textContent = '📤 อัพโหลด';
+  result.style.display = 'block';
+  if (uploaded > 0 && failed === 0) {
+    result.className = 'result success';
+    result.innerHTML = '✅ อัพโหลดสำเร็จ '+uploaded+' ไฟล์<br><small>เอกสารถูกบันทึกเข้าระบบแล้ว</small>';
+    selectedFiles = [];
+    document.getElementById('preview').innerHTML = '';
+    document.getElementById('fileInput').value = '';
+    document.getElementById('uploadBtn').disabled = true;
+  } else {
+    result.className = 'result error';
+    result.innerHTML = '❌ สำเร็จ '+uploaded+' ไฟล์ / ล้มเหลว '+failed+' ไฟล์';
+  }
+}
+</script>
+</body>
+</html>`);
+});
+
+// ============================================================
+// DAILY CLOSE API
+// ============================================================
+app.get('/api/daily-close/prepare', auth, async (req, res) => {
+  // ดึงข้อมูลสำหรับเตรียมปิดยอดวันนี้
+  const { branch_id, date } = req.query;
+  const closeDate = date || new Date().toISOString().slice(0,10);
+  const bid = parseInt(branch_id) || req.user.branch_id;
+  if (!bid) return res.status(400).json({ error: 'กรุณาระบุสาขา' });
+
+  try {
+    // 1. ยอดขายวันนี้ แยกช่องทาง
+    const salesR = await pool.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN pm->>'method'='cash' THEN (pm->>'amount')::numeric ELSE 0 END),0) AS cash_total,
+        COALESCE(SUM(CASE WHEN pm->>'method'='transfer' THEN (pm->>'amount')::numeric ELSE 0 END),0) AS transfer_total,
+        COALESCE(SUM(CASE WHEN pm->>'method' NOT IN ('cash','transfer','credit') THEN (pm->>'amount')::numeric ELSE 0 END),0) AS other_total,
+        COUNT(s.id) AS bill_count,
+        COALESCE(SUM(s.total),0) AS total_sales
+      FROM sales s, jsonb_array_elements(s.payment_methods) pm
+      WHERE s.branch_id=$1 AND s.sale_date=$2 AND s.status='completed'
+    `, [bid, closeDate]);
+
+    // 2. สต๊อกไข่ปัจจุบัน
+    const stockR = await pool.query(`
+      SELECT p.code, p.name, p.is_egg,
+        COALESCE(s.qty_unit,0) AS qty_current,
+        pc.name AS category_name
+      FROM products p
+      LEFT JOIN stock s ON s.product_id=p.id AND s.branch_id=$1
+      LEFT JOIN product_categories pc ON p.category_id=pc.id
+      WHERE p.active=true AND p.is_egg=true
+      ORDER BY p.code
+    `, [bid]);
+
+    // 3. ยอดขายไข่แต่ละเบอร์วันนี้
+    const eggSalesR = await pool.query(`
+      SELECT p.code, p.name, COALESCE(SUM(si.qty_unit),0) AS sold_qty
+      FROM sale_items si
+      JOIN products p ON si.product_id=p.id
+      JOIN sales s ON si.sale_id=s.id
+      WHERE s.branch_id=$1 AND s.sale_date=$2 AND s.status='completed' AND p.is_egg=true
+      GROUP BY p.id, p.code, p.name ORDER BY p.code
+    `, [bid, closeDate]);
+
+    // 4. รับเข้าวันนี้
+    const receiveR = await pool.query(`
+      SELECT p.code, COALESCE(SUM(sri.qty_unit),0) AS received_qty
+      FROM stock_receipt_items sri
+      JOIN products p ON sri.product_id=p.id
+      JOIN stock_receipts sr ON sri.receipt_id=sr.id
+      WHERE sr.branch_id=$1 AND DATE(sr.created_at)=$2 AND sr.status='approved'
+      GROUP BY p.id, p.code
+    `, [bid, closeDate]);
+
+    // 5. กะปัจจุบัน (opening cash)
+    const shiftR = await pool.query(`
+      SELECT * FROM shifts WHERE branch_id=$1 AND (
+        (status='open') OR (status='closed' AND DATE(close_time)=$2)
+      ) ORDER BY open_time DESC LIMIT 1
+    `, [bid, closeDate]);
+
+    const sales = salesR.rows[0];
+    const eggSalesMap = {};
+    eggSalesR.rows.forEach(r => eggSalesMap[r.code] = parseInt(r.sold_qty)||0);
+    const receiveMap = {};
+    receiveR.rows.forEach(r => receiveMap[r.code] = parseInt(r.received_qty)||0);
+
+    // รวม egg data
+    const eggItems = stockR.rows.map(p => ({
+      code: p.code,
+      name: p.name,
+      qty_current: parseInt(p.qty_current)||0,
+      sold_today: eggSalesMap[p.code]||0,
+      received_today: receiveMap[p.code]||0,
+      // qty_open = qty_current + sold - received (ย้อนกลับ)
+      qty_open: (parseInt(p.qty_current)||0) + (eggSalesMap[p.code]||0) - (receiveMap[p.code]||0),
+    }));
+
+    res.json({
+      date: closeDate,
+      branch_id: bid,
+      sales: {
+        bill_count: parseInt(sales.bill_count)||0,
+        cash: parseFloat(sales.cash_total)||0,
+        transfer: parseFloat(sales.transfer_total)||0,
+        other: parseFloat(sales.other_total)||0,
+        total: parseFloat(sales.total_sales)||0,
+      },
+      opening_cash: shiftR.rows[0] ? parseFloat(shiftR.rows[0].opening_cash)||0 : 0,
+      egg_items: eggItems,
+    });
+  } catch(e) { console.error(e); res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/daily-close', auth, async (req, res) => {
+  const { branch_id, close_date, cash_system, cash_actual, transfer_system, transfer_actual, other_income, items, note, egg_variance, egg_variance_value } = req.body;
+  const cash_diff = parseFloat(cash_actual||0) - parseFloat(cash_system||0);
+  const transfer_diff = parseFloat(transfer_actual||0) - parseFloat(transfer_system||0);
+  const total_system = parseFloat(cash_system||0) + parseFloat(transfer_system||0) + parseFloat(other_income||0);
+  const total_actual = parseFloat(cash_actual||0) + parseFloat(transfer_actual||0) + parseFloat(other_income||0);
+  try {
+    await pool.query(`INSERT INTO daily_closes
+      (branch_id,close_date,cash_system,cash_actual,cash_diff,transfer_system,transfer_actual,transfer_diff,other_income,total_system,total_actual,total_diff,egg_variance,egg_variance_value,items,note,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+      ON CONFLICT (branch_id,close_date) DO UPDATE SET
+        cash_system=$3,cash_actual=$4,cash_diff=$5,transfer_system=$6,transfer_actual=$7,transfer_diff=$8,
+        other_income=$9,total_system=$10,total_actual=$11,total_diff=$12,egg_variance=$13,
+        egg_variance_value=$14,items=$15,note=$16,created_by=$17`,
+      [branch_id, close_date, cash_system||0, cash_actual||0, cash_diff,
+       transfer_system||0, transfer_actual||0, transfer_diff,
+       other_income||0, total_system, total_actual, total_actual-total_system,
+       egg_variance||0, egg_variance_value||0,
+       JSON.stringify(items||[]), note||null, req.user.id]);
+    res.json({ message: 'บันทึกปิดยอดเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/daily-close/history', auth, async (req, res) => {
+  const { branch_id } = req.query;
+  let q = `SELECT dc.*,b.code AS branch_code,u.full_name AS created_by_name
+    FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id
+    LEFT JOIN users u ON dc.created_by=u.id WHERE 1=1`;
+  const params = [];
+  if (branch_id) { params.push(branch_id); q += ` AND dc.branch_id=$${params.length}`; }
+  q += ' ORDER BY dc.close_date DESC LIMIT 30';
+  const r = await pool.query(q, params);
+  res.json(r.rows);
 });
 
 // REPORTS
