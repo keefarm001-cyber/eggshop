@@ -1865,8 +1865,7 @@ tbody tr:nth-child(even){background:#fafafa}
       <div class="company-detail">
         <h2>${co.company_name||'Egg Station'}</h2>
         ${co.company_name_en ? `<p>${co.company_name_en}</p>` : ''}
-        ${co.address ? `<p>${co.address.replace(/
-/g,'<br>')}</p>` : ''}
+        ${co.address ? `<p>${co.address.split(String.fromCharCode(10)).join('<br>')}</p>` : ''}
         ${co.phone ? `<p>โทร: ${co.phone}${co.email?' | '+co.email:''}</p>` : ''}
         ${co.tax_id ? `<p>เลขผู้เสียภาษี: ${co.tax_id}</p>` : ''}
       </div>
