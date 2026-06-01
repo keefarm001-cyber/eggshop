@@ -142,10 +142,13 @@ async function initSchema() {
     const defaultPerms = {
       owner: ['*'],
       admin: ['*'],
+      owner_biz: ['*'],
       manager: ['pos','shifts','sales_view','sales_void','quotations','invoices','credits','receipts','receipts_approve','stock_view','stock_receive','stock_transfer','members','contacts','products_view','products_edit','reports','expenses_view','expenses_edit','promotions','debt_notes','employees_view'],
       cashier: ['pos','shifts','sales_view','credits','members','stock_view'],
       stock: ['stock_view','stock_receive','stock_transfer','receipts'],
       viewer: ['sales_view','stock_view','reports'],
+      accountant: ['invoices','credits','debt_notes','expense_docs','expenses_view','expenses_edit','payroll','reports','sales_view','quotations'],
+      sales_pc: ['pos','shifts','sales_view','members','credits','stock_view','promotions'],
     };
     for (const [role, perms] of Object.entries(defaultPerms)) {
       for (const perm of perms) {
@@ -567,6 +570,16 @@ app.post('/api/products', auth, role('owner','admin','manager'), async (req, res
 app.put('/api/products/:id', auth, role('owner','admin','manager'), async (req, res) => { const { name, unit, active, track_stock } = req.body; await pool.query('UPDATE products SET name=$1,unit=$2,active=$3,track_stock=$4 WHERE id=$5', [name, unit, active, track_stock!==false, req.params.id]); res.json({ message: 'แก้ไขเรียบร้อย' }); });
 app.delete('/api/products/:id', auth, role('owner','admin'), async (req, res) => { await pool.query('UPDATE products SET active=false WHERE id=$1', [req.params.id]); res.json({ message: 'ลบเรียบร้อย' }); });
 app.get('/api/product-categories', auth, async (req, res) => { const r = await pool.query('SELECT * FROM product_categories WHERE active=true ORDER BY id'); res.json(r.rows); });
+app.post('/api/product-categories', auth, role('owner','admin','manager'), async (req, res) => {
+  const { name, type } = req.body;
+  if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อกลุ่ม' });
+  try {
+    const check = await pool.query('SELECT id FROM product_categories WHERE name=$1', [name]);
+    if (check.rows.length > 0) return res.status(409).json({ error: 'กลุ่มนี้มีอยู่แล้ว' });
+    const r = await pool.query('INSERT INTO product_categories (name,type) VALUES ($1,$2) RETURNING *', [name, type||'stock']);
+    res.status(201).json(r.rows[0]);
+  } catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
+});
 
 app.get('/api/products/:id/prices', auth, async (req, res) => {
   const r = await pool.query(`SELECT pp.*,b.code AS branch_code,b.name AS branch_name FROM product_prices pp JOIN branches b ON pp.branch_id=b.id WHERE pp.product_id=$1 ORDER BY b.code,pp.customer_type,pp.qty`, [req.params.id]);
@@ -887,6 +900,21 @@ app.get('/api/invoices', auth, async (req, res) => {
   const r = await pool.query(`SELECT i.*,c.contact_name,c.business_name,b.code AS branch_code FROM invoices i LEFT JOIN contacts c ON i.contact_id=c.id JOIN branches b ON i.branch_id=b.id ORDER BY i.created_at DESC`);
   res.json(r.rows);
 });
+app.post('/api/invoices/manual', auth, role('owner','admin','manager'), async (req, res) => {
+  const { contact_id, branch_id, total, due_date, note } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
+    const docNo = await genDocNo('invoice', '');
+    const r = await client.query(`INSERT INTO invoices (invoice_no,contact_id,branch_id,due_date,total,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [docNo, contact_id, branch_id, due_date||null, total, note||null, req.user.id]);
+    await client.query('COMMIT');
+    res.status(201).json({ message:'สร้างใบแจ้งหนี้เรียบร้อย', invoice_no:docNo, id:r.rows[0].id });
+  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error:'เกิดข้อผิดพลาด' }); }
+  finally { client.release(); }
+});
+
 app.post('/api/invoices/:id/pay', auth, async (req, res) => {
   const { amount, method, note } = req.body;
   const client = await pool.connect();
