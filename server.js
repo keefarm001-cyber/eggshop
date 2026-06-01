@@ -48,15 +48,13 @@ async function initSchema() {
 
     // product_categories
     await pool.query(`CREATE TABLE IF NOT EXISTS product_categories (id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL, type VARCHAR(20) DEFAULT 'stock', active BOOLEAN DEFAULT true)`);
-    // ลบกลุ่มสินค้าซ้ำที่มีอยู่แล้วใน database
-    await pool.query(`
-      DELETE FROM product_categories WHERE id NOT IN (
-        SELECT MIN(id) FROM product_categories GROUP BY name
-      )
-    `).catch(e => console.log('dedup skip:', e.message));
+    // ลบกลุ่มสินค้าซ้ำ + เพิ่ม unique constraint
+    try {
+      await pool.query(`DELETE FROM product_categories WHERE id NOT IN (SELECT MIN(id) FROM product_categories GROUP BY name)`);
+      await pool.query(`ALTER TABLE product_categories ADD CONSTRAINT product_categories_name_unique UNIQUE (name)`);
+    } catch(e) { /* constraint อาจมีอยู่แล้ว */ }
 
-    // seed กลุ่มสินค้า - ใช้ unique constraint ป้องกันซ้ำ
-    await pool.query(`ALTER TABLE product_categories ADD CONSTRAINT IF NOT EXISTS product_categories_name_unique UNIQUE (name)`).catch(()=>{});
+    // seed กลุ่มสินค้า
     const defaultCats = [
       ['ไข่ไก่','stock'],['ของชำ','stock'],['บรรจุภัณฑ์','stock'],
       ['บริการ','service'],['อื่นๆ ไม่นับสต๊อก','nostock'],
@@ -106,6 +104,7 @@ async function initSchema() {
     await pool.query(`CREATE TABLE IF NOT EXISTS shifts (id SERIAL PRIMARY KEY, branch_id INTEGER REFERENCES branches(id), cashier_id INTEGER REFERENCES users(id), open_time TIMESTAMPTZ DEFAULT NOW(), close_time TIMESTAMPTZ, opening_cash NUMERIC(10,2) DEFAULT 0, closing_cash NUMERIC(10,2), expected_cash NUMERIC(10,2), cash_difference NUMERIC(10,2), status VARCHAR(20) DEFAULT 'open', note TEXT)`);
 
     // sales
+    await pool.query(`ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_methods JSONB DEFAULT '[]'`).catch(()=>{});
     await pool.query(`CREATE TABLE IF NOT EXISTS sales (id SERIAL PRIMARY KEY, sale_no VARCHAR(30) UNIQUE NOT NULL, branch_id INTEGER REFERENCES branches(id), shift_id INTEGER REFERENCES shifts(id), contact_id INTEGER REFERENCES contacts(id), member_id INTEGER REFERENCES members(id), sale_channel VARCHAR(20) DEFAULT 'retail', cashier_id INTEGER REFERENCES users(id), sale_date DATE NOT NULL DEFAULT CURRENT_DATE, subtotal NUMERIC(10,2) NOT NULL DEFAULT 0, member_discount NUMERIC(10,2) DEFAULT 0, discount NUMERIC(10,2) DEFAULT 0, total NUMERIC(10,2) NOT NULL DEFAULT 0, payment_methods JSONB DEFAULT '[]', status VARCHAR(20) DEFAULT 'completed', void_reason TEXT, voided_by INTEGER REFERENCES users(id), note TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`);
     await pool.query(`CREATE TABLE IF NOT EXISTS sale_items (id SERIAL PRIMARY KEY, sale_id INTEGER REFERENCES sales(id) ON DELETE CASCADE, product_id INTEGER REFERENCES products(id), qty_set INTEGER NOT NULL, unit_size INTEGER NOT NULL, qty_unit INTEGER NOT NULL, price_per_set NUMERIC(10,2) NOT NULL, subtotal NUMERIC(10,2) NOT NULL)`);
 
@@ -983,17 +982,21 @@ app.get('/api/invoices', auth, async (req, res) => {
   res.json(r.rows);
 });
 app.post('/api/invoices/manual', auth, role('owner','admin','manager'), async (req, res) => {
-  const { contact_id, branch_id, total, due_date, note } = req.body;
+  const { contact_id, branch_id, items, discount, due_date, note } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
     const docNo = await genDocNo('invoice', '');
+    // คำนวณยอด
+    let subtotal = 0;
+    (items||[]).forEach(it => subtotal += parseFloat(it.qty||1) * parseFloat(it.unit_price||0));
+    const discAmt = parseFloat(discount||0);
+    const total = subtotal - discAmt;
     const r = await client.query(`INSERT INTO invoices (invoice_no,contact_id,branch_id,due_date,total,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [docNo, contact_id, branch_id, due_date||null, total, note||null, req.user.id]);
+      [docNo, contact_id||null, branch_id, due_date||null, total, note||null, req.user.id]);
     await client.query('COMMIT');
     res.status(201).json({ message:'สร้างใบแจ้งหนี้เรียบร้อย', invoice_no:docNo, id:r.rows[0].id });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error:'เกิดข้อผิดพลาด' }); }
+  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error:'เกิดข้อผิดพลาด' }); }
   finally { client.release(); }
 });
 
@@ -1612,7 +1615,8 @@ app.get('/api/daily-close/prepare', auth, async (req, res) => {
         COALESCE(SUM(CASE WHEN pm->>'method' NOT IN ('cash','transfer','credit') THEN (pm->>'amount')::numeric ELSE 0 END),0) AS other_total,
         COUNT(s.id) AS bill_count,
         COALESCE(SUM(s.total),0) AS total_sales
-      FROM sales s, jsonb_array_elements(s.payment_methods) pm
+      FROM sales s
+      LEFT JOIN LATERAL jsonb_array_elements(COALESCE(s.payment_methods,'[]'::jsonb)) AS pm ON true
       WHERE s.branch_id=$1 AND s.sale_date=$2 AND s.status='completed'
     `, [bid, closeDate]);
 
