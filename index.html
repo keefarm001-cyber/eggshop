@@ -29,9 +29,9 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:'Sarabun',sans-seri
 .nav-user{padding:12px 14px;border-top:1px solid var(--border);background:var(--surface2)}.nav-user-name{font-size:13px;font-weight:600}.nav-user-role{font-size:11px;color:var(--text-muted);margin-bottom:7px}
 .btn-logout{width:100%;padding:6px;background:var(--surface);border:1px solid var(--border);color:var(--text-muted);border-radius:6px;font-size:12px;cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .15s}.btn-logout:hover{background:var(--error-dim);color:var(--error);border-color:var(--error-border)}
 .main-content{display:flex;flex-direction:column;overflow:hidden;min-width:0}
-.page{display:none;flex-direction:column;overflow:hidden}.page.active{display:flex;flex-direction:column;height:100vh;overflow:hidden}
-.ph{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface)}.pt{font-size:17px;font-weight:700}
-.pb{flex:1;padding:18px 22px;overflow-y:auto;min-height:0;height:0}
+.page{display:none;flex-direction:column;overflow:hidden}.page.active{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.ph{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);width:100%}.pt{font-size:17px;font-weight:700}
+.pb{flex:1;padding:18px 22px;overflow-y:auto;min-height:0}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}.ct{font-size:14px;font-weight:600;margin-bottom:12px}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 15px;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
 .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
@@ -64,7 +64,7 @@ table{width:100%;border-collapse:collapse}thead{background:var(--surface2)}th{pa
 .mc-card{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:8px;padding:10px 12px;margin-bottom:8px}.mc-name{font-size:13px;font-weight:700}.mc-info{font-size:11px;opacity:.85;margin-top:1px}
 .doc-no{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--info);background:var(--info-dim);padding:2px 7px;border-radius:4px;display:inline-block}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:768px){#sidebar{width:100%;height:auto;flex-direction:row;border-right:none;border-bottom:1px solid var(--border);overflow-x:auto}.nav-brand{border-bottom:none;border-right:1px solid var(--border);padding:10px 12px;white-space:nowrap}.nav-branch,.nav-section{display:none}.nav-links{display:flex;flex-direction:row;padding:0}.nav-link{flex-direction:column;padding:8px 11px;border-left:none;border-bottom:3px solid transparent;font-size:10px;white-space:nowrap;gap:2px}.nav-link.active{border-left:none;border-bottom-color:var(--accent)}.nav-icon{font-size:15px}.nav-user{border-top:none;border-left:1px solid var(--border);margin-left:auto;white-space:nowrap}.nav-user-role{display:none}.app-layout{display:flex!important;flex-direction:column!important;grid-template-columns:none!important}.pos-layout{grid-template-columns:1fr}.pos-right{display:none}.g2,.g3,.g4{grid-template-columns:1fr}.pb{padding:14px}.ph{padding:12px 14px}}
+@media(max-width:768px){#sidebar{width:100%;height:auto;flex-direction:row;border-right:none;border-bottom:1px solid var(--border);overflow-x:auto}.nav-brand{border-bottom:none;border-right:1px solid var(--border);padding:10px 12px;white-space:nowrap}.nav-branch,.nav-section{display:none}.nav-links{display:flex;flex-direction:row;padding:0}.nav-link{flex-direction:column;padding:8px 11px;border-left:none;border-bottom:3px solid transparent;font-size:10px;white-space:nowrap;gap:2px}.nav-link.active{border-left:none;border-bottom-color:var(--accent)}.nav-icon{font-size:15px}.nav-user{border-top:none;border-left:1px solid var(--border);margin-left:auto;white-space:nowrap}.nav-user-role{display:none}.pos-layout{grid-template-columns:1fr}.pos-right{display:none}.g2,.g3,.g4{grid-template-columns:1fr}.pb{padding:14px}.ph{padding:12px 14px}}
 </style>
 </head>
 <body>
@@ -79,9 +79,9 @@ table{width:100%;border-collapse:collapse}thead{background:var(--surface2)}th{pa
     </div>
   </div>
 </div>
-<div id="appPage" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;overflow:hidden;z-index:1">
-  <div class="app-layout" style="display:table;width:100%;height:100%;table-layout:fixed;overflow:hidden">
-    <div id="sidebar" style="display:table-cell;width:220px;vertical-align:top;background:var(--surface);border-right:1px solid var(--border);box-shadow:var(--shadow)"><div style="display:flex;flex-direction:column;height:100vh;overflow-y:auto">
+<div id="appPage" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden;">
+  <div class="app-layout" style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:row;overflow:hidden;">
+    <div id="sidebar" style="width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);box-shadow:var(--shadow);display:flex;flex-direction:column;overflow-y:auto;">
       <div class="nav-brand">🥚 <span>Egg Station</span></div>
       <div class="nav-branch" id="navBranch">—</div>
       <div class="nav-links" id="navLinks"></div>
@@ -90,8 +90,8 @@ table{width:100%;border-collapse:collapse}thead{background:var(--surface2)}th{pa
         <div class="nav-user-role" id="navUserRole">—</div>
         <button class="btn-logout" onclick="logout()">ออกจากระบบ</button>
       </div>
-    </div></div>
-    <div class="main-content" style="display:table-cell;vertical-align:top;overflow:hidden;height:100%">
+    </div>
+    <div class="main-content" style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;">
       <div class="page" id="page-dashboard"><div class="ph"><div><div class="pt">📊 ภาพรวม</div><div style="font-size:12px;color:var(--text-muted)" id="dashDate"></div></div><button class="btn btn-secondary btn-sm" onclick="loadDashboard()">🔄</button></div><div class="pb"><div class="g3" id="dashStats" style="margin-bottom:14px"></div><div class="card"><div class="ct">ยอดขายวันนี้</div><table><thead><tr><th>สาขา</th><th>บิล</th><th>ยอดขาย</th><th>ส่วนลด</th></tr></thead><tbody id="dashBT"></tbody></table></div></div></div>
       <div class="page" id="page-pos">
         <div class="ph"><div class="pt">🛒 ขายหน้าร้าน</div><div style="display:flex;gap:8px;align-items:center"><div id="shiftBadge"></div><select class="ctrl" id="posCh" onchange="loadPosProds()" style="width:160px"><option value="retail">ปลีกหน้าร้าน</option><option value="restaurant">ร้านข้าว/ศูนย์อาหาร</option><option value="wholesale">ส่ง</option></select></div></div>
@@ -105,11 +105,11 @@ table{width:100%;border-collapse:collapse}thead{background:var(--surface2)}th{pa
       <div class="page" id="page-smv"><div class="ph"><div class="pt">📋 ประวัติสต๊อก</div><button class="btn btn-secondary" onclick="showPage('stock')">← กลับ</button></div><div class="pb"><div class="card" style="margin-bottom:12px"><div style="display:flex;gap:8px;flex-wrap:wrap"><select class="ctrl" id="mvBranch" style="width:170px"><option value="">ทุกสาขา</option></select><select class="ctrl" id="mvProd" style="width:180px"><option value="">ทุกสินค้า</option></select><button class="btn btn-primary btn-sm" onclick="loadMv()">ค้นหา</button></div></div><div class="card"><table><thead><tr><th>วันที่</th><th>สาขา</th><th>สินค้า</th><th>ประเภท</th><th>จำนวน</th><th>ก่อน</th><th>หลัง</th><th>หมายเหตุ</th><th>โดย</th></tr></thead><tbody id="mvT"></tbody></table></div></div></div>
       <div class="page" id="page-receipts"><div class="ph"><div class="pt">📋 ใบรับสินค้า</div><button class="btn btn-primary" onclick="showRecvModal()">+ สร้างใบรับสินค้า</button></div><div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>วันที่</th><th>สาขา</th><th>ซัพพลายเออร์</th><th>สถานะ</th><th>มูลค่า</th><th>รูป</th><th></th></tr></thead><tbody id="recvT"></tbody></table></div></div></div>
       <div class="page" id="page-quotations"><div class="ph"><div class="pt">📝 ใบเสนอราคา</div><button class="btn btn-primary" onclick="showQtModal()">+ สร้างใบเสนอราคา</button></div><div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>วันที่</th><th>ลูกค้า</th><th>ยอด</th><th>สถานะ</th></tr></thead><tbody id="qtT"></tbody></table></div></div></div>
-      <div class="page" id="page-invoices"><div class="ph"><div class="pt">📄 ใบแจ้งหนี้</div></div><div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>ลูกค้า</th><th>สาขา</th><th>วันออก</th><th>ครบกำหนด</th><th>ยอด</th><th>ชำระแล้ว</th><th>สถานะ</th><th></th></tr></thead><tbody id="invT"></tbody></table></div></div></div>
+      <div class="page" id="page-invoices"><div class="ph"><div class="pt">📄 ใบแจ้งหนี้</div><button class="btn btn-primary" onclick="showCreateInvoiceModal()">+ สร้างใบแจ้งหนี้</button></div><div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>ลูกค้า</th><th>สาขา</th><th>วันออก</th><th>ครบกำหนด</th><th>ยอด</th><th>ชำระแล้ว</th><th>สถานะ</th><th></th></tr></thead><tbody id="invT"></tbody></table></div></div></div>
       <div class="page" id="page-credits"><div class="ph"><div class="pt">💳 ลูกค้าเชื่อหน้าร้าน</div></div><div class="pb"><div class="card"><table><thead><tr><th>บิล</th><th>วันที่</th><th>ลูกค้า</th><th>สาขา</th><th>ยอด</th><th>ชำระแล้ว</th><th>ค้าง</th><th>สถานะ</th><th></th></tr></thead><tbody id="credT"></tbody></table></div></div></div>
       <div class="page" id="page-members"><div class="ph"><div><div class="pt">⭐ สมาชิก</div></div><div style="display:flex;gap:7px"><button class="btn btn-secondary" onclick="showMSetting()">⚙️ ตั้งค่าคะแนน</button><button class="btn btn-primary" onclick="showMemberModal()">+ เพิ่มสมาชิก</button></div></div><div class="pb"><div id="msBanner" class="card" style="margin-bottom:12px;background:var(--accent-dim);border-color:#fed7aa"></div><div class="card"><div style="margin-bottom:12px"><input type="text" class="ctrl" id="mSearch" placeholder="ค้นหาชื่อหรือเบอร์..." oninput="filterM()" style="max-width:280px"></div><table><thead><tr><th>รหัส</th><th>ชื่อ</th><th>เบอร์โทร</th><th>ฟองสะสม</th><th>ส่วนลดคงเหลือ</th><th>สาขา</th><th></th></tr></thead><tbody id="memberT"></tbody></table></div></div></div>
       <div class="page" id="page-contacts"><div class="ph"><div class="pt">👥 รายชื่อผู้ติดต่อ</div><button class="btn btn-primary" onclick="showContactModal()">+ เพิ่มผู้ติดต่อ</button></div><div class="pb"><div class="card"><div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><input type="text" class="ctrl" id="ctSearch" placeholder="ค้นหา..." oninput="filterCt()" style="max-width:240px"><select class="ctrl" id="ctTypeF" onchange="filterCt()" style="width:130px"><option value="">ทั้งหมด</option><option value="customer">ลูกค้า</option><option value="supplier">ซัพพลายเออร์</option></select></div><table><thead><tr><th>ชื่อ/บริษัท</th><th>ประเภท</th><th>บทบาท</th><th>เบอร์โทร</th><th>ผู้ติดต่อ</th><th>เลขภาษี</th><th></th></tr></thead><tbody id="ctT"></tbody></table></div></div></div>
-      <div class="page" id="page-products"><div class="ph"><div class="pt">🥚 จัดการสินค้า</div><div style="display:flex;gap:7px"><button class="btn btn-secondary" onclick="showImportPrice()">📥 Import ราคา</button><button class="btn btn-primary" onclick="showProductModal()">+ เพิ่มสินค้า</button></div></div><div class="pb"><div class="card" style="margin-bottom:12px"><div style="display:flex;gap:8px;flex-wrap:wrap"><select class="ctrl" id="prodCatFilter" onchange="loadProds()" style="width:200px"><option value="">ทุกกลุ่มสินค้า</option></select><input type="text" class="ctrl" id="prodSearch" placeholder="ค้นหาชื่อ/รหัสสินค้า..." oninput="loadProds()" style="max-width:250px"></div></div><div class="card"><table><thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>กลุ่ม</th><th>หน่วย</th><th>ไข่</th><th>สต๊อก</th><th>จัดการ</th></tr></thead><tbody id="prodT"></tbody></table></div></div></div>
+      <div class="page" id="page-products"><div class="ph"><div class="pt">🥚 จัดการสินค้า</div><div style="display:flex;gap:7px"><button class="btn btn-secondary" onclick="showImportPrice()">📥 Import ราคา</button><button class="btn btn-secondary" onclick="showCategoryModal()">🗂️ จัดการกลุ่ม</button><button class="btn btn-primary" onclick="showProductModal()">+ เพิ่มสินค้า</button></div></div><div class="pb"><div class="card" style="margin-bottom:12px"><div style="display:flex;gap:8px;flex-wrap:wrap"><select class="ctrl" id="prodCatFilter" onchange="loadProds()" style="width:200px"><option value="">ทุกกลุ่มสินค้า</option></select><input type="text" class="ctrl" id="prodSearch" placeholder="ค้นหาชื่อ/รหัสสินค้า..." oninput="loadProds()" style="max-width:250px"></div></div><div class="card"><table><thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>กลุ่ม</th><th>หน่วย</th><th>ไข่</th><th>สต๊อก</th><th>จัดการ</th></tr></thead><tbody id="prodT"></tbody></table></div></div></div>
       <div class="page" id="page-reports"><div class="ph"><div class="pt">📈 รายงาน</div></div><div class="pb"><div class="card" style="margin-bottom:12px"><div style="display:flex;gap:8px"><input type="date" class="ctrl" id="rptDate" style="width:160px"><button class="btn btn-primary" onclick="loadReport()">ดู</button></div></div><div class="g3" id="rptStats" style="margin-bottom:12px"></div><div class="card"><div class="ct">ยอดขายแยกสาขา</div><table><thead><tr><th>สาขา</th><th>บิล</th><th>ยอดขาย</th><th>ส่วนลด</th></tr></thead><tbody id="rptT"></tbody></table></div></div></div>
       <div class="page" id="page-users"><div class="ph"><div class="pt">⚙️ จัดการผู้ใช้งาน</div><button class="btn btn-primary" onclick="showUserModal()">+ เพิ่มผู้ใช้งาน</button></div><div class="pb"><div class="card"><table><thead><tr><th>ชื่อ</th><th>Username</th><th>Role</th><th>สาขาหลัก</th><th>สิทธิ์สาขา</th><th>สถานะ</th><th></th></tr></thead><tbody id="userT"></tbody></table></div></div></div>
 
@@ -130,6 +130,9 @@ table{width:100%;border-collapse:collapse}thead{background:var(--surface2)}th{pa
               <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('cashier',this)">💁 แคชเชียร์</button>
               <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('stock',this)">📦 สต๊อก</button>
               <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('viewer',this)">👁️ ผู้ชม</button>
+              <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('owner_biz',this)">👑 เจ้าของกิจการ</button>
+              <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('accountant',this)">📊 บัญชี</button>
+              <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('sales_pc',this)">🛍️ พนักงานขาย (PC)</button>
             </div>
           </div>
           <div id="permContent"><div class="es"><div class="ei">🔐</div><p>เลือก Role เพื่อตั้งค่าสิทธิ์</p></div></div>
@@ -148,7 +151,7 @@ table{width:100%;border-collapse:collapse}thead{background:var(--surface2)}th{pa
 
       <div class="page" id="page-payroll">
         <div class="ph">
-          <div><div class="pt">💵 เงินเดือน / Payroll</div></div>
+          <div><div class="pt">💵 เงินเดือน / Payroll</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px">กด "จัดการ" → กด "🖨️ สลิป" เพื่อพิมพ์สลิปเงินเดือนรายบุคคล</div></div>
           <button class="btn btn-primary" onclick="showCreatePayroll()">+ สร้าง Payroll</button>
         </div>
         <div class="pb">
@@ -318,7 +321,57 @@ async function loadReport(){const date=document.getElementById('rptDate').value;
 
 // USERS
 async function loadUsers(){try{const[users,r]=await Promise.all([api.get('/users'),api.get('/roles')]);roles=r;document.getElementById('userT').innerHTML=users.length?users.map(u=>`<tr><td>${u.full_name}</td><td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${u.username}</td><td><span class="badge bi">${fmt.role(u.role)}</span></td><td>${u.branch_code||'ทุกสาขา'}</td><td>${['owner','admin'].includes(u.role)?'<span class="badge bs">ทุกสาขา</span>':`<button class="btn btn-info btn-sm" onclick="showUserBranchModal(${u.id},'${u.full_name}')">🏪 ตั้งค่า</button>`}</td><td>${u.active?'<span class="badge bs">ใช้งาน</span>':'<span class="badge be">ระงับ</span>'}</td><td><button class="btn btn-secondary btn-sm" onclick='showUserModal(${JSON.stringify(u).replace(/'/g,"&#39;")})'>แก้ไข</button></td></tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ไม่มีข้อมูล</td></tr>';}catch(e){}}
-function showUserModal(u={}){document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">${u.id?'แก้ไข':'เพิ่ม'}ผู้ใช้งาน</div><button class="mc" onclick="CM()">✕</button></div><div style="display:grid;gap:9px"><div><label class="lbl">ชื่อ-นามสกุล *</label><input type="text" class="ctrl" id="uNm" value="${u.full_name||''}" style="margin-top:4px"></div><div><label class="lbl">Username *</label><input type="text" class="ctrl" id="uUsr" value="${u.username||''}" ${u.id?'readonly':''} style="margin-top:4px"></div>${!u.id?`<div><label class="lbl">รหัสผ่าน *</label><input type="password" class="ctrl" id="uPwd" style="margin-top:4px"></div>`:''}<div><label class="lbl">Role *</label><select class="ctrl" id="uRole" style="margin-top:4px">${roles.map(r=>`<option value="${r.id}" ${r.name===u.role?'selected':''}>${fmt.role(r.name)}</option>`).join('')}</select></div><div><label class="lbl">สาขา</label><select class="ctrl" id="uBr" style="margin-top:4px"><option value="">ทุกสาขา</option>${branches.map(b=>`<option value="${b.id}" ${b.id===u.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div><div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="uPh" value="${u.phone||''}" style="margin-top:4px"></div>${u.id?`<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="uAct" ${u.active?'checked':''}> เปิดใช้งาน</label>`:''}</div><button class="btn btn-primary" onclick="saveUser(${u.id||0})" style="width:100%;margin-top:14px">บันทึก</button></div></div>`;}
+async function showUserModal(u={}) {
+  // ดึงสาขาที่ user มีสิทธิ์ถ้าเป็น edit mode
+  let userBranchIds = [];
+  if (u.id) {
+    try { const ub = await api.get('/users/'+u.id+'/branches'); userBranchIds = ub.map(b=>b.branch_id); } catch(e) {}
+  }
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:500px"><div class="mh"><div class="mt">${u.id?'แก้ไข':'เพิ่ม'}ผู้ใช้งาน</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="display:grid;gap:9px">
+    <div><label class="lbl">ชื่อ-นามสกุล *</label><input type="text" class="ctrl" id="uNm" value="${u.full_name||''}" style="margin-top:4px"></div>
+    <div><label class="lbl">Username *</label><input type="text" class="ctrl" id="uUsr" value="${u.username||''}" ${u.id?'readonly':''} style="margin-top:4px"></div>
+    ${!u.id?`<div><label class="lbl">รหัสผ่าน *</label><input type="password" class="ctrl" id="uPwd" style="margin-top:4px"></div>`:''}
+    <div><label class="lbl">Role *</label><select class="ctrl" id="uRole" style="margin-top:4px">${roles.map(r=>`<option value="${r.id}" ${r.name===u.role?'selected':''}>${fmt.role(r.name)}</option>`).join('')}</select></div>
+    <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="uPh" value="${u.phone||''}" style="margin-top:4px"></div>
+    <div>
+      <label class="lbl" style="margin-bottom:6px;display:block">🏪 สาขาที่ทำงานได้ (ติ๊กหลายสาขาได้)</label>
+      <div style="display:grid;gap:6px">
+        ${branches.map(b=>`<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid ${userBranchIds.includes(b.id)?'var(--accent)':'var(--border)'};border-radius:7px;cursor:pointer;background:${userBranchIds.includes(b.id)?'var(--accent-dim)':''};" id="branchLbl_${b.id}">
+          <input type="checkbox" id="ubr_${b.id}" ${userBranchIds.includes(b.id)?'checked':''} onchange="toggleBranchLabel(${b.id})" style="width:16px;height:16px;accent-color:var(--accent)">
+          <span style="font-size:13px;font-weight:600">🏪 ${b.name}</span>
+          <span class="badge bg">${b.code}</span>
+        </label>`).join('')}
+      </div>
+    </div>
+    ${u.id?`<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="uAct" ${u.active?'checked':''}> เปิดใช้งาน</label>`:''}
+  </div>
+  <button class="btn btn-primary" onclick="saveUserWithBranches(${u.id||0})" style="width:100%;margin-top:14px">💾 บันทึก</button>
+  </div></div>`;
+}
+function toggleBranchLabel(bid) {
+  const cb = document.getElementById('ubr_'+bid);
+  const lbl = document.getElementById('branchLbl_'+bid);
+  if (cb && lbl) {
+    lbl.style.borderColor = cb.checked ? 'var(--accent)' : 'var(--border)';
+    lbl.style.background = cb.checked ? 'var(--accent-dim)' : '';
+  }
+}
+async function saveUserWithBranches(id) {
+  const body = { full_name:document.getElementById('uNm').value, role_id:parseInt(document.getElementById('uRole').value), phone:document.getElementById('uPh').value };
+  if (!id) { body.username=document.getElementById('uUsr').value; body.password=document.getElementById('uPwd').value; }
+  else { body.active=document.getElementById('uAct')?.checked; }
+  if (!body.full_name) { toast('กรุณากรอกชื่อ','error'); return; }
+  try {
+    let userId = id;
+    if (id) await api.put('/users/'+id, body);
+    else { const res = await api.post('/users', body); userId = res.user.id; }
+    // บันทึกสิทธิ์สาขา
+    const branchIds = branches.filter(b => document.getElementById('ubr_'+b.id)?.checked).map(b=>b.id);
+    if (userId) await api.put('/users/'+userId+'/branches', { branch_ids: branchIds });
+    toast('บันทึกเรียบร้อย','success'); CM(); loadUsers();
+  } catch(e) { toast(e.message,'error'); }
+}
 async function saveUser(id){const body={full_name:document.getElementById('uNm').value,role_id:parseInt(document.getElementById('uRole').value),branch_id:document.getElementById('uBr').value?parseInt(document.getElementById('uBr').value):null,phone:document.getElementById('uPh').value};if(!id){body.username=document.getElementById('uUsr').value;body.password=document.getElementById('uPwd').value;}else{body.active=document.getElementById('uAct').checked;}if(!body.full_name){toast('กรุณากรอกชื่อ','error');return;}try{if(id)await api.put('/users/'+id,body);else await api.post('/users',body);toast('บันทึกเรียบร้อย','success');CM();loadUsers();}catch(e){toast(e.message,'error');}}
 
 
@@ -1367,6 +1420,136 @@ function hasPermission(perm) {
   if (['owner','admin'].includes(CU.role)) return true;
   if (!window._myPerms) return false;
   return window._myPerms.has(perm);
+}
+
+
+// ============================================================
+// PRODUCT CATEGORY MANAGEMENT
+// ============================================================
+async function showCategoryModal() {
+  try {
+    const cats = await api.get('/product-categories');
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">🗂️ จัดการกลุ่มสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">กลุ่มสินค้าที่มีอยู่</div>
+      <div style="border:1px solid var(--border);border-radius:7px;overflow:hidden;max-height:250px;overflow-y:auto">
+        ${cats.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)">
+          <span style="font-size:13px">${c.name} <span class="badge bg">${c.type==='stock'?'นับสต๊อก':c.type==='service'?'บริการ':'ไม่นับสต๊อก'}</span></span>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">+ เพิ่มกลุ่มใหม่</div>
+      <div style="display:grid;grid-template-columns:1fr 130px auto;gap:8px;align-items:end">
+        <div><label class="lbl">ชื่อกลุ่มสินค้า *</label><input type="text" class="ctrl" id="newCatName" placeholder="เช่น ไข่เป็ด, บรรจุภัณฑ์พิเศษ" style="margin-top:4px"></div>
+        <div><label class="lbl">ประเภท</label><select class="ctrl" id="newCatType" style="margin-top:4px">
+          <option value="stock">นับสต๊อก</option>
+          <option value="nostock">ไม่นับสต๊อก</option>
+          <option value="service">บริการ</option>
+        </select></div>
+        <button class="btn btn-primary" onclick="addProductCategory()">เพิ่ม</button>
+      </div>
+    </div>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function addProductCategory() {
+  const name = document.getElementById('newCatName').value.trim();
+  const type = document.getElementById('newCatType').value;
+  if (!name) { toast('กรุณากรอกชื่อกลุ่ม','error'); return; }
+  try {
+    await api.post('/product-categories', { name, type });
+    toast('เพิ่มกลุ่มสินค้าเรียบร้อย','success');
+    showCategoryModal(); // รีโหลด modal
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// CREATE INVOICE MANUALLY
+// ============================================================
+async function showCreateInvoiceModal() {
+  try {
+    const [contacts, brs] = await Promise.all([api.get('/contacts?type=customer'), api.get('/branches')]);
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:520px"><div class="mh"><div class="mt">📄 สร้างใบแจ้งหนี้</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:10px">
+      <div><label class="lbl">ลูกค้า *</label>
+        <select class="ctrl" id="invCt" style="margin-top:4px" onchange="fillInvContact(${JSON.stringify(contacts).replace(/'/g,'&#39;').replace(/"/g,'&quot;')})">
+          <option value="">— เลือกลูกค้า —</option>
+          ${contacts.map(c=>`<option value="${c.id}" data-credit="${c.credit_days||0}">${c.business_name||c.contact_name}</option>`).join('')}
+        </select>
+      </div>
+      <div><label class="lbl">สาขา *</label><select class="ctrl" id="invBr" style="margin-top:4px">${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label class="lbl">วันที่ออก</label><input type="date" class="ctrl" id="invDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px" onchange="calcInvDue()"></div>
+        <div><label class="lbl">เครดิต (วัน)</label><input type="number" class="ctrl" id="invCredit" value="7" min="0" style="margin-top:4px" onchange="calcInvDue()"></div>
+      </div>
+      <div><label class="lbl">ครบกำหนด</label><input type="date" class="ctrl" id="invDue" style="margin-top:4px"></div>
+      <div><label class="lbl">ยอดเงิน (บาท) *</label><input type="number" class="ctrl" id="invAmt" value="0" min="0" step="0.01" style="margin-top:4px;font-size:18px;text-align:center"></div>
+      <div><label class="lbl">หมายเหตุ</label><input type="text" class="ctrl" id="invNote" style="margin-top:4px"></div>
+    </div>
+    <button class="btn btn-primary" onclick="saveManualInvoice()" style="width:100%;margin-top:14px">สร้างใบแจ้งหนี้</button>
+    </div></div>`;
+    calcInvDue();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function fillInvContact(contacts) {
+  const sel = document.getElementById('invCt');
+  const opt = sel.options[sel.selectedIndex];
+  if (opt) {
+    document.getElementById('invCredit').value = opt.dataset.credit||7;
+    calcInvDue();
+  }
+}
+function calcInvDue() {
+  const days = parseInt(document.getElementById('invCredit')?.value||7);
+  const date = document.getElementById('invDate')?.value;
+  if (date && days >= 0) {
+    const due = new Date(date);
+    due.setDate(due.getDate()+days);
+    document.getElementById('invDue').value = due.toISOString().slice(0,10);
+  }
+}
+async function saveManualInvoice() {
+  const contact_id = document.getElementById('invCt').value;
+  const branch_id = document.getElementById('invBr').value;
+  const total = parseFloat(document.getElementById('invAmt').value)||0;
+  const due_date = document.getElementById('invDue').value;
+  const note = document.getElementById('invNote').value;
+  if (!contact_id) { toast('กรุณาเลือกลูกค้า','error'); return; }
+  if (!total) { toast('กรุณากรอกยอดเงิน','error'); return; }
+  try {
+    await api.post('/invoices/manual', { contact_id:parseInt(contact_id), branch_id:parseInt(branch_id), total, due_date, note });
+    toast('สร้างใบแจ้งหนี้เรียบร้อย','success');
+    CM(); loadInv();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// PERMISSION ROLES SEED (client-side default)
+// ============================================================
+const EXTRA_ROLE_DEFAULTS = {
+  owner_biz: ['*'],
+  accountant: ['invoices','credits','debt_notes','expense_docs','expenses_view','expenses_edit','payroll','reports','sales_view','quotations'],
+  sales_pc: ['pos','shifts','sales_view','members','credits','stock_view','promotions'],
+};
+
+const _origSelectPermRole = selectPermRole;
+async function selectPermRole(roleName, btn) {
+  _curPermRole = roleName;
+  document.querySelectorAll('.perm-role-btn').forEach(b => {
+    b.style.background=''; b.style.color=''; b.style.borderColor='';
+  });
+  if (btn) { btn.style.background='var(--accent)'; btn.style.color='#fff'; btn.style.borderColor='var(--accent)'; }
+  try {
+    if (!_permSchema.length) _permSchema = await api.get('/permissions/schema');
+    let perms;
+    try { perms = await api.get('/permissions/'+roleName); }
+    catch(e) { perms = []; }
+    _curPerms = new Set(perms);
+    renderPermissions();
+  } catch(e) { toast(e.message,'error'); }
 }
 
 const t=localStorage.getItem('es_token'),u=localStorage.getItem('es_user');
