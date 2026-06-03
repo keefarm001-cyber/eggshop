@@ -1413,7 +1413,7 @@ async function savePayItem(itemId, periodId, periodName) {
 
 function printPaySlip(item, periodName) {
   const win = window.open('','_blank','width=800,height:600');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>สลิปเงินเดือน</title>
+  win.document.write(`<!DOCTYPE html><html>\x3chead><meta charset="UTF-8"><title>สลิปเงินเดือน</title>
   <style>body{font-family:'Sarabun',sans-serif;font-size:13px;color:#333;margin:0;padding:20px}
   .slip{max-width:700px;margin:0 auto;border:1px solid #ddd;border-radius:8px;overflow:hidden}
   .slip-header{background:#e67e00;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
@@ -1430,7 +1430,7 @@ function printPaySlip(item, periodName) {
   .net{background:#e67e00;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;font-size:16px;font-weight:700}
   .footer{padding:12px 20px;font-size:11px;color:#888;border-top:1px solid #eee;text-align:center}
   @media print{body{padding:0}.slip{border:none;border-radius:0}}
-  <\/style><\/head><body>
+  <\/style><\/head>\x3cbody>
   <div class="slip">
     <div class="slip-header">
       <div><h1>สลิปเงินเดือน / Pay Slip</h1><div class="sub">${periodName}</div></div>
@@ -1926,7 +1926,7 @@ async function printInvoice(inv) {
   const remaining = parseFloat(inv.total||0) - parseFloat(inv.paid_amount||0);
 
   win.document.write(`<!DOCTYPE html>
-<html lang="th"><head>
+<html lang="th">\x3chead>
 <meta charset="UTF-8">
 <title>ใบแจ้งหนี้ ${inv.invoice_no}</title>
 <style>
@@ -1984,7 +1984,7 @@ tbody tr:nth-child(even){background:#fafafa}
 .sig-date{font-size:11px;color:#9ca3af;margin-top:3px}
 @media print{.toolbar{display:none}.page{margin:0;box-shadow:none;padding:10mm 14mm}}
 <\/style><\/head>
-<body>
+\x3cbody>
 <div class="toolbar">
   <span>🥚 Egg Station — ${inv.invoice_no}</span>
   <button onclick="window.print()" style="background:#e67e00;color:#fff;margin-left:auto">🖨️ พิมพ์</button>
