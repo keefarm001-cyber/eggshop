@@ -439,6 +439,8 @@ tr:hover td{background:#fafafa}
 <div id="MC"></div>
 
 <script>
+let _recvProds=[], _recvRowCount=0;
+
 
 'use strict';
 let CU=null, cart=[], allMembers=[], allContacts=[], branches=[], roles=[], curShift=null, selMember=null;
@@ -961,9 +963,6 @@ async function showRecvModal(isOwner=false) {
   } catch(e) { toast('เกิดข้อผิดพลาด: '+e.message,'error'); }
 }
 
-let _recvRowCount = 0;
-let _recvProds = []; // global products cache สำหรับ recv modal
-
 function addRecvItemRow() {
   _recvRowCount++;
   const n = _recvRowCount;
@@ -1127,21 +1126,100 @@ async function submitApprove(recvId){
   try{await api.post('/stock/receipts/'+recvId+'/approve',{items});toast('อนุมัติและตัดสต๊อกเรียบร้อย','success');CM();loadRecv();loadStock();}catch(e){toast(e.message,'error');}
 }
 
-function showTrModal(){
-  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">🔄 โอนย้ายสต๊อก</div><button class="mc" onclick="CM()">✕</button></div>
-  <div style="display:grid;gap:10px">
-    <div class="g2">
-      <div><label class="lbl">จากสาขา</label><select class="ctrl" id="trFrom" style="margin-top:4px">${branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}</select></div>
-      <div><label class="lbl">ไปสาขา</label><select class="ctrl" id="trTo" style="margin-top:4px">${branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}</select></div>
-    </div>
-    <div><label class="lbl">สินค้า</label><select class="ctrl" id="trProd" style="margin-top:4px"><option value="">เลือกสินค้า</option></select></div>
-    <div><label class="lbl">จำนวน (ฟอง)</label><input type="number" class="ctrl" id="trQty" value="300" min="1" style="margin-top:4px"></div>
-    <div><label class="lbl">หมายเหตุ</label><input type="text" class="ctrl" id="trNote" style="margin-top:4px"></div>
-  </div>
-  <button class="btn btn-primary" onclick="submitTr()" style="width:100%;margin-top:14px">โอนย้าย</button>
-  </div></div>`;
-  api.get('/products').then(prods=>{const sel=document.getElementById('trProd');prods.filter(p=>p.track_stock).forEach(p=>{sel.innerHTML+=`<option value="${p.id}">${p.name}</option>`;});}).catch(()=>{});
+async function showTrModal() {
+  try {
+    const [brs, prods] = await Promise.all([api.get('/branches'), api.get('/products')]);
+    const trackProds = prods.filter(p=>p.track_stock);
+    _trProds = trackProds;
+    _trRowCount = 0;
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:600px">
+      <div class="mh"><div class="mt">🔄 โอนย้ายสต๊อก</div><button class="mc" onclick="CM()">✕</button></div>
+      <div style="display:grid;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><label class="lbl">จากสาขา *</label>
+            <select class="ctrl" id="trFrom" style="margin-top:4px">
+              ${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}
+            </select>
+          </div>
+          <div><label class="lbl">ไปสาขา *</label>
+            <select class="ctrl" id="trTo" style="margin-top:4px">
+              ${brs.filter(b=>b.id!==CU.branch_id).map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}
+              ${brs.length<=1?brs.map(b=>`<option value="${b.id}">${b.name}</option>`).join(''):''}
+            </select>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">รายการที่จะโอนย้าย</div>
+          <div style="background:var(--surface2);border-radius:7px;padding:8px 10px;margin-bottom:6px;display:grid;grid-template-columns:1fr 90px 90px;gap:6px;font-size:11px;color:var(--text-muted);font-weight:600">
+            <span>สินค้า</span><span style="text-align:right">จำนวน</span><span>หน่วย</span>
+          </div>
+          <div id="trItemsList">${trItemRow(0, trackProds)}</div>
+          <button class="btn btn-secondary btn-sm" onclick="addTrItemRow()" style="margin-top:8px">+ เพิ่มรายการ</button>
+        </div>
+        <div><label class="lbl">หมายเหตุ</label>
+          <input type="text" class="ctrl" id="trNote" style="margin-top:4px" placeholder="หมายเหตุ (ถ้ามี)">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="submitTr()" style="width:100%;margin-top:14px">✅ โอนย้ายสต๊อก</button>
+    </div></div>`;
+  } catch(e) { toast('เกิดข้อผิดพลาด: '+e.message,'error'); }
 }
+
+let _trProds = [], _trRowCount = 0;
+
+function trItemRow(n, prods) {
+  return `<div id="trRow_${n}" style="display:grid;grid-template-columns:1fr 90px 90px 24px;gap:6px;margin-bottom:6px;align-items:center">
+    <select class="ctrl" id="trProd_${n}" style="font-size:13px">
+      <option value="">เลือกสินค้า</option>
+      ${prods.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+    </select>
+    <input type="number" class="ctrl" id="trQty_${n}" value="1" min="1" style="text-align:right;font-size:13px">
+    <select class="ctrl" id="trUnit_${n}" style="font-size:13px">
+      <option value="1">ฟอง</option>
+      <option value="30">แผง (x30)</option>
+      <option value="300">ลัง (x300)</option>
+    </select>
+    ${n>0?`<button onclick="document.getElementById('trRow_${n}').remove()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:16px">✕</button>`:'<span></span>'}
+  </div>`;
+}
+
+function addTrItemRow() {
+  _trRowCount++;
+  const n = _trRowCount;
+  const div = document.createElement('div');
+  div.innerHTML = trItemRow(n, _trProds);
+  document.getElementById('trItemsList').appendChild(div.firstElementChild);
+}
+
+async function submitTr() {
+  const from_id = document.getElementById('trFrom').value;
+  const to_id = document.getElementById('trTo').value;
+  const note = document.getElementById('trNote').value;
+  if (!from_id || !to_id) { toast('กรุณาเลือกสาขา','error'); return; }
+  if (from_id === to_id) { toast('สาขาต้นทางและปลายทางต้องไม่ใช่สาขาเดียวกัน','error'); return; }
+
+  const items = [];
+  document.querySelectorAll('[id^="trRow_"]').forEach(row => {
+    const n = row.id.replace('trRow_','');
+    const prodSel = document.getElementById('trProd_'+n);
+    const product_id = prodSel?.value;
+    const qty = parseInt(document.getElementById('trQty_'+n)?.value||0);
+    const unitMult = parseInt(document.getElementById('trUnit_'+n)?.value||1);
+    if (product_id && qty > 0) {
+      items.push({ product_id: parseInt(product_id), qty_unit: qty * unitMult });
+    }
+  });
+
+  if (!items.length) { toast('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ','error'); return; }
+
+  try {
+    await api.post('/stock/transfer', { from_branch_id: parseInt(from_id), to_branch_id: parseInt(to_id), items, note });
+    toast(`✅ โอนย้าย ${items.length} รายการเรียบร้อย`,'success');
+    CM(); loadStock();
+  } catch(e) { toast(e.message,'error'); }
+}
+
 
 async function submitTr(){
   try{
@@ -2254,7 +2332,18 @@ async function showUserModal(u={}) {
 
 
 const _t = localStorage.getItem('es_token'), _u = localStorage.getItem('es_user');
-if (_t && _u) { try { CU=JSON.parse(_u); initApp(); } catch(e) { localStorage.clear(); } }
+if (_t && _u) {
+  try {
+    CU = JSON.parse(_u);
+    // verify token ยังใช้ได้อยู่ไหม
+    fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + _t } })
+      .then(r => {
+        if (r.ok) { initApp(); }
+        else { localStorage.clear(); document.getElementById('loginPage').style.display='flex'; }
+      })
+      .catch(() => { initApp(); }); // ถ้า network error ก็ login ไปก่อน
+  } catch(e) { localStorage.clear(); }
+}
 
 // ============================================================
 // DAILY SUMMARY PRINT (ใบสรุปยอดขาย)
@@ -2336,6 +2425,76 @@ async function printDailySummary() {
     window.open(url,'_blank');
     setTimeout(()=>URL.revokeObjectURL(url), 10000);
   } catch(e) { toast('โหลดข้อมูลไม่ได้: '+e.message,'error'); }
+}
+
+
+// ============================================================
+// QUICK MEMBER MODAL (จาก POS)
+// ============================================================
+function showQuickMemberModal() {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:420px"><div class="mh"><div class="mt">⭐ สมัครสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="display:grid;gap:10px">
+    <div><label class="lbl">ชื่อสมาชิก *</label><input type="text" class="ctrl" id="qmName" style="margin-top:4px" placeholder="ชื่อ-นามสกุล"></div>
+    <div><label class="lbl">เบอร์โทร *</label><input type="text" class="ctrl" id="qmPhone" style="margin-top:4px" placeholder="0812345678"></div>
+    <div><label class="lbl">LINE ID</label><input type="text" class="ctrl" id="qmLine" style="margin-top:4px" placeholder="(ถ้ามี)"></div>
+    <div><label class="lbl">บันทึก</label><input type="text" class="ctrl" id="qmNote" style="margin-top:4px" placeholder="หมายเหตุ (ถ้ามี)"></div>
+  </div>
+  <button class="btn btn-primary" onclick="submitQuickMember()" style="width:100%;margin-top:14px">⭐ สมัครสมาชิก</button>
+  </div></div>`;
+}
+
+async function submitQuickMember() {
+  const name = document.getElementById('qmName').value.trim();
+  const phone = document.getElementById('qmPhone').value.trim();
+  if (!name || !phone) { toast('กรุณากรอกชื่อและเบอร์โทร','error'); return; }
+  try {
+    const res = await api.post('/members', {
+      name, phone,
+      line_id: document.getElementById('qmLine').value,
+      note: document.getElementById('qmNote').value,
+      branch_id: CU.branch_id,
+    });
+    toast(`✅ สมัครสมาชิก "${name}" เรียบร้อย`, 'success');
+    CM();
+    // auto-fill member ใน POS ถ้าเปิดอยู่
+    if (typeof loadPosMem === 'function') loadPosMem();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// CREATE BRANCH MODAL
+// ============================================================
+function showCreateBranchModal() {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal"><div class="mh"><div class="mt">🏪 เพิ่มสาขาใหม่</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="display:grid;gap:10px">
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">
+      <div><label class="lbl">ชื่อสาขา *</label><input type="text" class="ctrl" id="brName" style="margin-top:4px" placeholder="เช่น สาขาตลาดสดธนบุรี"></div>
+      <div><label class="lbl">รหัสสาขา *</label><input type="text" class="ctrl" id="brCode" style="margin-top:4px" placeholder="เช่น TB" maxlength="10"></div>
+    </div>
+    <div><label class="lbl">ที่อยู่</label><input type="text" class="ctrl" id="brAddr" style="margin-top:4px" placeholder="ที่อยู่สาขา"></div>
+    <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="brPhone" style="margin-top:4px" placeholder="เบอร์โทรสาขา"></div>
+    <div style="background:var(--info-dim);border-radius:7px;padding:10px;font-size:12px;color:var(--info)">
+      💡 หลังสร้างสาขาแล้ว ต้องไปตั้งค่าสิทธิ์ผู้ใช้งานด้วย เพื่อให้พนักงานเข้าถึงสาขานี้ได้
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="submitCreateBranch()" style="width:100%;margin-top:14px">🏪 สร้างสาขา</button>
+  </div></div>`;
+}
+
+async function submitCreateBranch() {
+  const name = document.getElementById('brName').value.trim();
+  const code = document.getElementById('brCode').value.trim().toUpperCase();
+  if (!name || !code) { toast('กรุณากรอกชื่อและรหัสสาขา','error'); return; }
+  try {
+    await api.post('/branches', { name, code, address: document.getElementById('brAddr').value, phone: document.getElementById('brPhone').value });
+    toast(`✅ สร้างสาขา "${name}" (${code}) เรียบร้อย`, 'success');
+    CM();
+    // reload branches
+    branches = await api.get('/branches');
+    toast('รีโหลดข้อมูลสาขาแล้ว', 'info');
+  } catch(e) { toast(e.message,'error'); }
 }
 
 </script>
