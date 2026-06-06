@@ -906,6 +906,8 @@ async function showRecvModal(isOwner=false) {
       api.get('/contacts?type=supplier').catch(()=>[]),
     ]);
     const eggProds = prods.filter(p=>p.is_egg||p.track_stock);
+    _recvProds = eggProds; // set global
+    _recvRowCount = 0; // reset counter
     const isO = ['owner','admin'].includes(CU.role) || isOwner;
     document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
     <div class="modal" style="max-width:560px">
@@ -940,7 +942,7 @@ async function showRecvModal(isOwner=false) {
           <div id="recvItemsList">
             ${recvItemRow(0, eggProds)}
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="addRecvItem(${JSON.stringify(eggProds).replace(/'/g,'&#39;').replace(/"/g,'&quot;')})" style="margin-top:8px">+ เพิ่มสินค้า</button>
+          <button class="btn btn-secondary btn-sm" onclick="addRecvItemRow()" style="margin-top:8px">+ เพิ่มสินค้า</button>
         </div>
         ${isO ? `
         <div style="border-top:1px solid var(--border);padding-top:10px">
@@ -960,6 +962,30 @@ async function showRecvModal(isOwner=false) {
 }
 
 let _recvRowCount = 0;
+let _recvProds = []; // global products cache สำหรับ recv modal
+
+function addRecvItemRow() {
+  _recvRowCount++;
+  const n = _recvRowCount;
+  const div = document.createElement('div');
+  div.id = 'recvRow_' + n;
+  div.style.cssText = 'display:grid;grid-template-columns:1fr 100px 90px 24px;gap:6px;margin-bottom:6px;align-items:center';
+  div.innerHTML = `
+    <select class="ctrl" id="recvProd_${n}" style="font-size:13px">
+      <option value="">เลือกสินค้า</option>
+      ${_recvProds.map(p=>`<option value="${p.id}" data-name="${p.name}">${p.name}</option>`).join('')}
+    </select>
+    <input type="number" class="ctrl" id="recvQty_${n}" value="1" min="1" style="text-align:right;font-size:13px">
+    <select class="ctrl" id="recvUnit_${n}" style="font-size:13px">
+      <option value="1">ฟอง (x1)</option>
+      <option value="30">แผง (x30)</option>
+      <option value="300">ลัง (x300)</option>
+    </select>
+    <button onclick="document.getElementById('recvRow_${n}').remove()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:16px">✕</button>
+  `;
+  document.getElementById('recvItemsList').appendChild(div);
+}
+
 function recvItemRow(n, prods) {
   return `<div id="recvRow_${n}" style="display:grid;grid-template-columns:1fr 100px 90px 24px;gap:6px;margin-bottom:6px;align-items:center">
     <select class="ctrl" id="recvProd_${n}" style="font-size:13px">
