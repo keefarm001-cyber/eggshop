@@ -756,6 +756,23 @@ app.post('/api/product-categories', auth, role('owner','admin','manager'), async
   } catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
 });
 
+app.put('/api/product-categories/:id', auth, role('owner','admin','manager'), async (req, res) => {
+  const { name, type } = req.body;
+  if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อ' });
+  try {
+    await pool.query('UPDATE product_categories SET name=$1, type=$2 WHERE id=$3', [name, type||'stock', req.params.id]);
+    res.json({ message: 'แก้ไขเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/product-categories/:id', auth, role('owner','admin','manager'), async (req, res) => {
+  try {
+    await pool.query('UPDATE products SET category_id=NULL WHERE category_id=$1', [req.params.id]);
+    await pool.query('DELETE FROM product_categories WHERE id=$1', [req.params.id]);
+    res.json({ message: 'ลบเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/products/:id/prices', auth, async (req, res) => {
   const r = await pool.query(`SELECT pp.*,b.code AS branch_code,b.name AS branch_name FROM product_prices pp JOIN branches b ON pp.branch_id=b.id WHERE pp.product_id=$1 ORDER BY b.code,pp.customer_type,pp.qty`, [req.params.id]);
   res.json(r.rows);
@@ -800,7 +817,7 @@ app.get('/api/pos/products', auth, async (req, res) => {
     FROM products p
     LEFT JOIN product_prices pp ON pp.product_id=p.id AND pp.branch_id=$1 AND pp.customer_type=$2
     LEFT JOIN stock s ON s.product_id=p.id AND s.branch_id=$1
-    WHERE p.track_stock=true OR p.is_egg=true
+    WHERE 1=1
     ORDER BY p.is_egg DESC, p.code, pp.qty NULLS LAST
   `, [branch_id, customer_type]);
   
