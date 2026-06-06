@@ -335,6 +335,8 @@ async function initSchema() {
 
     // เพิ่ม columns ที่อาจหายไป
     await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(10,4) DEFAULT 0`).catch(()=>{});
+    await pool.query(`ALTER TABLE stock ADD CONSTRAINT IF NOT EXISTS stock_unique UNIQUE (product_id, branch_id)`).catch(()=>{});
+    await pool.query(`ALTER TABLE stock_transfers ADD COLUMN IF NOT EXISTS doc_no VARCHAR(50)`).catch(()=>{});
     await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_mult INTEGER DEFAULT 1`).catch(()=>{});
 
     // damaged_eggs — บันทึกไข่บุบรายวัน
@@ -731,6 +733,11 @@ app.get('/api/products/:id/prices', auth, async (req, res) => {
   const r = await pool.query(`SELECT pp.*,b.code AS branch_code,b.name AS branch_name FROM product_prices pp JOIN branches b ON pp.branch_id=b.id WHERE pp.product_id=$1 ORDER BY b.code,pp.customer_type,pp.qty`, [req.params.id]);
   res.json(r.rows);
 });
+app.delete('/api/products/prices/:priceId', auth, role('owner','admin','manager'), async (req, res) => {
+  await pool.query('DELETE FROM product_prices WHERE id=$1', [req.params.priceId]);
+  res.json({ message: 'ลบราคาเรียบร้อย' });
+});
+
 app.post('/api/products/:id/prices', auth, role('owner','admin','manager'), async (req, res) => {
   const { branch_id, customer_type, qty, price } = req.body;
   await pool.query(`INSERT INTO product_prices (product_id,branch_id,customer_type,qty,price) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (product_id,branch_id,customer_type,qty) DO UPDATE SET price=EXCLUDED.price,active=true`, [req.params.id, branch_id, customer_type, qty, price]);
