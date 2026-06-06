@@ -333,6 +333,10 @@ async function initSchema() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
 
+    // เพิ่ม columns ที่อาจหายไป
+    await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(10,4) DEFAULT 0`).catch(()=>{});
+    await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_mult INTEGER DEFAULT 1`).catch(()=>{});
+
     // damaged_eggs — บันทึกไข่บุบรายวัน
     await pool.query(`CREATE TABLE IF NOT EXISTS damaged_eggs (
       id SERIAL PRIMARY KEY,
