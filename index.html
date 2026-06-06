@@ -349,7 +349,7 @@ tr:hover td{background:#fafafa}
 
     <!-- COMPANY SETTINGS -->
     <div class="page" id="page-company">
-      <div class="ph"><div><div class="pt">🏢 ตั้งค่าบริษัท</div></div><button class="btn btn-primary" onclick="saveCompanySettings()">💾 บันทึก</button></div>
+      <div class="ph"><div><div class="pt">🏢 ตั้งค่าบริษัท</div></div><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="showCreateBranchModal()">🏪 เพิ่มสาขา</button><button class="btn btn-primary" onclick="saveCompanySettings()">💾 บันทึก</button></div></div>
       <div class="pb">
         <div class="g2">
           <div class="card" style="margin:0">
@@ -1199,41 +1199,10 @@ function addTrItemRow() {
   document.getElementById('trItemsList').appendChild(div.firstElementChild);
 }
 
-async function submitTr() {
-  const from_id = document.getElementById('trFrom').value;
-  const to_id = document.getElementById('trTo').value;
-  const note = document.getElementById('trNote').value;
-  if (!from_id || !to_id) { toast('กรุณาเลือกสาขา','error'); return; }
-  if (from_id === to_id) { toast('สาขาต้นทางและปลายทางต้องไม่ใช่สาขาเดียวกัน','error'); return; }
-
-  const items = [];
-  document.querySelectorAll('[id^="trRow_"]').forEach(row => {
-    const n = row.id.replace('trRow_','');
-    const prodSel = document.getElementById('trProd_'+n);
-    const product_id = prodSel?.value;
-    const qty = parseInt(document.getElementById('trQty_'+n)?.value||0);
-    const unitMult = parseInt(document.getElementById('trUnit_'+n)?.value||1);
-    if (product_id && qty > 0) {
-      items.push({ product_id: parseInt(product_id), qty_unit: qty * unitMult });
-    }
-  });
-
-  if (!items.length) { toast('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ','error'); return; }
-
-  try {
-    await api.post('/stock/transfer', { from_branch_id: parseInt(from_id), to_branch_id: parseInt(to_id), items, note });
-    toast(`✅ โอนย้าย ${items.length} รายการเรียบร้อย`,'success');
-    CM(); loadStock();
-  } catch(e) { toast(e.message,'error'); }
-}
 
 
-async function submitTr(){
-  try{
-    await api.post('/stock/transfer',{from_branch_id:parseInt(document.getElementById('trFrom').value),to_branch_id:parseInt(document.getElementById('trTo').value),product_id:parseInt(document.getElementById('trProd').value),qty_unit:parseInt(document.getElementById('trQty').value),note:document.getElementById('trNote').value});
-    toast('โอนย้ายเรียบร้อย','success');CM();loadStock();
-  }catch(e){toast(e.message,'error');}
-}
+
+
 
 // ============================================================
 // PRODUCTS
@@ -1405,15 +1374,21 @@ async function showCategoryModal(){
   try{
     const cats=await api.get('/product-categories');
     document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">🗂️ จัดการกลุ่มสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
-    <div style="border:1px solid var(--border);border-radius:7px;max-height:200px;overflow-y:auto;margin-bottom:14px">
-      ${cats.map(c=>`<div style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px;display:flex;justify-content:space-between"><span>${c.name}</span><span class="badge bg">${c.type==='stock'?'นับสต๊อก':c.type==='service'?'บริการ':'ไม่นับ'}</span></div>`).join('')}
+    <div style="border:1px solid var(--border);border-radius:7px;max-height:240px;overflow-y:auto;margin-bottom:14px">
+      ${cats.map(c=>`<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;display:flex;align-items:center;gap:8px">
+        <div style="flex:1;font-weight:600">${c.name}</div>
+        <span class="badge bg" style="font-size:11px">${c.type==='stock'?'นับสต๊อก':c.type==='service'?'บริการ':'ไม่นับ'}</span>
+        <button class="btn btn-secondary btn-sm" onclick="editCat(${c.id},'${c.name}','${c.type}')">แก้ไข</button>
+        <button class="btn btn-danger btn-sm" onclick="delCat(${c.id})">ลบ</button>
+      </div>`).join('')}
     </div>
     <div style="border-top:1px solid var(--border);padding-top:12px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px">+ เพิ่มกลุ่มใหม่</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px" id="catFormTitle">+ เพิ่มกลุ่มใหม่</div>
+      <input type="hidden" id="editCatId" value="">
       <div style="display:grid;grid-template-columns:1fr 120px auto;gap:8px;align-items:end">
         <div><label class="lbl">ชื่อกลุ่ม</label><input type="text" class="ctrl" id="newCatName" style="margin-top:4px"></div>
         <div><label class="lbl">ประเภท</label><select class="ctrl" id="newCatType" style="margin-top:4px"><option value="stock">นับสต๊อก</option><option value="nostock">ไม่นับ</option><option value="service">บริการ</option></select></div>
-        <button class="btn btn-primary" onclick="addCat()" style="height:38px">เพิ่ม</button>
+        <button class="btn btn-primary" onclick="saveCat()" style="height:38px" id="catSaveBtn">เพิ่ม</button>
       </div>
     </div></div></div>`;
   }catch(e){toast(e.message,'error');}
@@ -1424,6 +1399,41 @@ async function addCat(){
   const type=document.getElementById('newCatType').value;
   if(!name){toast('กรุณากรอกชื่อ','error');return;}
   try{await api.post('/product-categories',{name,type});toast('เพิ่มเรียบร้อย','success');showCategoryModal();}catch(e){toast(e.message,'error');}
+}
+
+async function saveCat() {
+  const id = document.getElementById('editCatId').value;
+  const name = document.getElementById('newCatName').value.trim();
+  const type = document.getElementById('newCatType').value;
+  if (!name) { toast('กรุณากรอกชื่อ','error'); return; }
+  try {
+    if (id) {
+      await api.put('/product-categories/'+id, {name, type});
+      toast('แก้ไขเรียบร้อย','success');
+    } else {
+      await api.post('/product-categories', {name, type});
+      toast('เพิ่มเรียบร้อย','success');
+    }
+    showCategoryModal();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function editCat(id, name, type) {
+  document.getElementById('editCatId').value = id;
+  document.getElementById('newCatName').value = name;
+  document.getElementById('newCatType').value = type;
+  document.getElementById('catFormTitle').textContent = '✏️ แก้ไขกลุ่มสินค้า';
+  document.getElementById('catSaveBtn').textContent = 'บันทึก';
+}
+
+async function delCat(id) {
+  if (!confirm('ลบกลุ่มสินค้านี้? สินค้าในกลุ่มนี้จะไม่มีกลุ่ม')) return;
+  try {
+    await api.del('/product-categories/'+id);
+    toast('ลบเรียบร้อย','success');
+    showCategoryModal();
+    loadProdCats();
+  } catch(e) { toast(e.message,'error'); }
 }
 
 async function showBundleModal(){
@@ -2530,30 +2540,7 @@ async function delPrice(priceId, pid, pname) {
 }
 
 
-async function doLogin(){
-  const user=document.getElementById('loginUser').value.trim();
-  const pass=document.getElementById('loginPass').value;
-  const btn=document.getElementById('loginBtn');
-  const err=document.getElementById('loginError');
-  err.classList.remove('show');
-  if(!user||!pass){err.textContent='กรุณากรอก username และ password';err.classList.add('show');return;}
-  btn.disabled=true;btn.textContent='กำลังเข้าสู่ระบบ...';
-  try{
-    const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})});
-    const data=await res.json();
-    if(!res.ok) throw new Error(data.error||'เข้าสู่ระบบไม่ได้');
-    localStorage.setItem('es_token',data.token);
-    localStorage.setItem('es_user',JSON.stringify(data.user));
-    CU=data.user;
-    await initApp();
-    if(data.user.access_branches&&data.user.access_branches.length>1&&!['owner','admin'].includes(CU.role)){
-      showBranchSelector(data.user.access_branches);
-    }
-  }catch(e){
-    err.textContent=e.message;err.classList.add('show');
-    btn.disabled=false;btn.textContent='เข้าสู่ระบบ';
-  }
-}
+
 
 function logout(){
   localStorage.removeItem('es_token');localStorage.removeItem('es_user');CU=null;
@@ -2561,20 +2548,7 @@ function logout(){
   document.getElementById('appPage').classList.remove('active');
 }
 
-async function initApp(){
-  document.getElementById('loginPage').style.display='none';
-  document.getElementById('appPage').classList.add('active');
-  document.getElementById('navUserName').textContent=CU.full_name||CU.username;
-  document.getElementById('navUserRole').textContent=fmt.role(CU.role);
-  document.getElementById('navBranch').textContent=CU.branch_name||(CU.branch_code?'สาขา '+CU.branch_code:'ทุกสาขา');
-  buildNav();
-  try{branches=await api.get('/branches');populateBranchSelects();}catch(e){}
-  try{roles=await api.get('/roles');}catch(e){}
-  try{mSet.eggs_required=(await api.get('/member-settings')).eggs_required||100;mSet.discount_amount=(await api.get('/member-settings')).discount_amount||5;}catch(e){}
-  initCompanySettings();
-  const def={owner:'dashboard',admin:'dashboard',manager:'dashboard',cashier:'pos',stock:'stock',viewer:'reports'}[CU.role]||'dashboard';
-  showPage(def);
-}
+
 
 function populateBranchSelects(){
   ['stBranch','mvBranch','sBranch','expBranch','dcBranch'].forEach(id=>{
@@ -2635,28 +2609,9 @@ function loadShiftSt(){
   }).catch(()=>{});
 }
 
-async function loadPosProds(){
-  const ch=document.getElementById('posCh').value;
-  if(!CU.branch_id) return;
-  try{
-    posProds=await api.get('/pos/products?branch_id='+CU.branch_id+'&customer_type='+ch);
-    renderPosProds(posProds);
-  }catch(e){toast('โหลดสินค้าไม่ได้','error');}
-}
 
-function renderPosProds(prods){
-  const search=(document.getElementById('posSearch')?.value||'').toLowerCase();
-  const filtered=prods.filter(p=>p.name.toLowerCase().includes(search)||p.code.toLowerCase().includes(search));
-  const grid=document.getElementById('posProdGrid');
-  grid.innerHTML=filtered.map(p=>{
-    const price=p.prices&&p.prices.length?p.prices[0].price:0;
-    return `<div class="pos-prod" onclick="addToCart(${JSON.stringify(p).replace(/"/g,'&quot;')})">
-      <div class="pos-prod-name">${p.name}</div>
-      <div class="pos-prod-price">${fmt.b(price)}</div>
-      <div class="pos-prod-stock">คงเหลือ: ${fmt.n(p.stock_qty)} ฟ.</div>
-    </div>`;
-  }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">ไม่มีสินค้า</div>';
-}
+
+
 
 function filterPosProds(){renderPosProds(posProds);}
 
@@ -2761,14 +2716,7 @@ async function completeSale(total,sub,memDisc,extraDisc,ch){
   }catch(e){toast(e.message,'error');}
 }
 
-function showShiftModal(){
-  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">⏰ กะการขาย</div><button class="mc" onclick="CM()">✕</button></div>
-  ${curShift?`<div class="card" style="background:var(--success-dim);border-color:var(--success)"><div style="font-weight:600;color:var(--success)">กะเปิดอยู่</div><div style="font-size:12px;margin-top:4px">เปิดเมื่อ: ${fmt.d(curShift.open_time)}</div></div>
-  <button class="btn btn-danger" onclick="closeShift(${curShift.id})" style="width:100%">ปิดกะ</button>`
-  :`<div><label class="lbl">เงินเริ่มกะ (บาท)</label><input type="number" id="openCash" value="0" class="ctrl" style="margin-top:4px"></div>
-  <button class="btn btn-primary" onclick="openShift()" style="width:100%;margin-top:12px">เปิดกะ</button>`}
-  </div></div>`;
-}
+
 
 async function openShift(){
   const cash=parseFloat(document.getElementById('openCash').value)||0;
@@ -2822,22 +2770,7 @@ async function loadSales(){
 // ============================================================
 // STOCK
 // ============================================================
-async function loadStock(){
-  const bid=document.getElementById('stBranch').value;
-  const search=(document.getElementById('stSearch').value||'').toLowerCase();
-  try{
-    const data=await api.get('/stock'+(bid?'?branch_id='+bid:''));
-    const filtered=data.filter(s=>!search||s.product_name.toLowerCase().includes(search)||s.product_code.toLowerCase().includes(search));
-    document.getElementById('stockT').innerHTML=filtered.length?filtered.map(s=>`<tr>
-      <td>${s.branch_code}</td>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${s.product_code}</td>
-      <td><strong>${s.product_name}</strong></td>
-      <td style="text-align:right;font-weight:600;color:${s.qty_unit<100?'var(--error)':'inherit'}">${fmt.n(s.qty_unit)}</td>
-      <td style="text-align:right;color:var(--text-muted)">${Math.floor(s.qty_unit/30)}</td>
-      <td style="text-align:right;color:var(--text-muted)">${Math.floor(s.qty_unit/300)}</td>
-    </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ไม่มีข้อมูล</td></tr>';
-  }catch(e){}
-}
+
 
 async function loadMv(){
   const bid=document.getElementById('mvBranch').value;
@@ -2855,68 +2788,7 @@ async function loadMv(){
   }catch(e){}
 }
 
-async function showRecvModal(isOwner=false) {
-  try {
-    const [brs, prods, contacts] = await Promise.all([
-      api.get('/branches'),
-      api.get('/products'),
-      api.get('/contacts?type=supplier').catch(()=>[]),
-    ]);
-    const eggProds = prods.filter(p=>p.is_egg||p.track_stock);
-    _recvProds = eggProds; // set global
-    _recvRowCount = 0; // reset counter
-    const isO = ['owner','admin'].includes(CU.role) || isOwner;
-    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
-    <div class="modal" style="max-width:560px">
-      <div class="mh">
-        <div>
-          <div class="mt">${isO?'📦 รับสินค้า (บันทึกราคาได้)':'📦 สร้างใบรับสินค้า (Pre)'}</div>
-          <div style="font-size:11px;color:var(--text-muted)">${isO?'เจ้าของ/ผู้จัดการ — ตัดสต๊อกทันที':'พนักงาน — เจ้าของจะใส่ราคาภายหลัง'}</div>
-        </div>
-        <button class="mc" onclick="CM()">✕</button>
-      </div>
-      <div style="display:grid;gap:10px">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div><label class="lbl">สาขา *</label>
-            <select class="ctrl" id="recvBr" style="margin-top:4px">
-              ${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}
-            </select>
-          </div>
-          <div><label class="lbl">วันที่รับ</label>
-            <input type="date" class="ctrl" id="recvDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px">
-          </div>
-        </div>
-        <div><label class="lbl">ผู้จำหน่าย / ซัพพลายเออร์</label>
-          <select class="ctrl" id="recvSupplier" style="margin-top:4px">
-            <option value="">— เลือกผู้จำหน่าย —</option>
-            ${contacts.map(c=>`<option value="${c.business_name||c.contact_name}">${c.business_name||c.contact_name}</option>`).join('')}
-            <option value="__custom__">+ พิมพ์เองด้านล่าง</option>
-          </select>
-          <input type="text" class="ctrl" id="recvSupplierText" placeholder="หรือพิมพ์ชื่อผู้จำหน่าย" style="margin-top:6px">
-        </div>
-        <div id="recvItems">
-          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">รายการสินค้าที่รับเข้า</div>
-          <div id="recvItemsList">
-            ${recvItemRow(0, eggProds)}
-          </div>
-          <button class="btn btn-secondary btn-sm" onclick="addRecvItemRow()" style="margin-top:8px">+ เพิ่มสินค้า</button>
-        </div>
-        ${isO ? `
-        <div style="border-top:1px solid var(--border);padding-top:10px">
-          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 ราคาสินค้า (เฉพาะเจ้าของ)</div>
-          <div id="recvPrices"></div>
-        </div>` : ''}
-        <div><label class="lbl">หมายเหตุ</label>
-          <input type="text" class="ctrl" id="recvNote" style="margin-top:4px" placeholder="หมายเหตุ (ถ้ามี)">
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:${isO?'1fr 1fr':'1fr'};gap:8px;margin-top:14px">
-        ${isO?`<button class="btn btn-secondary" onclick="submitRecv(false)">📋 บันทึกเป็น Pre</button>`:''}
-        <button class="btn btn-primary" onclick="submitRecv(${isO})">✅ ${isO?'บันทึกและตัดสต๊อก':'บันทึก Pre'}</button>
-      </div>
-    </div></div>`;
-  } catch(e) { toast('เกิดข้อผิดพลาด: '+e.message,'error'); }
-}
+
 
 function addRecvItemRow() {
   _recvRowCount++;
@@ -2940,21 +2812,7 @@ function addRecvItemRow() {
   document.getElementById('recvItemsList').appendChild(div);
 }
 
-function recvItemRow(n, prods) {
-  return `<div id="recvRow_${n}" style="display:grid;grid-template-columns:1fr 100px 90px 24px;gap:6px;margin-bottom:6px;align-items:center">
-    <select class="ctrl" id="recvProd_${n}" style="font-size:13px">
-      <option value="">เลือกสินค้า</option>
-      ${prods.map(p=>`<option value="${p.id}" data-name="${p.name}">${p.name}</option>`).join('')}
-    </select>
-    <input type="number" class="ctrl" id="recvQty_${n}" value="1" min="1" style="text-align:right;font-size:13px">
-    <select class="ctrl" id="recvUnit_${n}" style="font-size:13px">
-      <option value="1">ฟอง (x1)</option>
-      <option value="30">แผง (x30)</option>
-      <option value="300">ลัง (x300)</option>
-    </select>
-    ${n>0?`<button onclick="document.getElementById('recvRow_${n}').remove()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:16px">✕</button>`:'<span></span>'}
-  </div>`;
-}
+
 
 function addRecvItem(prods) {
   _recvRowCount++;
@@ -3031,23 +2889,7 @@ async function saveRecv(){
   }catch(e){toast(e.message,'error');}
 }
 
-async function loadRecv(){
-  try{
-    const data=await api.get('/stock/receipts');
-    const isO=['owner','admin'].includes(CU.role);
-    document.getElementById('recvT').innerHTML=data.length?data.map(r=>`<tr>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${r.doc_no||'PRE-'+r.id}</td>
-      <td>${fmt.d(r.receipt_date)}</td><td>${r.branch_code}</td><td>${r.supplier_name||'-'}</td>
-      <td>${r.status==='pre'?'<span class="badge bw">⏳ รอใส่ราคา</span>':'<span class="badge bs">✅ อนุมัติ</span>'}</td>
-      <td>${isO&&r.total_cost?fmt.b(r.total_cost):isO?'-':'***'}</td>
-      <td>${r.photo_url?`<a href="${r.photo_url}" target="_blank" class="btn btn-info btn-sm">ดูรูป</a>`:'-'}</td>
-      <td style="display:flex;gap:4px">
-        <button class="btn btn-secondary btn-sm" onclick="showRecvDetail(${r.id})">ดู</button>
-        ${r.status==='pre'&&isO?`<button class="btn btn-primary btn-sm" onclick="showApprove(${r.id})">💰 ใส่ราคา</button>`:''}
-      </td>
-    </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">ยังไม่มีใบรับสินค้า</td></tr>';
-  }catch(e){}
-}
+
 
 async function showRecvDetail(id){
   try{
@@ -3081,98 +2923,14 @@ async function submitApprove(recvId){
   try{await api.post('/stock/receipts/'+recvId+'/approve',{items});toast('อนุมัติและตัดสต๊อกเรียบร้อย','success');CM();loadRecv();loadStock();}catch(e){toast(e.message,'error');}
 }
 
-async function showTrModal() {
-  try {
-    const [brs, prods] = await Promise.all([api.get('/branches'), api.get('/products')]);
-    const trackProds = prods.filter(p=>p.track_stock);
-    _trProds = trackProds;
-    _trRowCount = 0;
-    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
-    <div class="modal" style="max-width:600px">
-      <div class="mh"><div class="mt">🔄 โอนย้ายสต๊อก</div><button class="mc" onclick="CM()">✕</button></div>
-      <div style="display:grid;gap:10px">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div><label class="lbl">จากสาขา *</label>
-            <select class="ctrl" id="trFrom" style="margin-top:4px">
-              ${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}
-            </select>
-          </div>
-          <div><label class="lbl">ไปสาขา *</label>
-            <select class="ctrl" id="trTo" style="margin-top:4px">
-              ${brs.filter(b=>b.id!==CU.branch_id).map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}
-              ${brs.length<=1?brs.map(b=>`<option value="${b.id}">${b.name}</option>`).join(''):''}
-            </select>
-          </div>
-        </div>
-        <div>
-          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">รายการที่จะโอนย้าย</div>
-          <div style="background:var(--surface2);border-radius:7px;padding:8px 10px;margin-bottom:6px;display:grid;grid-template-columns:1fr 90px 90px;gap:6px;font-size:11px;color:var(--text-muted);font-weight:600">
-            <span>สินค้า</span><span style="text-align:right">จำนวน</span><span>หน่วย</span>
-          </div>
-          <div id="trItemsList">${trItemRow(0, trackProds)}</div>
-          <button class="btn btn-secondary btn-sm" onclick="addTrItemRow()" style="margin-top:8px">+ เพิ่มรายการ</button>
-        </div>
-        <div><label class="lbl">หมายเหตุ</label>
-          <input type="text" class="ctrl" id="trNote" style="margin-top:4px" placeholder="หมายเหตุ (ถ้ามี)">
-        </div>
-      </div>
-      <button class="btn btn-primary" onclick="submitTr()" style="width:100%;margin-top:14px">✅ โอนย้ายสต๊อก</button>
-    </div></div>`;
-  } catch(e) { toast('เกิดข้อผิดพลาด: '+e.message,'error'); }
-}
 
 
-function trItemRow(n, prods) {
-  return `<div id="trRow_${n}" style="display:grid;grid-template-columns:1fr 90px 90px 24px;gap:6px;margin-bottom:6px;align-items:center">
-    <select class="ctrl" id="trProd_${n}" style="font-size:13px">
-      <option value="">เลือกสินค้า</option>
-      ${prods.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
-    </select>
-    <input type="number" class="ctrl" id="trQty_${n}" value="1" min="1" style="text-align:right;font-size:13px">
-    <select class="ctrl" id="trUnit_${n}" style="font-size:13px">
-      <option value="1">ฟอง</option>
-      <option value="30">แผง (x30)</option>
-      <option value="300">ลัง (x300)</option>
-    </select>
-    ${n>0?`<button onclick="document.getElementById('trRow_${n}').remove()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:16px">✕</button>`:'<span></span>'}
-  </div>`;
-}
 
-function addTrItemRow() {
-  _trRowCount++;
-  const n = _trRowCount;
-  const div = document.createElement('div');
-  div.innerHTML = trItemRow(n, _trProds);
-  document.getElementById('trItemsList').appendChild(div.firstElementChild);
-}
 
-async function submitTr() {
-  const from_id = document.getElementById('trFrom').value;
-  const to_id = document.getElementById('trTo').value;
-  const note = document.getElementById('trNote').value;
-  if (!from_id || !to_id) { toast('กรุณาเลือกสาขา','error'); return; }
-  if (from_id === to_id) { toast('สาขาต้นทางและปลายทางต้องไม่ใช่สาขาเดียวกัน','error'); return; }
 
-  const items = [];
-  document.querySelectorAll('[id^="trRow_"]').forEach(row => {
-    const n = row.id.replace('trRow_','');
-    const prodSel = document.getElementById('trProd_'+n);
-    const product_id = prodSel?.value;
-    const qty = parseInt(document.getElementById('trQty_'+n)?.value||0);
-    const unitMult = parseInt(document.getElementById('trUnit_'+n)?.value||1);
-    if (product_id && qty > 0) {
-      items.push({ product_id: parseInt(product_id), qty_unit: qty * unitMult });
-    }
-  });
 
-  if (!items.length) { toast('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ','error'); return; }
 
-  try {
-    await api.post('/stock/transfer', { from_branch_id: parseInt(from_id), to_branch_id: parseInt(to_id), items, note });
-    toast(`✅ โอนย้าย ${items.length} รายการเรียบร้อย`,'success');
-    CM(); loadStock();
-  } catch(e) { toast(e.message,'error'); }
-}
+
 
 
 async function submitTr(){
@@ -3185,38 +2943,6 @@ async function submitTr(){
 // ============================================================
 // PRODUCTS
 // ============================================================
-async function loadProdCats(){
-  try{
-    const cats=await api.get('/product-categories');
-    const sel=document.getElementById('prodCatFilter');
-    if(!sel) return;
-    const cur=sel.value;
-    sel.innerHTML='<option value="">ทุกกลุ่มสินค้า</option>';
-    cats.forEach(c=>sel.innerHTML+=`<option value="${c.id}" ${c.id==cur?'selected':''}>${c.name}</option>`);
-  }catch(e){}
-}
-
-async function loadProds(){
-  const catId=document.getElementById('prodCatFilter')?.value||'';
-  const search=document.getElementById('prodSearch')?.value||'';
-  var q='/products';const params=[];
-  if(catId) params.push('category_id='+catId);
-  if(search) params.push('search='+encodeURIComponent(search));
-  if(params.length) q+='?'+params.join('&');
-  try{
-    const data=await api.get(q);
-    document.getElementById('prodT').innerHTML=data.length?data.map(p=>`<tr>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${p.code}</td>
-      <td><strong>${p.name}</strong></td><td><span class="badge bg">${p.category_name}</span></td><td>${p.unit}</td>
-      <td>${p.is_egg?'✅':'-'}</td><td>${p.track_stock?'<span class="badge bs">นับสต๊อก</span>':'<span class="badge bg">ไม่นับ</span>'}</td>
-      <td style="display:flex;gap:4px">
-        <button class="btn btn-secondary btn-sm" onclick='showEditProd(${JSON.stringify(p).replace(/'/g,"&#39;")})'>แก้ไข</button>
-        <button class="btn btn-secondary btn-sm" onclick="showPriceM(${p.id},'${p.name}')">ราคา</button>
-        <button class="btn btn-danger btn-sm" onclick="delProd(${p.id})">ลบ</button>
-      </td>
-    </tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ไม่มีสินค้า</td></tr>';
-  }catch(e){console.error(e);}
-}
 
 async function showProductModal(p={}) {
   const cats = await api.get('/product-categories').catch(()=>[]);
@@ -3280,54 +3006,7 @@ async function showProductModal(p={}) {
 }
 
 
-async function saveProd(id){
-  const g = eid => { const el=document.getElementById(eid); return el ? el.value : ''; };
-  const body = {
-    name: g('pName'),
-    unit: g('pUnit'),
-    category_id: parseInt(g('pCat'))||null,
-    is_egg: document.getElementById('pIsEgg')?.checked||false,
-    track_stock: document.getElementById('pTrack')?.checked!==false,
-  };
-  if (id) body.active = document.getElementById('pActive')?.checked !== false;
-  if (!body.name) { toast('กรุณากรอกชื่อสินค้า','error'); return; }
 
-  try {
-    let prodId = id;
-    if (id) {
-      await api.put('/products/'+id, body);
-    } else {
-      const code = g('pCode');
-      if (!code) { toast('กรุณากรอกรหัสสินค้า','error'); return; }
-      const res = await api.post('/products', {...body, code});
-      prodId = res.id;
-    }
-
-    // บันทึกราคา (ถ้ากรอกมา) - branch แรกของ user
-    if (prodId) {
-      const branchId = CU.branch_id || branches[0]?.id;
-      const priceFields = [
-        {qty:1,  field:'pr1'},  {qty:5,  field:'pr5'},  {qty:10, field:'pr10'},
-        {qty:15, field:'pr15'}, {qty:20, field:'pr20'}, {qty:30, field:'pr30'},
-        {qty:30, field:'pw30', type:'wholesale'}, {qty:60, field:'pw60', type:'wholesale'},
-        {qty:300,field:'pw300',type:'wholesale'},
-      ];
-      for (const {qty, field, type} of priceFields) {
-        const val = parseFloat(g(field));
-        if (!isNaN(val) && val > 0 && branchId) {
-          await api.post('/products/'+prodId+'/prices', {
-            branch_id: branchId,
-            customer_type: type||'retail',
-            qty, price: val,
-          }).catch(()=>{});
-        }
-      }
-    }
-
-    toast('บันทึกเรียบร้อย ✅','success');
-    CM(); loadProds();
-  } catch(e) { toast(e.message,'error'); }
-}
 
 async function delProd(id){if(!confirm('ต้องการลบสินค้านี้?')) return;try{await api.del('/products/'+id);toast('ลบเรียบร้อย','success');loadProds();}catch(e){toast(e.message,'error');}}
 
@@ -3354,29 +3033,43 @@ async function showPriceM(pid,pname){
 }
 
 
-async function showCategoryModal(){
-  try{
-    const cats=await api.get('/product-categories');
-    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">🗂️ จัดการกลุ่มสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
-    <div style="border:1px solid var(--border);border-radius:7px;max-height:200px;overflow-y:auto;margin-bottom:14px">
-      ${cats.map(c=>`<div style="padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px;display:flex;justify-content:space-between"><span>${c.name}</span><span class="badge bg">${c.type==='stock'?'นับสต๊อก':c.type==='service'?'บริการ':'ไม่นับ'}</span></div>`).join('')}
-    </div>
-    <div style="border-top:1px solid var(--border);padding-top:12px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px">+ เพิ่มกลุ่มใหม่</div>
-      <div style="display:grid;grid-template-columns:1fr 120px auto;gap:8px;align-items:end">
-        <div><label class="lbl">ชื่อกลุ่ม</label><input type="text" class="ctrl" id="newCatName" style="margin-top:4px"></div>
-        <div><label class="lbl">ประเภท</label><select class="ctrl" id="newCatType" style="margin-top:4px"><option value="stock">นับสต๊อก</option><option value="nostock">ไม่นับ</option><option value="service">บริการ</option></select></div>
-        <button class="btn btn-primary" onclick="addCat()" style="height:38px">เพิ่ม</button>
-      </div>
-    </div></div></div>`;
-  }catch(e){toast(e.message,'error');}
+
+
+
+
+async function saveCat() {
+  const id = document.getElementById('editCatId').value;
+  const name = document.getElementById('newCatName').value.trim();
+  const type = document.getElementById('newCatType').value;
+  if (!name) { toast('กรุณากรอกชื่อ','error'); return; }
+  try {
+    if (id) {
+      await api.put('/product-categories/'+id, {name, type});
+      toast('แก้ไขเรียบร้อย','success');
+    } else {
+      await api.post('/product-categories', {name, type});
+      toast('เพิ่มเรียบร้อย','success');
+    }
+    showCategoryModal();
+  } catch(e) { toast(e.message,'error'); }
 }
 
-async function addCat(){
-  const name=document.getElementById('newCatName').value.trim();
-  const type=document.getElementById('newCatType').value;
-  if(!name){toast('กรุณากรอกชื่อ','error');return;}
-  try{await api.post('/product-categories',{name,type});toast('เพิ่มเรียบร้อย','success');showCategoryModal();}catch(e){toast(e.message,'error');}
+function editCat(id, name, type) {
+  document.getElementById('editCatId').value = id;
+  document.getElementById('newCatName').value = name;
+  document.getElementById('newCatType').value = type;
+  document.getElementById('catFormTitle').textContent = '✏️ แก้ไขกลุ่มสินค้า';
+  document.getElementById('catSaveBtn').textContent = 'บันทึก';
+}
+
+async function delCat(id) {
+  if (!confirm('ลบกลุ่มสินค้านี้? สินค้าในกลุ่มนี้จะไม่มีกลุ่ม')) return;
+  try {
+    await api.del('/product-categories/'+id);
+    toast('ลบเรียบร้อย','success');
+    showCategoryModal();
+    loadProdCats();
+  } catch(e) { toast(e.message,'error'); }
 }
 
 async function showBundleModal(){
@@ -3414,25 +3107,7 @@ async function delBundle(id){try{await api.del('/bundles/'+id);toast('ลบเ�
 // ============================================================
 // MEMBERS
 // ============================================================
-async function loadMembers(){
-  try{
-    const [data,settings]=await Promise.all([api.get('/members'),api.get('/member-settings')]);
-    Object.assign(mSet,settings);
-    const total=data.length;
-    const ready=data.filter(m=>(m.egg_count||0)>=mSet.eggs_required).length;
-    document.getElementById('memStats').innerHTML=`
-      <div class="sc"><div class="sl">สมาชิกทั้งหมด</div><div class="sv">${total}</div></div>
-      <div class="sc"><div class="sl">รับส่วนลดได้</div><div class="sv" style="color:var(--success)">${ready}</div></div>
-      <div class="sc"><div class="sl">สะสม ${mSet.eggs_required} ฟอง = ส่วนลด ${mSet.discount_amount} บาท</div><div class="sv" style="font-size:14px">⚙️ <button class="btn btn-secondary btn-sm" onclick="showMemSettings()">ตั้งค่า</button></div></div>`;
-    document.getElementById('memT').innerHTML=data.map(m=>`<tr>
-      <td><strong>${m.name}</strong></td><td>${m.phone||'-'}</td><td>${m.branch_code||'-'}</td>
-      <td style="font-weight:600">${fmt.n(m.egg_count||0)}</td>
-      <td>${(m.egg_count||0)>=mSet.eggs_required?'<span class="badge bs">ได้ส่วนลด</span>':'<span class="badge bg">ยังไม่ถึง</span>'}</td>
-      <td>${m.active?'<span class="badge bs">ใช้งาน</span>':'<span class="badge be">ปิด</span>'}</td>
-      <td><button class="btn btn-secondary btn-sm" onclick='showMemModal(${JSON.stringify(m).replace(/'/g,"&#39;")})'>แก้ไข</button></td>
-    </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ยังไม่มีสมาชิก</td></tr>';
-  }catch(e){}
-}
+
 
 function showMemModal(m={}){
   document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">${m.id?'แก้ไข':'เพิ่ม'}สมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
@@ -3469,18 +3144,7 @@ async function saveMemSettings(){
 // ============================================================
 // CONTACTS
 // ============================================================
-async function loadContacts(){
-  try{
-    const data=await api.get('/contacts');
-    allContacts=data;
-    document.getElementById('contactT').innerHTML=data.length?data.map(c=>`<tr>
-      <td><strong>${c.business_name||'-'}</strong></td><td>${c.contact_name||'-'}</td><td>${c.phone||'-'}</td>
-      <td><span class="badge ${c.is_customer?'bi':'bw'}">${c.is_customer?'ลูกค้า':''}${c.is_supplier?' ผู้จำหน่าย':''}</span></td>
-      <td>${c.credit_days||0} วัน</td>
-      <td><button class="btn btn-secondary btn-sm" onclick='showContactModal(${JSON.stringify(c).replace(/'/g,"&#39;")})'>แก้ไข</button></td>
-    </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ยังไม่มีผู้ติดต่อ</td></tr>';
-  }catch(e){}
-}
+
 
 function showContactModal(c={}){
   document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">${c.id?'แก้ไข':'เพิ่ม'}ผู้ติดต่อ</div><button class="mc" onclick="CM()">✕</button></div>
@@ -4007,12 +3671,7 @@ async function saveEmployee(id) {
 // ============================================================
 // SAVE PERMISSIONS
 // ============================================================
-async function savePermissions() {
-  try {
-    await api.put('/permissions/'+_curPermRole, {permissions:[..._curPerms]});
-    toast('บันทึกสิทธิ์เรียบร้อย ✓','success');
-  } catch(e) { toast(e.message,'error'); }
-}
+
 
 // ============================================================
 // BUILD INVOICE HTML (for print)
@@ -4577,13 +4236,7 @@ function togglePerm(key, checked) {
   renderPermissions();
 }
 
-async function savePermissions() {
-  if (!_curPermRole) { toast('กรุณาเลือก Role ก่อน','error'); return; }
-  try {
-    await api.put('/permissions/'+_curPermRole, { permissions: [..._curPerms] });
-    toast('บันทึกสิทธิ์ '+_curPermRole+' เรียบร้อย ✅','success');
-  } catch(e) { toast(e.message,'error'); }
-}
+
 
 
 // ============================================================
