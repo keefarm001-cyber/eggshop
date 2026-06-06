@@ -301,7 +301,10 @@ tr:hover td{background:#fafafa}
 
     <!-- REPORTS -->
     <div class="page" id="page-reports">
-      <div class="ph"><div class="pt">📈 รายงาน</div></div>
+      <div class="ph">
+    <div class="pt">📈 รายงาน</div>
+    <button class="btn btn-secondary" onclick="printDailySummary()">🖨️ ใบสรุปยอดขาย</button>
+  </div>
       <div class="pb">
         <div class="card" style="margin-bottom:12px">
           <div style="display:flex;gap:8px;align-items:center">
@@ -895,27 +898,127 @@ async function loadMv(){
   }catch(e){}
 }
 
-function showRecvModal(){
-  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:560px"><div class="mh"><div class="mt">📦 สร้างใบรับสินค้า (Pre)</div><button class="mc" onclick="CM()">✕</button></div>
-  <div style="display:grid;gap:10px">
-    <div class="g2">
-      <div><label class="lbl">สาขา *</label><select class="ctrl" id="rvBr" style="margin-top:4px">${branches.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
-      <div><label class="lbl">วันที่รับ</label><input type="date" class="ctrl" id="rvDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px"></div>
-    </div>
-    <div><label class="lbl">ผู้จำหน่าย</label><input type="text" class="ctrl" id="rvSupp" style="margin-top:4px" placeholder="ชื่อผู้จำหน่าย"></div>
-    <div id="rvItems"><div style="border:1px solid var(--border);border-radius:7px;padding:8px;display:grid;gap:6px">
-      <div style="display:grid;grid-template-columns:1fr 100px auto;gap:6px;align-items:center">
-        <select class="ctrl rv-prod"><option value="">เลือกสินค้า</option></select>
-        <input type="number" class="ctrl rv-qty" value="300" min="1" placeholder="จำนวน (ฟอง)">
-        <button onclick="addRvRow()" class="btn btn-secondary btn-sm">+ แถว</button>
+async function showRecvModal(isOwner=false) {
+  try {
+    const [brs, prods, contacts] = await Promise.all([
+      api.get('/branches'),
+      api.get('/products'),
+      api.get('/contacts?type=supplier').catch(()=>[]),
+    ]);
+    const eggProds = prods.filter(p=>p.is_egg||p.track_stock);
+    const isO = ['owner','admin'].includes(CU.role) || isOwner;
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:560px">
+      <div class="mh">
+        <div>
+          <div class="mt">${isO?'📦 รับสินค้า (บันทึกราคาได้)':'📦 สร้างใบรับสินค้า (Pre)'}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${isO?'เจ้าของ/ผู้จัดการ — ตัดสต๊อกทันที':'พนักงาน — เจ้าของจะใส่ราคาภายหลัง'}</div>
+        </div>
+        <button class="mc" onclick="CM()">✕</button>
       </div>
-    </div></div>
-    <div><label class="lbl">หมายเหตุ</label><input type="text" class="ctrl" id="rvNote" style="margin-top:4px"></div>
-  </div>
-  <button class="btn btn-primary" onclick="saveRecv()" style="width:100%;margin-top:14px">บันทึกใบรับสินค้า (Pre)</button>
-  </div></div>`;
-  loadRvProds();
+      <div style="display:grid;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><label class="lbl">สาขา *</label>
+            <select class="ctrl" id="recvBr" style="margin-top:4px">
+              ${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}
+            </select>
+          </div>
+          <div><label class="lbl">วันที่รับ</label>
+            <input type="date" class="ctrl" id="recvDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px">
+          </div>
+        </div>
+        <div><label class="lbl">ผู้จำหน่าย / ซัพพลายเออร์</label>
+          <select class="ctrl" id="recvSupplier" style="margin-top:4px">
+            <option value="">— เลือกผู้จำหน่าย —</option>
+            ${contacts.map(c=>`<option value="${c.business_name||c.contact_name}">${c.business_name||c.contact_name}</option>`).join('')}
+            <option value="__custom__">+ พิมพ์เองด้านล่าง</option>
+          </select>
+          <input type="text" class="ctrl" id="recvSupplierText" placeholder="หรือพิมพ์ชื่อผู้จำหน่าย" style="margin-top:6px">
+        </div>
+        <div id="recvItems">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">รายการสินค้าที่รับเข้า</div>
+          <div id="recvItemsList">
+            ${recvItemRow(0, eggProds)}
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="addRecvItem(${JSON.stringify(eggProds).replace(/'/g,'&#39;').replace(/"/g,'&quot;')})" style="margin-top:8px">+ เพิ่มสินค้า</button>
+        </div>
+        ${isO ? `
+        <div style="border-top:1px solid var(--border);padding-top:10px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 ราคาสินค้า (เฉพาะเจ้าของ)</div>
+          <div id="recvPrices"></div>
+        </div>` : ''}
+        <div><label class="lbl">หมายเหตุ</label>
+          <input type="text" class="ctrl" id="recvNote" style="margin-top:4px" placeholder="หมายเหตุ (ถ้ามี)">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:${isO?'1fr 1fr':'1fr'};gap:8px;margin-top:14px">
+        ${isO?`<button class="btn btn-secondary" onclick="submitRecv(false)">📋 บันทึกเป็น Pre</button>`:''}
+        <button class="btn btn-primary" onclick="submitRecv(${isO})">✅ ${isO?'บันทึกและตัดสต๊อก':'บันทึก Pre'}</button>
+      </div>
+    </div></div>`;
+  } catch(e) { toast('เกิดข้อผิดพลาด: '+e.message,'error'); }
 }
+
+let _recvRowCount = 0;
+function recvItemRow(n, prods) {
+  return `<div id="recvRow_${n}" style="display:grid;grid-template-columns:1fr 100px 90px 24px;gap:6px;margin-bottom:6px;align-items:center">
+    <select class="ctrl" id="recvProd_${n}" style="font-size:13px">
+      <option value="">เลือกสินค้า</option>
+      ${prods.map(p=>`<option value="${p.id}" data-name="${p.name}">${p.name}</option>`).join('')}
+    </select>
+    <input type="number" class="ctrl" id="recvQty_${n}" value="1" min="1" style="text-align:right;font-size:13px">
+    <select class="ctrl" id="recvUnit_${n}" style="font-size:13px">
+      <option value="1">ฟอง (x1)</option>
+      <option value="30">แผง (x30)</option>
+      <option value="300">ลัง (x300)</option>
+    </select>
+    ${n>0?`<button onclick="document.getElementById('recvRow_${n}').remove()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:16px">✕</button>`:'<span></span>'}
+  </div>`;
+}
+
+function addRecvItem(prods) {
+  _recvRowCount++;
+  const div = document.createElement('div');
+  div.innerHTML = recvItemRow(_recvRowCount, prods);
+  document.getElementById('recvItemsList').appendChild(div.firstElementChild);
+}
+
+async function submitRecv(approve=false) {
+  const branch_id = document.getElementById('recvBr').value;
+  const receipt_date = document.getElementById('recvDate').value;
+  const supplierSel = document.getElementById('recvSupplier').value;
+  const supplier_name = supplierSel && supplierSel !== '__custom__'
+    ? supplierSel
+    : document.getElementById('recvSupplierText').value;
+  const note = document.getElementById('recvNote').value;
+
+  const items = [];
+  document.querySelectorAll('[id^="recvRow_"]').forEach(row => {
+    const n = row.id.replace('recvRow_','');
+    const prodSel = document.getElementById('recvProd_'+n);
+    const product_id = prodSel?.value;
+    const qty = parseInt(document.getElementById('recvQty_'+n)?.value||0);
+    const unitMult = parseInt(document.getElementById('recvUnit_'+n)?.value||1);
+    if (product_id && qty > 0) {
+      const product_name = prodSel.options[prodSel.selectedIndex]?.dataset?.name||'';
+      items.push({ product_id: parseInt(product_id), product_name, qty_unit: qty * unitMult, qty_display: qty, unit_mult: unitMult });
+    }
+  });
+
+  if (!branch_id) { toast('กรุณาเลือกสาขา','error'); return; }
+  if (!items.length) { toast('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ','error'); return; }
+
+  try {
+    const res = await api.post('/stock/receipts', {
+      branch_id: parseInt(branch_id),
+      receipt_date, supplier_name, items, note,
+      status: approve ? 'approved' : 'pre',
+    });
+    toast(approve ? '✅ รับสินค้าและตัดสต๊อกเรียบร้อย' : '📋 บันทึก Pre เรียบร้อย', 'success');
+    CM(); loadRecv();
+  } catch(e) { toast(e.message,'error'); }
+}
+
 
 async function loadRvProds(){
   try{
@@ -1057,29 +1160,67 @@ async function loadProds(){
   }catch(e){console.error(e);}
 }
 
-async function showProductModal(p={}){
-  const cats=await api.get('/product-categories').catch(()=>[]);
-  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">${p.id?'แก้ไข':'เพิ่ม'}สินค้า</div><button class="mc" onclick="CM()">✕</button></div>
-  <div style="display:grid;gap:9px">
-    <div class="g2">
-      <div><label class="lbl">รหัสสินค้า *</label><input type="text" class="ctrl" id="pCode" value="${p.code||''}" style="margin-top:4px" ${p.id?'readonly':''}></div>
-      <div><label class="lbl">ชื่อสินค้า *</label><input type="text" class="ctrl" id="pName" value="${p.name||''}" style="margin-top:4px"></div>
+async function showProductModal(p={}) {
+  const cats = await api.get('/product-categories').catch(()=>[]);
+  const contacts = await api.get('/contacts?type=supplier').catch(()=>[]);
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:580px">
+    <div class="mh"><div class="mt">${p.id?'แก้ไข':'เพิ่ม'}สินค้า</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label class="lbl">รหัสสินค้า *</label><input type="text" class="ctrl" id="pCode" value="${p.code||''}" style="margin-top:4px" placeholder="เช่น EGG-0"></div>
+        <div><label class="lbl">ชื่อสินค้า *</label><input type="text" class="ctrl" id="pName" value="${p.name||''}" style="margin-top:4px" placeholder="เช่น ไข่ไก่เบอร์ 0"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label class="lbl">กลุ่มสินค้า</label>
+          <select class="ctrl" id="pCat" style="margin-top:4px">
+            ${cats.map(c=>`<option value="${c.id}" ${c.id===p.category_id?'selected':''}>${c.name}</option>`).join('')}
+          </select>
+        </div>
+        <div><label class="lbl">หน่วยหลัก</label>
+          <select class="ctrl" id="pUnit" style="margin-top:4px">
+            <option value="ฟอง" ${p.unit==='ฟอง'||!p.unit?'selected':''}>ฟอง</option>
+            <option value="แผง" ${p.unit==='แผง'?'selected':''}>แผง (30 ฟอง)</option>
+            <option value="ลัง" ${p.unit==='ลัง'?'selected':''}>ลัง (300 ฟอง)</option>
+            <option value="ชุด" ${p.unit==='ชุด'?'selected':''}>ชุด</option>
+            <option value="อื่นๆ" ${p.unit==='อื่นๆ'?'selected':''}>อื่นๆ</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label style="display:flex;align-items:center;gap:7px;font-size:13px;margin-top:4px">
+          <input type="checkbox" id="pIsEgg" ${p.is_egg?'checked':''} style="accent-color:var(--accent)"> เป็นไข่ (นับสต๊อกเป็นฟอง)
+        </label></div>
+        <div><label style="display:flex;align-items:center;gap:7px;font-size:13px;margin-top:4px">
+          <input type="checkbox" id="pTrack" ${p.track_stock!==false?'checked':''} style="accent-color:var(--accent)"> นับสต๊อก
+        </label></div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 ราคาขายหน้าร้าน (บาท/ฟอง)</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div><label class="lbl">1 ฟอง</label><input type="number" class="ctrl" id="pr1" value="${p.price_1||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">5 ฟอง</label><input type="number" class="ctrl" id="pr5" value="${p.price_5||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">10 ฟอง</label><input type="number" class="ctrl" id="pr10" value="${p.price_10||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">15 ฟอง</label><input type="number" class="ctrl" id="pr15" value="${p.price_15||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">20 ฟอง</label><input type="number" class="ctrl" id="pr20" value="${p.price_20||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">30 ฟอง (แผง)</label><input type="number" class="ctrl" id="pr30" value="${p.price_30||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">🚚 ราคาส่ง (บาท/ฟอง)</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div><label class="lbl">1 แผง (30ฟ.)</label><input type="number" class="ctrl" id="pw30" value="${p.wholesale_30||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">2 แผง+ (60ฟ.)</label><input type="number" class="ctrl" id="pw60" value="${p.wholesale_60||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">1 ลัง (300ฟ.)</label><input type="number" class="ctrl" id="pw300" value="${p.wholesale_300||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+        </div>
+      </div>
     </div>
-    <div class="g2">
-      <div><label class="lbl">กลุ่มสินค้า</label><select class="ctrl" id="pCat" style="margin-top:4px">${cats.map(c=>`<option value="${c.id}" ${c.id===p.category_id?'selected':''}>${c.name}</option>`).join('')}</select></div>
-      <div><label class="lbl">หน่วย</label><select class="ctrl" id="pUnit" style="margin-top:4px"><option value="ฟอง" ${p.unit==='ฟอง'?'selected':''}>ฟอง</option><option value="แผง" ${p.unit==='แผง'?'selected':''}>แผง</option><option value="ชิ้น" ${p.unit==='ชิ้น'?'selected':''}>ชิ้น</option><option value="กก." ${p.unit==='กก.'?'selected':''}>กก.</option></select></div>
-    </div>
-    <div class="g2">
-      <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="pIsEgg" ${p.is_egg?'checked':''}> เป็นไข่ไก่</label>
-      <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="pTrack" ${p.track_stock!==false?'checked':''}> นับสต๊อก</label>
-    </div>
-    ${p.id?`<label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="pActive" ${p.active?'checked':''}> เปิดใช้งาน</label>`:''}
-  </div>
-  <button class="btn btn-primary" onclick="saveProd(${p.id||0})" style="width:100%;margin-top:14px">บันทึก</button>
+    <button class="btn btn-primary" onclick="saveProd(${p.id||0})" style="width:100%;margin-top:14px">💾 บันทึก</button>
   </div></div>`;
 }
 
-function showEditProd(p){showProductModal(p);}
 
 async function saveProd(id){
   const body={name:document.getElementById('pName').value,unit:document.getElementById('pUnit').value,category_id:parseInt(document.getElementById('pCat').value),is_egg:document.getElementById('pIsEgg').checked,track_stock:document.getElementById('pTrack').checked};
@@ -1900,8 +2041,277 @@ Object.assign(PAGE_LOADERS, {
 });
 
 // Auto login check
+
+// ============================================================
+// USERS (Account Management)
+// ============================================================
+async function loadUsers() {
+  try {
+    const [users, r] = await Promise.all([api.get('/users'), api.get('/roles')]);
+    roles = r;
+    document.getElementById('userT').innerHTML = users.length ? users.map(u=>`<tr>
+      <td>
+        <div style="font-weight:600">${u.full_name}</div>
+        <div style="font-size:11px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace">${u.username}</div>
+      </td>
+      <td><span class="badge bi">${fmt.role(u.role)}</span></td>
+      <td>${u.branch_code||'ทุกสาขา'}</td>
+      <td>${['owner','admin'].includes(u.role)?'<span class="badge bs">ทุกสาขา</span>':`<button class="btn btn-info btn-sm" onclick="showUserBranchModal(${u.id},'${u.full_name}')">🏪 สาขา</button>`}</td>
+      <td>${u.active?'<span class="badge bs">ใช้งาน</span>':'<span class="badge be">ระงับ</span>'}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-secondary btn-sm" onclick="showResetPasswordModal(${u.id},'${u.full_name}')">🔑 รีเซ็ต</button>
+        <button class="btn btn-${u.active?'danger':'success'} btn-sm" onclick="toggleUserActive(${u.id},${!u.active},'${u.full_name}')">${u.active?'ระงับ':'เปิด'}</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ไม่มีข้อมูล</td></tr>';
+  } catch(e) { console.error(e); }
+}
+
+function showResetPasswordModal(userId, userName) {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">🔑 รีเซ็ตรหัสผ่าน: ${userName}</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="display:grid;gap:10px">
+    <div><label class="lbl">รหัสผ่านใหม่ *</label><input type="password" class="ctrl" id="newPwd" placeholder="อย่างน้อย 6 ตัวอักษร" style="margin-top:4px"></div>
+    <div><label class="lbl">ยืนยันรหัสผ่าน *</label><input type="password" class="ctrl" id="confirmPwd" placeholder="พิมพ์รหัสผ่านอีกครั้ง" style="margin-top:4px"></div>
+  </div>
+  <button class="btn btn-primary" onclick="doResetPassword(${userId},'${userName}')" style="width:100%;margin-top:14px">🔑 รีเซ็ตรหัสผ่าน</button>
+  </div></div>`;
+}
+
+async function doResetPassword(userId, userName) {
+  const newPwd = document.getElementById('newPwd').value;
+  const confirmPwd = document.getElementById('confirmPwd').value;
+  if (!newPwd || newPwd.length < 6) { toast('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร','error'); return; }
+  if (newPwd !== confirmPwd) { toast('รหัสผ่านไม่ตรงกัน','error'); return; }
+  try {
+    await api.put('/users/'+userId, { password: newPwd });
+    toast(`รีเซ็ตรหัสผ่าน ${userName} เรียบร้อย`, 'success');
+    CM();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function toggleUserActive(userId, active, userName) {
+  const action = active ? 'เปิดใช้งาน' : 'ระงับ';
+  if (!confirm(`${action} account "${userName}"?`)) return;
+  try {
+    await api.put('/users/'+userId, { active });
+    toast(`${action} account เรียบร้อย`, 'success');
+    loadUsers();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showUserBranchModal(userId, userName) {
+  try {
+    const [userBranches] = await Promise.all([api.get('/users/'+userId+'/branches')]);
+    const userBranchIds = userBranches.map(b=>b.branch_id);
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">🏪 สิทธิ์สาขา: ${userName}</div><button class="mc" onclick="CM()">✕</button></div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">เลือกสาขาที่พนักงานคนนี้สามารถเข้าทำงานได้</p>
+    <div style="display:grid;gap:8px">
+      ${branches.map(b=>`<label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:7px;cursor:pointer">
+        <input type="checkbox" id="ub_${b.id}" ${userBranchIds.includes(b.id)?'checked':''}>
+        <span style="font-size:14px">🏪 ${b.name} <span class="badge bg">${b.code}</span></span>
+      </label>`).join('')}
+    </div>
+    <button class="btn btn-primary" onclick="saveUserBranches(${userId})" style="width:100%;margin-top:14px">💾 บันทึกสิทธิ์สาขา</button>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function saveUserBranches(userId) {
+  const branchIds = branches.filter(b=>document.getElementById('ub_'+b.id)?.checked).map(b=>b.id);
+  try {
+    await api.put('/users/'+userId+'/branches', {branch_ids: branchIds});
+    toast('บันทึกสิทธิ์สาขาเรียบร้อย','success');
+    CM(); loadUsers();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// EMPLOYEES (เพิ่ม/แก้ไขพนักงาน + สร้าง Account)
+// ============================================================
+async function showEmployeeModal(e={}) {
+  const roleOptions = [
+    {val:'manager',label:'👨‍💼 ผู้จัดการ'},{val:'cashier',label:'💁 แคชเชียร์'},
+    {val:'stock',label:'📦 สต๊อก'},{val:'viewer',label:'👁️ ผู้ชม'},
+    {val:'accountant',label:'📊 บัญชี'},{val:'sales_pc',label:'🛍️ พนักงานขาย (PC)'},
+  ];
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:660px">
+    <div class="mh"><div class="mt">${e.id?'แก้ไข':'➕ เพิ่ม'}พนักงาน</div><button class="mc" onclick="CM()">✕</button></div>
+
+    <!-- แท็บ -->
+    <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
+      <button class="emp-tab" onclick="switchEmpTab('info',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid var(--accent);color:var(--accent);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer">📋 ข้อมูล</button>
+      <button class="emp-tab" onclick="switchEmpTab('pay',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer">💰 เงินเดือน</button>
+      <button class="emp-tab" onclick="switchEmpTab('edu',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer">📚 ประวัติ</button>
+    </div>
+
+    <!-- แท็บ: ข้อมูล -->
+    <div id="empTab-info" style="display:grid;gap:9px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+        <div><label class="lbl">ชื่อ-นามสกุล *</label><input type="text" class="ctrl" id="emName" value="${e.full_name||''}" style="margin-top:4px"></div>
+        <div><label class="lbl">ชื่อเล่น</label><input type="text" class="ctrl" id="emNick" value="${e.nickname||''}" style="margin-top:4px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+        <div><label class="lbl">เลขบัตรประชาชน</label><input type="text" class="ctrl" id="emNID" value="${e.national_id||''}" maxlength="13" style="margin-top:4px"></div>
+        <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="emPhone" value="${e.phone||''}" style="margin-top:4px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+        <div><label class="lbl">ตำแหน่ง / สิทธิ์ในระบบ *</label>
+          <select class="ctrl" id="emRoleName" style="margin-top:4px">
+            ${roleOptions.map(r=>`<option value="${r.val}" ${(e.role_name||'cashier')===r.val?'selected':''}>${r.label}</option>`).join('')}
+          </select>
+        </div>
+        <div><label class="lbl">สาขาประจำ</label>
+          <select class="ctrl" id="emBr" style="margin-top:4px">
+            <option value="">ทุกสาขา</option>
+            ${branches.map(b=>`<option value="${b.id}" ${b.id===e.branch_id?'selected':''}>${b.name}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="lbl" style="margin-bottom:6px;display:block">🏪 สาขาที่ทำงานได้ (ติ๊กหลายสาขาได้)</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${branches.map(b=>`<label style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-size:13px">
+            <input type="checkbox" class="emBrAccess" value="${b.id}" style="accent-color:var(--accent)">
+            ${b.name}
+          </label>`).join('')}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+        <div><label class="lbl">วันเริ่มงาน</label><input type="date" class="ctrl" id="emStart" value="${e.start_date?e.start_date.slice(0,10):''}" style="margin-top:4px"></div>
+        <div><label class="lbl">วันผ่านโปร</label><input type="date" class="ctrl" id="emProb" value="${e.probation_end_date?e.probation_end_date.slice(0,10):''}" style="margin-top:4px"></div>
+      </div>
+      ${!e.id ? `
+      <div style="background:var(--info-dim);border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-top:4px">
+        <div style="font-size:12px;font-weight:700;color:var(--info);margin-bottom:8px">🔐 Account เข้าใช้งานระบบ (ไม่บังคับ)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><label class="lbl">Username</label><input type="text" class="ctrl" id="emUser" placeholder="เช่น somchai หรือ email" style="margin-top:4px"></div>
+          <div><label class="lbl">Password</label><input type="password" class="ctrl" id="emPass" placeholder="อย่างน้อย 6 ตัว" style="margin-top:4px"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">💡 ถ้าไม่กรอก พนักงานจะไม่มี account เข้าระบบ</div>
+      </div>` : ''}
+      ${e.id ? `<label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="emAct" ${e.active?'checked':''}> เปิดใช้งาน</label>` : ''}
+    </div>
+
+    <!-- แท็บ: เงินเดือน -->
+    <div id="empTab-pay" style="display:none;grid-template-columns:1fr 1fr;gap:9px">
+      <div><label class="lbl">ฐานเงินเดือน (บาท)</label><input type="number" class="ctrl" id="emSalBase" value="${e.salary_base||0}" min="0" style="margin-top:4px"></div>
+      <div><label class="lbl">เงินเดือนปัจจุบัน (บาท)</label><input type="number" class="ctrl" id="emSal" value="${e.salary||0}" min="0" style="margin-top:4px"></div>
+      <div><label class="lbl">ธนาคาร</label><input type="text" class="ctrl" id="emBank" value="${e.bank_name||''}" placeholder="เช่น กสิกรไทย" style="margin-top:4px"></div>
+      <div><label class="lbl">เลขบัญชี</label><input type="text" class="ctrl" id="emBankAcc" value="${e.bank_account||''}" style="margin-top:4px"></div>
+    </div>
+
+    <!-- แท็บ: ประวัติ -->
+    <div id="empTab-edu" style="display:none;gap:9px">
+      <div><label class="lbl">ประวัติการศึกษา</label><textarea class="ctrl" id="emEdu" rows="3" style="margin-top:4px;resize:vertical">${e.education||''}</textarea></div>
+      <div><label class="lbl">ประวัติการทำงาน</label><textarea class="ctrl" id="emWork" rows="3" style="margin-top:4px;resize:vertical">${e.work_history||''}</textarea></div>
+      <div><label class="lbl">ผู้ติดต่อฉุกเฉิน</label><input type="text" class="ctrl" id="emEmerg" value="${e.emergency_contact||''}" style="margin-top:4px"></div>
+    </div>
+
+    <button class="btn btn-primary" onclick="saveEmployee(${e.id||0})" style="width:100%;margin-top:16px">💾 บันทึกพนักงาน</button>
+  </div></div>`;
+}
+
+function switchEmpTab(tab, btn) {
+  document.querySelectorAll('[id^="empTab-"]').forEach(el => { el.style.display='none'; });
+  const el = document.getElementById('empTab-'+tab);
+  if (el) el.style.display = (tab==='pay'||tab==='edu') ? 'grid' : 'block';
+  document.querySelectorAll('.emp-tab').forEach(b => { b.style.borderBottomColor='transparent'; b.style.color='var(--text-muted)'; b.style.fontWeight='400'; });
+  if (btn) { btn.style.borderBottomColor='var(--accent)'; btn.style.color='var(--accent)'; btn.style.fontWeight='600'; }
+}
+
+async function showUserModal(u={}) {
+  // redirect ไปหน้าพนักงาน
+  toast('เพิ่มพนักงานได้ที่หน้า 👔 พนักงาน', 'info');
+  CM();
+  showPage('employees');
+}
+
+
 const _t = localStorage.getItem('es_token'), _u = localStorage.getItem('es_user');
 if (_t && _u) { try { CU=JSON.parse(_u); initApp(); } catch(e) { localStorage.clear(); } }
+
+// ============================================================
+// DAILY SUMMARY PRINT (ใบสรุปยอดขาย)
+// ============================================================
+async function printDailySummary() {
+  const date = document.getElementById('rptDate')?.value || new Date().toISOString().slice(0,10);
+  try {
+    const d = await api.get('/reports/daily?date='+date);
+    // ดึงยอดขายแยกสินค้า
+    const salesDetail = await api.get('/reports/sales-by-product?date='+date).catch(()=>({items:[]}));
+    
+    const branchName = d.branches?.[0]?.branch_name || 'ทุกสาขา';
+    const totalRevenue = d.branches?.reduce((s,b)=>s+parseFloat(b.total_revenue||0),0)||0;
+    const totalBills = d.branches?.reduce((s,b)=>s+parseInt(b.total_bills||0),0)||0;
+    const dateStr = new Date(date).toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+
+    const rows = (salesDetail.items||[]).map((it,i)=>
+      `<tr style="border-bottom:1px solid #f0f0f0">
+        <td style="padding:4px 8px;font-size:13px">${i+1}. ${it.product_name}</td>
+        <td style="padding:4px 8px;text-align:right;font-size:13px">${parseInt(it.qty_sold||0).toLocaleString('th-TH')}</td>
+        <td style="padding:4px 8px;text-align:right;font-size:13px">${Math.floor(parseInt(it.qty_sold||0)/30)}</td>
+        <td style="padding:4px 8px;text-align:right;font-size:13px">${parseFloat(it.revenue||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
+      </tr>`
+    ).join('');
+
+    const html = [
+      '<!DOCTYPE html>',
+      '<html lang="th">',
+      '<head><meta charset="UTF-8"><title>ใบสรุปยอดขาย</title>',
+      '<style>',
+      'body{font-family:"Sarabun",sans-serif;font-size:14px;margin:0;padding:0}',
+      '.toolbar{background:#1f2937;padding:10px 20px;display:flex;gap:10px}',
+      '.toolbar button{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:"Sarabun",sans-serif}',
+      '.page{max-width:380px;margin:0 auto;padding:16px}',
+      '.title{text-align:center;font-size:16px;font-weight:700;margin-bottom:4px}',
+      '.subtitle{text-align:center;font-size:13px;color:#666;margin-bottom:16px}',
+      'table{width:100%;border-collapse:collapse}',
+      'th{background:#f0f0f0;padding:5px 8px;font-size:12px;color:#666;text-align:left;border-bottom:2px solid #ddd}',
+      'th.r{text-align:right}',
+      '.total-row{background:#fff8f0;font-weight:700;border-top:2px solid #e67e00}',
+      '.total-row td{padding:7px 8px}',
+      '.section{margin-top:14px;padding-top:10px;border-top:1px dashed #ccc}',
+      '.section-title{font-size:12px;color:#666;margin-bottom:6px;font-weight:600}',
+      '.row{display:flex;justify-content:space-between;padding:3px 0;font-size:13px}',
+      '.grand{display:flex;justify-content:space-between;padding:8px 0;font-size:15px;font-weight:700;border-top:2px solid #333;margin-top:6px}',
+      '.footer{margin-top:14px;text-align:center;font-size:11px;color:#999;padding-top:10px;border-top:1px dashed #ccc}',
+      '@media print{.toolbar{display:none}}',
+      '<\/style><\/head>',
+      '<body>',
+      '<div class="toolbar">',
+      '<button onclick="window.print()" style="background:#e67e00;color:#fff">🖨️ พิมพ์<\/button>',
+      '<button onclick="window.close()" style="background:#374151;color:#fff">✕<\/button>',
+      '<\/div>',
+      '<div class="page">',
+      '<div class="title">สรุปยอดขาย ' + branchName + '<\/div>',
+      '<div class="subtitle">' + dateStr + '<\/div>',
+      '<table>',
+      '<thead><tr><th>สินค้า<\/th><th class="r">ฟอง<\/th><th class="r">แผง<\/th><th class="r">ยอด (บาท)<\/th><\/tr><\/thead>',
+      '<tbody>' + rows + '<\/tbody>',
+      '<tfoot><tr class="total-row">',
+      '<td>รวมทั้งหมด<\/td>',
+      '<td style="text-align:right">' + (salesDetail.items||[]).reduce((s,i)=>s+parseInt(i.qty_sold||0),0).toLocaleString('th-TH') + '<\/td>',
+      '<td style="text-align:right">' + Math.floor((salesDetail.items||[]).reduce((s,i)=>s+parseInt(i.qty_sold||0),0)/30) + '<\/td>',
+      '<td style="text-align:right">' + totalRevenue.toLocaleString('th-TH',{minimumFractionDigits:2}) + '<\/td>',
+      '<\/tr><\/tfoot>',
+      '<\/table>',
+      '<div class="section">',
+      '<div class="section-title">สรุปยอดเงิน<\/div>',
+      '<div class="row"><span>จำนวนบิล<\/span><span>' + totalBills + ' บิล<\/span><\/div>',
+      '<div class="grand"><span>ยอดรวม<\/span><span>' + totalRevenue.toLocaleString('th-TH',{minimumFractionDigits:2}) + ' บาท<\/span><\/div>',
+      '<\/div>',
+      '<div class="footer">** พิมพ์เมื่อ ' + new Date().toLocaleString('th-TH') + ' **<\/div>',
+      '<\/div>',
+      '<\/body><\/html>'
+    ].join('\n');
+
+    const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    window.open(url,'_blank');
+    setTimeout(()=>URL.revokeObjectURL(url), 10000);
+  } catch(e) { toast('โหลดข้อมูลไม่ได้: '+e.message,'error'); }
+}
+
 </script>
 </body>
 </html>
