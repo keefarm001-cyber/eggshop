@@ -282,9 +282,11 @@ tr:hover td{background:#fafafa}
     <div class="page" id="page-products">
       <div class="ph">
         <div class="pt">🥚 สินค้า</div>
-        <div style="display:flex;gap:7px">
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
           <button class="btn btn-secondary" onclick="showCategoryModal()">🗂️ กลุ่มสินค้า</button>
           <button class="btn btn-secondary" onclick="showBundleModal()">📦 ชุดสินค้า</button>
+          <button class="btn btn-secondary" onclick="exportPrices()">📥 Export ราคา</button>
+          <button class="btn btn-secondary" onclick="showImportPricesModal()">📤 Import ราคา</button>
           <button class="btn btn-primary" onclick="showProductModal()">+ เพิ่มสินค้า</button>
         </div>
       </div>
@@ -325,9 +327,13 @@ tr:hover td{background:#fafafa}
 
     <!-- PERMISSIONS -->
     <div class="page" id="page-permissions">
-      <div class="ph"><div><div class="pt">🔐 ตั้งค่าสิทธิ์</div><div style="font-size:12px;color:var(--text-muted)">กำหนดสิทธิ์ตาม Role</div></div></div>
+      <div class="ph">
+        <div><div class="pt">🔐 ตั้งค่าสิทธิ์</div><div style="font-size:12px;color:var(--text-muted)">กำหนดสิทธิ์ตาม Role</div></div>
+        <button class="btn btn-primary" onclick="savePermissions()">💾 บันทึกสิทธิ์</button>
+      </div>
       <div class="pb">
         <div class="card" style="margin-bottom:12px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">เลือก Role ที่ต้องการตั้งค่า:</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('manager',this)">👨‍💼 ผู้จัดการ</button>
             <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('cashier',this)">💁 แคชเชียร์</button>
@@ -337,7 +343,7 @@ tr:hover td{background:#fafafa}
             <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('sales_pc',this)">🛍️ พนักงานขาย (PC)</button>
           </div>
         </div>
-        <div id="permContent"><div class="es"><div class="ei">🔐</div><p>เลือก Role เพื่อตั้งค่าสิทธิ์</p></div></div>
+        <div id="permContainer"><div class="es"><div class="ei">🔐</div><p>กดเลือก Role เพื่อตั้งค่าสิทธิ์</p></div></div>
       </div>
     </div>
 
@@ -1243,27 +1249,36 @@ async function loadProdCats(){
   }catch(e){}
 }
 
-async function loadProds(){
-  const catId=document.getElementById('prodCatFilter')?.value||'';
-  const search=document.getElementById('prodSearch')?.value||'';
-  var q='/products';const params=[];
-  if(catId) params.push('category_id='+catId);
-  if(search) params.push('search='+encodeURIComponent(search));
-  if(params.length) q+='?'+params.join('&');
-  try{
-    const data=await api.get(q);
-    document.getElementById('prodT').innerHTML=data.length?data.map(p=>`<tr>
+async function loadProds() {
+  const catId = document.getElementById('prodCatFilter')?.value||'';
+  const search = document.getElementById('prodSearch')?.value||'';
+  let q = '/products';
+  const params = [];
+  if (catId) params.push('category_id='+catId);
+  if (search) params.push('search='+encodeURIComponent(search));
+  if (params.length) q += '?'+params.join('&');
+  try {
+    const data = await api.get(q);
+    const el = document.getElementById('prodT');
+    if (!el) return;
+    el.innerHTML = data.length ? data.map(p=>`<tr>
       <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${p.code}</td>
-      <td><strong>${p.name}</strong></td><td><span class="badge bg">${p.category_name}</span></td><td>${p.unit}</td>
-      <td>${p.is_egg?'✅':'-'}</td><td>${p.track_stock?'<span class="badge bs">นับสต๊อก</span>':'<span class="badge bg">ไม่นับ</span>'}</td>
-      <td style="display:flex;gap:4px">
-        <button class="btn btn-secondary btn-sm" onclick='showEditProd(${JSON.stringify(p).replace(/'/g,"&#39;")})'>แก้ไข</button>
-        <button class="btn btn-secondary btn-sm" onclick="showPriceM(${p.id},'${p.name}')">ราคา</button>
-        <button class="btn btn-danger btn-sm" onclick="delProd(${p.id})">ลบ</button>
+      <td>
+        <div style="font-weight:600">${p.name}</div>
+        ${p.is_egg?'<span style="font-size:10px;color:var(--accent)">🥚 ไข่</span>':''}
       </td>
-    </tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ไม่มีสินค้า</td></tr>';
-  }catch(e){console.error(e);}
+      <td><span class="badge bg" style="font-size:11px">${p.category_name||'-'}</span></td>
+      <td style="font-size:12px">${p.unit||'-'}</td>
+      <td style="text-align:center">${p.is_egg?'<span class="badge bs">✓</span>':''}</td>
+      <td style="text-align:right;font-weight:600">${fmt.n(p.total_stock||0)}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-secondary btn-sm" onclick='showProductModal(${JSON.stringify(p).replace(/'/g,"&#39;")})'>แก้ไข</button>
+        <button class="btn btn-info btn-sm" onclick="showPriceM(${p.id},'${p.name.replace(/'/g,'')}')">💰 ราคา</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">ไม่มีสินค้า<br><small>กด "+ เพิ่มสินค้า" เพื่อเริ่มต้น</small></td></tr>';
+  } catch(e) { console.error('loadProds error:', e); toast('โหลดสินค้าไม่ได้: '+e.message,'error'); }
 }
+
 
 async function showProductModal(p={}) {
   const cats = await api.get('/product-categories').catch(()=>[]);
@@ -1328,38 +1343,57 @@ async function showProductModal(p={}) {
 
 
 async function saveProd(id){
-  const body={name:document.getElementById('pName').value,unit:document.getElementById('pUnit').value,category_id:parseInt(document.getElementById('pCat').value),is_egg:document.getElementById('pIsEgg').checked,track_stock:document.getElementById('pTrack').checked};
-  if(id) body.active=document.getElementById('pActive').checked;
-  if(!body.name){toast('กรุณากรอกชื่อสินค้า','error');return;}
-  try{
-    if(id) await api.put('/products/'+id,body);
-    else await api.post('/products',{...body,code:document.getElementById('pCode').value});
-    toast('บันทึกเรียบร้อย','success');CM();loadProds();
-  }catch(e){toast(e.message,'error');}
+  const g = eid => { const el=document.getElementById(eid); return el ? el.value : ''; };
+  const body = {
+    name: g('pName'),
+    unit: g('pUnit'),
+    category_id: parseInt(g('pCat'))||null,
+    is_egg: document.getElementById('pIsEgg')?.checked||false,
+    track_stock: document.getElementById('pTrack')?.checked!==false,
+  };
+  if (id) body.active = document.getElementById('pActive')?.checked !== false;
+  if (!body.name) { toast('กรุณากรอกชื่อสินค้า','error'); return; }
+
+  try {
+    let prodId = id;
+    if (id) {
+      await api.put('/products/'+id, body);
+    } else {
+      const code = g('pCode');
+      if (!code) { toast('กรุณากรอกรหัสสินค้า','error'); return; }
+      const res = await api.post('/products', {...body, code});
+      prodId = res.id;
+    }
+
+    // บันทึกราคา (ถ้ากรอกมา) - branch แรกของ user
+    if (prodId) {
+      const branchId = CU.branch_id || branches[0]?.id;
+      const priceFields = [
+        {qty:1,  field:'pr1'},  {qty:5,  field:'pr5'},  {qty:10, field:'pr10'},
+        {qty:15, field:'pr15'}, {qty:20, field:'pr20'}, {qty:30, field:'pr30'},
+        {qty:30, field:'pw30', type:'wholesale'}, {qty:60, field:'pw60', type:'wholesale'},
+        {qty:300,field:'pw300',type:'wholesale'},
+      ];
+      for (const {qty, field, type} of priceFields) {
+        const val = parseFloat(g(field));
+        if (!isNaN(val) && val > 0 && branchId) {
+          await api.post('/products/'+prodId+'/prices', {
+            branch_id: branchId,
+            customer_type: type||'retail',
+            qty, price: val,
+          }).catch(()=>{});
+        }
+      }
+    }
+
+    toast('บันทึกเรียบร้อย ✅','success');
+    CM(); loadProds();
+  } catch(e) { toast(e.message,'error'); }
 }
 
 async function delProd(id){if(!confirm('ต้องการลบสินค้านี้?')) return;try{await api.del('/products/'+id);toast('ลบเรียบร้อย','success');loadProds();}catch(e){toast(e.message,'error');}}
 
-async function showPriceM(pid,pname){
-  try{
-    const prices=await api.get('/products/'+pid+'/prices');
-    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:600px"><div class="mh"><div class="mt">💰 ราคา: ${pname}</div><button class="mc" onclick="CM()">✕</button></div>
-    <div style="border:1px solid var(--border);border-radius:7px;overflow:hidden;max-height:200px;overflow-y:auto;margin-bottom:12px">
-      <table><thead><tr><th>สาขา</th><th>กลุ่ม</th><th>ฟอง/แผง</th><th style="text-align:right">ราคา</th></tr></thead>
-      <tbody>${prices.map(p=>`<tr><td>${p.branch_code}</td><td>${p.customer_type}</td><td>${p.qty}</td><td style="text-align:right;font-weight:600">${fmt.b(p.price)}</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">ยังไม่มีราคา</td></tr>'}</tbody>
-      </table>
-    </div>
-    <div><div style="font-size:13px;font-weight:600;margin-bottom:8px">+ เพิ่มราคา</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 70px 90px auto;gap:6px;align-items:end">
-      <div><label class="lbl">สาขา</label><select class="ctrl" id="prBr" style="margin-top:3px">${branches.map(b=>`<option value="${b.id}">${b.code}</option>`).join('')}</select></div>
-      <div><label class="lbl">กลุ่ม</label><select class="ctrl" id="prTy" style="margin-top:3px"><option value="retail">ปลีก</option><option value="restaurant">ร้านข้าว</option><option value="wholesale">ส่ง</option></select></div>
-      <div><label class="lbl">ฟอง</label><input type="number" class="ctrl" id="prQty" value="30" min="1" style="margin-top:3px"></div>
-      <div><label class="lbl">ราคา</label><input type="number" class="ctrl" id="prPr" step="0.01" min="0" style="margin-top:3px"></div>
-      <button class="btn btn-primary btn-sm" onclick="savePrice(${pid},'${pname}')" style="height:38px">บันทึก</button>
-    </div></div>
-    </div></div>`;
-  }catch(e){toast('โหลดราคาไม่ได้: '+e.message,'error');}
-}
+
 
 async function savePrice(pid,pname){
   const body={branch_id:parseInt(document.getElementById('prBr').value),customer_type:document.getElementById('prTy').value,qty:parseInt(document.getElementById('prQty').value),price:parseFloat(document.getElementById('prPr').value)};
@@ -2485,77 +2519,7 @@ async function submitCreateBranch() {
   } catch(e) { toast(e.message,'error'); }
 }
 
-async function showPriceM(pid, pname) {
-  try {
-    const [prices, brs] = await Promise.all([
-      api.get('/products/'+pid+'/prices'),
-      api.get('/branches'),
-    ]);
 
-    // จัด group ตาม branch
-    const byBranch = {};
-    brs.forEach(b => { byBranch[b.id] = { branch: b, prices: [] }; });
-    prices.forEach(p => { if (byBranch[p.branch_id]) byBranch[p.branch_id].prices.push(p); });
-
-    const custTypes = [
-      {val:'retail',label:'ปลีก (หน้าร้าน)'},
-      {val:'restaurant',label:'ร้านข้าว'},
-      {val:'wholesale',label:'ส่ง'},
-    ];
-
-    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
-    <div class="modal" style="max-width:650px">
-      <div class="mh"><div class="mt">💰 ราคา: ${pname}</div><button class="mc" onclick="CM()">✕</button></div>
-
-      <!-- แสดงราคาแต่ละสาขา -->
-      <div style="display:grid;gap:10px;max-height:300px;overflow-y:auto;margin-bottom:14px">
-        ${brs.map(b => {
-          const bPrices = byBranch[b.id]?.prices || [];
-          return `<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
-            <div style="background:var(--surface2);padding:7px 12px;font-size:12px;font-weight:700">🏪 ${b.name} (${b.code})</div>
-            ${bPrices.length ?
-              `<table style="width:100%;border-collapse:collapse">
-                <thead><tr style="background:var(--surface2)">
-                  <th style="padding:6px 10px;text-align:left;font-size:11px">กลุ่มลูกค้า</th>
-                  <th style="padding:6px 10px;text-align:right;font-size:11px">ฟอง/ชุด</th>
-                  <th style="padding:6px 10px;text-align:right;font-size:11px">ราคา</th>
-                  <th style="width:30px"></th>
-                </tr></thead>
-                <tbody>${bPrices.map(p=>`<tr style="border-top:1px solid var(--border)">
-                  <td style="padding:6px 10px;font-size:12px">${{retail:'ปลีก',restaurant:'ร้านข้าว',wholesale:'ส่ง'}[p.customer_type]||p.customer_type}</td>
-                  <td style="padding:6px 10px;text-align:right">${p.qty}</td>
-                  <td style="padding:6px 10px;text-align:right;font-weight:600">${fmt.b(p.price)}</td>
-                  <td><button onclick="delPrice(${p.id},'${pid}','${pname}')" style="background:none;border:none;color:var(--error);cursor:pointer">✕</button></td>
-                </tr>`).join('')}</tbody>
-              </table>`
-              : `<div style="padding:10px 12px;font-size:12px;color:var(--text-muted)">ยังไม่มีราคา</div>`
-            }
-          </div>`;
-        }).join('')}
-      </div>
-
-      <!-- เพิ่มราคาใหม่ -->
-      <div style="border-top:1px solid var(--border);padding-top:12px">
-        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">+ เพิ่ม/แก้ไขราคา</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 65px 85px auto;gap:6px;align-items:end">
-          <div><label class="lbl">สาขา</label>
-            <select class="ctrl" id="prBr" style="margin-top:3px">${brs.map(b=>`<option value="${b.id}">${b.code} - ${b.name}</option>`).join('')}</select>
-          </div>
-          <div><label class="lbl">กลุ่ม</label>
-            <select class="ctrl" id="prTy" style="margin-top:3px">
-              <option value="retail">ปลีก</option>
-              <option value="restaurant">ร้านข้าว</option>
-              <option value="wholesale">ส่ง</option>
-            </select>
-          </div>
-          <div><label class="lbl">ฟอง</label><input type="number" class="ctrl" id="prQty" value="1" min="1" style="margin-top:3px"></div>
-          <div><label class="lbl">ราคา/ฟอง</label><input type="number" class="ctrl" id="prPr" step="0.01" min="0" style="margin-top:3px" placeholder="0.00"></div>
-          <button class="btn btn-primary btn-sm" onclick="savePrice(${pid},'${pname}')" style="height:38px">บันทึก</button>
-        </div>
-      </div>
-    </div></div>`;
-  } catch(e) { toast('โหลดราคาไม่ได้: '+e.message,'error'); console.error(e); }
-}
 
 async function delPrice(priceId, pid, pname) {
   try {
@@ -3317,14 +3281,52 @@ async function showProductModal(p={}) {
 
 
 async function saveProd(id){
-  const body={name:document.getElementById('pName').value,unit:document.getElementById('pUnit').value,category_id:parseInt(document.getElementById('pCat').value),is_egg:document.getElementById('pIsEgg').checked,track_stock:document.getElementById('pTrack').checked};
-  if(id) body.active=document.getElementById('pActive').checked;
-  if(!body.name){toast('กรุณากรอกชื่อสินค้า','error');return;}
-  try{
-    if(id) await api.put('/products/'+id,body);
-    else await api.post('/products',{...body,code:document.getElementById('pCode').value});
-    toast('บันทึกเรียบร้อย','success');CM();loadProds();
-  }catch(e){toast(e.message,'error');}
+  const g = eid => { const el=document.getElementById(eid); return el ? el.value : ''; };
+  const body = {
+    name: g('pName'),
+    unit: g('pUnit'),
+    category_id: parseInt(g('pCat'))||null,
+    is_egg: document.getElementById('pIsEgg')?.checked||false,
+    track_stock: document.getElementById('pTrack')?.checked!==false,
+  };
+  if (id) body.active = document.getElementById('pActive')?.checked !== false;
+  if (!body.name) { toast('กรุณากรอกชื่อสินค้า','error'); return; }
+
+  try {
+    let prodId = id;
+    if (id) {
+      await api.put('/products/'+id, body);
+    } else {
+      const code = g('pCode');
+      if (!code) { toast('กรุณากรอกรหัสสินค้า','error'); return; }
+      const res = await api.post('/products', {...body, code});
+      prodId = res.id;
+    }
+
+    // บันทึกราคา (ถ้ากรอกมา) - branch แรกของ user
+    if (prodId) {
+      const branchId = CU.branch_id || branches[0]?.id;
+      const priceFields = [
+        {qty:1,  field:'pr1'},  {qty:5,  field:'pr5'},  {qty:10, field:'pr10'},
+        {qty:15, field:'pr15'}, {qty:20, field:'pr20'}, {qty:30, field:'pr30'},
+        {qty:30, field:'pw30', type:'wholesale'}, {qty:60, field:'pw60', type:'wholesale'},
+        {qty:300,field:'pw300',type:'wholesale'},
+      ];
+      for (const {qty, field, type} of priceFields) {
+        const val = parseFloat(g(field));
+        if (!isNaN(val) && val > 0 && branchId) {
+          await api.post('/products/'+prodId+'/prices', {
+            branch_id: branchId,
+            customer_type: type||'retail',
+            qty, price: val,
+          }).catch(()=>{});
+        }
+      }
+    }
+
+    toast('บันทึกเรียบร้อย ✅','success');
+    CM(); loadProds();
+  } catch(e) { toast(e.message,'error'); }
 }
 
 async function delProd(id){if(!confirm('ต้องการลบสินค้านี้?')) return;try{await api.del('/products/'+id);toast('ลบเรียบร้อย','success');loadProds();}catch(e){toast(e.message,'error');}}
@@ -3345,16 +3347,12 @@ async function showPriceM(pid,pname){
       <div><label class="lbl">ฟอง</label><input type="number" class="ctrl" id="prQty" value="30" min="1" style="margin-top:3px"></div>
       <div><label class="lbl">ราคา</label><input type="number" class="ctrl" id="prPr" step="0.01" min="0" style="margin-top:3px"></div>
       <button class="btn btn-primary btn-sm" onclick="savePrice(${pid},'${pname}')" style="height:38px">บันทึก</button>
+          <button class="btn btn-secondary btn-sm" onclick="savePriceAllBranches(${pid},'${pname}')" style="height:38px" title="ใช้ราคานี้กับทุกสาขา">ทุกสาขา</button>
     </div></div>
     </div></div>`;
   }catch(e){toast('โหลดราคาไม่ได้: '+e.message,'error');}
 }
 
-async function savePrice(pid,pname){
-  const body={branch_id:parseInt(document.getElementById('prBr').value),customer_type:document.getElementById('prTy').value,qty:parseInt(document.getElementById('prQty').value),price:parseFloat(document.getElementById('prPr').value)};
-  if(!body.price){toast('กรุณากรอกราคา','error');return;}
-  try{await api.post('/products/'+pid+'/prices',body);toast('ตั้งราคาเรียบร้อย','success');showPriceM(pid,pname);}catch(e){toast(e.message,'error');}
-}
 
 async function showCategoryModal(){
   try{
@@ -4484,6 +4482,196 @@ async function submitCreateBranch() {
     // reload branches
     branches = await api.get('/branches');
     toast('รีโหลดข้อมูลสาขาแล้ว', 'info');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+// ============================================================
+// PERMISSIONS
+// ============================================================
+const PERM_LIST = [
+  {key:'pos.sale', label:'ขายหน้าร้าน', group:'การขาย'},
+  {key:'pos.discount', label:'ให้ส่วนลด', group:'การขาย'},
+  {key:'sales.view', label:'ดูประวัติการขาย', group:'การขาย'},
+  {key:'daily_close.view', label:'ดูปิดยอดประจำวัน', group:'การขาย'},
+  {key:'daily_close.edit', label:'แก้ไขปิดยอดประจำวัน', group:'การขาย'},
+  {key:'invoice.view', label:'ดูใบแจ้งหนี้', group:'เอกสาร'},
+  {key:'invoice.create', label:'สร้างใบแจ้งหนี้', group:'เอกสาร'},
+  {key:'invoice.pay', label:'รับชำระใบแจ้งหนี้', group:'เอกสาร'},
+  {key:'quotation.view', label:'ดูใบเสนอราคา', group:'เอกสาร'},
+  {key:'quotation.create', label:'สร้างใบเสนอราคา', group:'เอกสาร'},
+  {key:'receipt.create', label:'สร้างใบรับสินค้า (Pre)', group:'สต๊อก'},
+  {key:'receipt.approve', label:'อนุมัติใบรับสินค้า', group:'สต๊อก'},
+  {key:'stock.view', label:'ดูสต๊อก', group:'สต๊อก'},
+  {key:'stock.transfer', label:'โอนย้ายสต๊อก', group:'สต๊อก'},
+  {key:'member.view', label:'ดูสมาชิก', group:'CRM'},
+  {key:'member.create', label:'เพิ่มสมาชิก', group:'CRM'},
+  {key:'contact.view', label:'ดูผู้ติดต่อ', group:'CRM'},
+  {key:'product.view', label:'ดูสินค้า', group:'จัดการ'},
+  {key:'product.edit', label:'แก้ไขสินค้า', group:'จัดการ'},
+  {key:'report.view', label:'ดูรายงาน', group:'จัดการ'},
+  {key:'expense.view', label:'ดูค่าใช้จ่าย', group:'การเงิน'},
+  {key:'expense.create', label:'บันทึกค่าใช้จ่าย', group:'การเงิน'},
+  {key:'employee.view', label:'ดูพนักงาน', group:'HR'},
+  {key:'payroll.view', label:'ดูเงินเดือน', group:'HR'},
+];
+
+async function selectPermRole(roleName, btn) {
+  _curPermRole = roleName;
+  // highlight ปุ่ม
+  document.querySelectorAll('.perm-role-btn').forEach(b => {
+    b.style.background = 'var(--surface)';
+    b.style.borderColor = 'var(--border)';
+    b.style.fontWeight = '400';
+  });
+  if (btn) {
+    btn.style.background = 'var(--accent-dim)';
+    btn.style.borderColor = 'var(--accent)';
+    btn.style.fontWeight = '700';
+  }
+  await loadPermissions(roleName);
+}
+
+async function loadPermissions(roleName) {
+  try {
+    const perms = await api.get('/permissions/'+roleName);
+    _curPerms = new Set(perms.map(p=>p.permission));
+    renderPermissions();
+  } catch(e) {
+    // ถ้า API ยังไม่มี ให้ render เปล่า
+    _curPerms = new Set();
+    renderPermissions();
+  }
+}
+
+function renderPermissions() {
+  const container = document.getElementById('permContainer');
+  if (!container) return;
+  // จัด group
+  const groups = {};
+  PERM_LIST.forEach(p => {
+    if (!groups[p.group]) groups[p.group] = [];
+    groups[p.group].push(p);
+  });
+
+  container.innerHTML = Object.entries(groups).map(([grp, perms]) => `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)">${grp}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:7px">
+        ${perms.map(p=>`
+          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1.5px solid ${_curPerms.has(p.key)?'var(--accent)':'var(--border)'};border-radius:7px;cursor:pointer;background:${_curPerms.has(p.key)?'var(--accent-dim)':'var(--surface)'}">
+            <input type="checkbox" ${_curPerms.has(p.key)?'checked':''} value="${p.key}"
+              onchange="togglePerm('${p.key}', this.checked)"
+              style="accent-color:var(--accent);width:15px;height:15px">
+            <span style="font-size:13px">${p.label}</span>
+          </label>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function togglePerm(key, checked) {
+  if (checked) _curPerms.add(key);
+  else _curPerms.delete(key);
+  renderPermissions();
+}
+
+async function savePermissions() {
+  if (!_curPermRole) { toast('กรุณาเลือก Role ก่อน','error'); return; }
+  try {
+    await api.put('/permissions/'+_curPermRole, { permissions: [..._curPerms] });
+    toast('บันทึกสิทธิ์ '+_curPermRole+' เรียบร้อย ✅','success');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+// ============================================================
+// IMPORT / EXPORT PRICES
+// ============================================================
+async function exportPrices() {
+  window.open('/api/products/export-prices?token='+api.tok(), '_blank');
+  toast('กำลัง Export ราคา...', 'info');
+}
+
+// แก้ export ให้ส่ง token ใน header ไม่ใช่ query
+async function exportPrices() {
+  try {
+    const res = await fetch('/api/products/export-prices', { headers: {'Authorization':'Bearer '+api.tok()} });
+    if (!res.ok) throw new Error('export ล้มเหลว');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'prices.csv'; a.click();
+    URL.revokeObjectURL(url);
+    toast('Export เรียบร้อย ✅', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function showImportPricesModal() {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:520px">
+    <div class="mh"><div class="mt">📤 Import ราคาสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="background:var(--info-dim);border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px">
+      <div style="font-weight:700;color:var(--info);margin-bottom:6px">📋 รูปแบบไฟล์ CSV</div>
+      <div style="font-family:monospace;background:#fff;padding:8px;border-radius:5px;font-size:12px;border:1px solid #bfdbfe">
+        code,branch_code,customer_type,qty,price<br>
+        EGG-0,TB,retail,1,4.50<br>
+        EGG-0,TB,retail,30,4.20<br>
+        EGG-0,OM,retail,1,4.60<br>
+        EGG-0,TB,wholesale,300,3.90
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+        customer_type: <strong>retail</strong> (ปลีก), <strong>restaurant</strong> (ร้านข้าว), <strong>wholesale</strong> (ส่ง)<br>
+        qty: จำนวนฟอง เช่น 1, 5, 10, 15, 20, 30, 300
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn btn-secondary" onclick="exportPrices();CM()" style="flex:1">📥 Export ก่อน (เป็น template)</button>
+    </div>
+    <div><label class="lbl">เลือกไฟล์ CSV</label>
+      <input type="file" id="importPriceFile" accept=".csv,.json" class="ctrl" style="margin-top:6px;padding:8px">
+    </div>
+    <button class="btn btn-primary" onclick="doImportPrices()" style="width:100%;margin-top:14px">📤 Import ราคา</button>
+  </div></div>`;
+}
+
+async function doImportPrices() {
+  const file = document.getElementById('importPriceFile').files[0];
+  if (!file) { toast('กรุณาเลือกไฟล์','error'); return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch('/api/products/import-prices', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer '+api.tok() },
+      body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    toast(data.message, 'success');
+    if (data.errors && data.errors.length) {
+      toast('มีข้อผิดพลาด: '+data.errors.slice(0,3).join(', '), 'error');
+    }
+    CM();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+async function savePriceAllBranches(pid, pname) {
+  const ty = document.getElementById('prTy').value;
+  const qty = parseInt(document.getElementById('prQty').value)||1;
+  const price = parseFloat(document.getElementById('prPr').value);
+  if (!price) { toast('กรุณากรอกราคา','error'); return; }
+  if (!confirm('ตั้งราคา '+fmt.b(price)+' ('+ty+', '+qty+'ฟ.) ให้ทุกสาขา?')) return;
+  try {
+    for (const br of branches) {
+      await api.post('/products/'+pid+'/prices', {
+        branch_id: br.id, customer_type: ty, qty, price
+      }).catch(()=>{});
+    }
+    toast('✅ ตั้งราคาทุกสาขาเรียบร้อย', 'success');
+    showPriceM(pid, pname);
   } catch(e) { toast(e.message,'error'); }
 }
 
