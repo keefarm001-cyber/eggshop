@@ -1849,7 +1849,17 @@ app.get('/api/reports/daily', auth, async (req, res) => {
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-initSchema().then(() => app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`)));app.post('/api/stock/receipts', auth, async (req, res) => {
+initSchema().then(() => {
+  const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} already in use, retrying in 1s...`);
+      setTimeout(() => server.listen(PORT), 1000);
+    } else {
+      throw err;
+    }
+  });
+});app.post('/api/stock/receipts', auth, async (req, res) => {
   const { branch_id, receipt_date, supplier_name, items, note, status } = req.body;
   const client = await pool.connect();
   try {
@@ -1969,4 +1979,14 @@ app.post('/api/stock/receipts', auth, async (req, res) => {
 });
 
 
-initSchema().then(() => app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`)));
+initSchema().then(() => {
+  const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} already in use, retrying in 1s...`);
+      setTimeout(() => server.listen(PORT), 1000);
+    } else {
+      throw err;
+    }
+  });
+});
