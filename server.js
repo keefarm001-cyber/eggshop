@@ -527,9 +527,20 @@ app.post('/api/users', auth, role('owner','admin'), async (req, res) => {
   catch(e) { if (e.code==='23505') return res.status(409).json({ error: 'username นี้มีอยู่แล้ว' }); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
 });
 app.put('/api/users/:id', auth, role('owner','admin'), async (req, res) => {
-  const { full_name, role_id, branch_id, phone, active } = req.body;
-  await pool.query('UPDATE users SET full_name=$1,role_id=$2,branch_id=$3,phone=$4,active=$5 WHERE id=$6', [full_name, role_id, branch_id||null, phone||null, active, req.params.id]);
-  res.json({ message: 'แก้ไขเรียบร้อย' });
+  const { full_name, role_id, phone, active, password } = req.body;
+  try {
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, req.params.id]);
+    }
+    const fields = []; const vals = [];
+    if (full_name !== undefined) { fields.push(`full_name=$${fields.length+1}`); vals.push(full_name); }
+    if (role_id !== undefined) { fields.push(`role_id=$${fields.length+1}`); vals.push(role_id); }
+    if (phone !== undefined) { fields.push(`phone=$${fields.length+1}`); vals.push(phone); }
+    if (active !== undefined) { fields.push(`active=$${fields.length+1}`); vals.push(active); }
+    if (fields.length > 0) { vals.push(req.params.id); await pool.query(`UPDATE users SET ${fields.join(',')} WHERE id=$${vals.length}`, vals); }
+    res.json({ message: 'อัพเดทเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 app.get('/api/roles', auth, async (req, res) => { const r = await pool.query('SELECT * FROM roles ORDER BY id'); res.json(r.rows); });
 
@@ -1810,6 +1821,23 @@ app.post('/api/company-settings/logo', auth, role('owner','admin'), upload.singl
 });
 
 // REPORTS
+app.get('/api/reports/sales-by-product', auth, async (req, res) => {
+  const { date, branch_id } = req.query;
+  const d = date || new Date().toISOString().slice(0,10);
+  let q = `SELECT p.name AS product_name, p.code,
+    COALESCE(SUM(si.qty_unit),0) AS qty_sold,
+    COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue
+    FROM sale_items si
+    JOIN products p ON si.product_id=p.id
+    JOIN sales s ON si.sale_id=s.id
+    WHERE s.sale_date=$1 AND s.status='completed'`;
+  const params = [d];
+  if (branch_id) { params.push(branch_id); q += ` AND s.branch_id=$${params.length}`; }
+  q += ' GROUP BY p.id, p.name, p.code ORDER BY qty_sold DESC';
+  const r = await pool.query(q, params);
+  res.json({ items: r.rows });
+});
+
 app.get('/api/reports/daily', auth, async (req, res) => {
   const { date, branch_id } = req.query;
   const targetDate = date || new Date().toISOString().slice(0,10);
@@ -1820,5 +1848,125 @@ app.get('/api/reports/daily', auth, async (req, res) => {
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
+initSchema().then(() => app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`)));app.post('/api/stock/receipts', auth, async (req, res) => {
+  const { branch_id, receipt_date, supplier_name, items, note, status } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
+    const isApproved = status === 'approved' && ['owner','admin'].includes(req.user.role);
+    const docNo = isApproved ? await genDocNo('stock_receipt', branchR.rows[0]?.code||'') : null;
+    const pre_no = isApproved ? null : 'PRE-'+branchR.rows[0]?.code+'-'+new Date().toISOString().slice(2,7).replace('-','')+'-'+String(Date.now()).slice(-4);
+    
+    const recv = await client.query(`INSERT INTO stock_receipts (doc_no,branch_id,receipt_date,supplier_name,status,note,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [docNo||pre_no, branch_id, receipt_date||new Date().toISOString().slice(0,10), supplier_name||null, isApproved?'approved':'pre', note||null, req.user.id]);
+    const recvId = recv.rows[0].id;
+
+    for (const item of (items||[])) {
+      await client.query('INSERT INTO stock_receipt_items (receipt_id,product_id,qty_unit,unit_cost) VALUES ($1,$2,$3,$4)',
+        [recvId, item.product_id, item.qty_unit, item.unit_cost||null]);
+      
+      if (isApproved) {
+        // ตัดสต๊อกทันที
+        await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3) ON CONFLICT (product_id,branch_id) DO UPDATE SET qty_unit=stock.qty_unit+$3, updated_at=NOW()',
+          [item.product_id, branch_id, item.qty_unit]);
+        await client.query('INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note) VALUES ($1,$2,$3,$4,$5,$6)',
+          [item.product_id, branch_id, 'in', item.qty_unit, docNo||pre_no, supplier_name||'รับสินค้า']).catch(()=>{});
+      }
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ message: isApproved?'รับสินค้าและตัดสต๊อกเรียบร้อย':'บันทึก Pre เรียบร้อย', id: recvId, doc_no: docNo||pre_no });
+  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: e.message }); }
+  finally { client.release(); }
+});
+
+
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+app.use(express.static(__dirname));
+
+
+function auth(req, res, next) {
+  const token = (req.headers['authorization'] || '').split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบ' });
+  try { req.user = jwt.verify(token, process.env.JWT_SECRET); next(); }
+  catch { res.status(401).json({ error: 'Token หมดอายุ' }); }
+}
+function role(...roles) { return (req, res, next) => { if (!roles.includes(req.user.role)) return res.status(403).json({ error: 'ไม่มีสิทธิ์' }); next(); }; }
+
+// ============================================================
+// DOC NUMBER GENERATOR
+// ============================================================
+// SALES BY PRODUCT REPORT
+// ============================================================
+app.get('/api/reports/sales-by-product', auth, async (req, res) => {
+  const { date, branch_id } = req.query;
+  const d = date || new Date().toISOString().slice(0,10);
+  let q = `SELECT p.name AS product_name, p.code,
+    COALESCE(SUM(si.qty_unit),0) AS qty_sold,
+    COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue
+    FROM sale_items si
+    JOIN products p ON si.product_id=p.id
+    JOIN sales s ON si.sale_id=s.id
+    WHERE s.sale_date=$1 AND s.status='completed'`;
+  const params = [d];
+  if (branch_id) { params.push(branch_id); q += ` AND s.branch_id=$${params.length}`; }
+  q += ' GROUP BY p.id, p.name, p.code ORDER BY qty_sold DESC';
+  const r = await pool.query(q, params);
+  res.json({ items: r.rows });
+});
+
+// ============================================================
+// STOCK RECEIPTS - รับสินค้า (Pre + Approved)
+// ============================================================
+app.post('/api/stock/receipts', auth, async (req, res) => {
+  const { branch_id, receipt_date, supplier_name, items, note, status } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
+    const bCode = branchR.rows[0]?.code||'';
+    const isApproved = status === 'approved' && ['owner','admin'].includes(req.user.role);
+    const docNo = isApproved
+      ? await genDocNo('stock_receipt', bCode)
+      : 'PRE-'+bCode+'-'+new Date().toISOString().slice(2,7).replace('-','')+'-'+String(Date.now()).slice(-4);
+    
+    const recv = await client.query(
+      `INSERT INTO stock_receipts (doc_no,branch_id,receipt_date,supplier_name,status,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [docNo, branch_id, receipt_date||new Date().toISOString().slice(0,10), supplier_name||null, isApproved?'approved':'pre', note||null, req.user.id]
+    );
+    const recvId = recv.rows[0].id;
+
+    for (const item of (items||[])) {
+      await client.query('INSERT INTO stock_receipt_items (receipt_id,product_id,qty_unit,unit_cost) VALUES ($1,$2,$3,$4)',
+        [recvId, item.product_id, item.qty_unit, item.unit_cost||null]);
+      if (isApproved) {
+        await client.query(
+          'INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3) ON CONFLICT (product_id,branch_id) DO UPDATE SET qty_unit=stock.qty_unit+$3, updated_at=NOW()',
+          [item.product_id, branch_id, item.qty_unit]
+        );
+        await client.query(
+          'INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note) VALUES ($1,$2,$3,$4,$5,$6)',
+          [item.product_id, branch_id, 'in', item.qty_unit, docNo, supplier_name||'รับสินค้า']
+        ).catch(()=>{});
+      }
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ message: isApproved?'รับสินค้าและตัดสต๊อกเรียบร้อย':'บันทึก Pre เรียบร้อย', id: recvId, doc_no: docNo });
+  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: e.message }); }
+  finally { client.release(); }
+});
+
 
 initSchema().then(() => app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`)));
