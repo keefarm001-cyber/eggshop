@@ -160,9 +160,8 @@ async function initSchema() {
     // seed default tiers ถ้ายังไม่มี
     await pool.query(`INSERT INTO member_tiers (name, description, customer_type, sort_order)
       SELECT * FROM (VALUES
-        ('ระดับ 1 (ทั่วไป)', 'ลูกค้าทั่วไป', 'retail', 1),
-        ('ระดับ 2 (ร้านข้าว)', 'ร้านอาหาร/ร้านข้าว', 'restaurant', 2),
-        ('ระดับ 3 (ส่ง/ลูกค้าประจำ)', 'ลูกค้าส่งหรือประจำ', 'wholesale', 3)
+        ('ระดับ 1 (สมาชิกหน้าร้าน)', 'ราคาปลีก + สะสมฟองแลกส่วนลดได้', 'retail', 1),
+        ('ระดับ 2 (ร้านค้า/ร้านอาหาร)', 'ราคาร้านค้า ไม่ต้องออกใบแจ้งหนี้', 'restaurant', 2)
       ) AS v(name, description, customer_type, sort_order)
       WHERE NOT EXISTS (SELECT 1 FROM member_tiers LIMIT 1)
     `).catch(()=>{});
@@ -389,9 +388,8 @@ async function initSchema() {
     // seed default tiers ถ้ายังไม่มี
     await pool.query(`INSERT INTO member_tiers (name, description, customer_type, sort_order)
       SELECT * FROM (VALUES
-        ('ระดับ 1 (ทั่วไป)', 'ลูกค้าทั่วไป', 'retail', 1),
-        ('ระดับ 2 (ร้านข้าว)', 'ร้านอาหาร/ร้านข้าว', 'restaurant', 2),
-        ('ระดับ 3 (ส่ง/ลูกค้าประจำ)', 'ลูกค้าส่งหรือประจำ', 'wholesale', 3)
+        ('ระดับ 1 (สมาชิกหน้าร้าน)', 'ราคาปลีก + สะสมฟองแลกส่วนลดได้', 'retail', 1),
+        ('ระดับ 2 (ร้านค้า/ร้านอาหาร)', 'ราคาร้านค้า ไม่ต้องออกใบแจ้งหนี้', 'restaurant', 2)
       ) AS v(name, description, customer_type, sort_order)
       WHERE NOT EXISTS (SELECT 1 FROM member_tiers LIMIT 1)
     `).catch(()=>{});
@@ -406,6 +404,31 @@ async function initSchema() {
     await pool.query('ALTER TABLE role_permissions ADD COLUMN IF NOT EXISTS granted BOOLEAN DEFAULT true').catch(()=>{});
     await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(10,4) DEFAULT 0`).catch(()=>{});
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER').catch(()=>{});
+    // price_qty_tiers — กำหนด qty ที่ใช้ตั้งราคา แยกตาม customer_type
+    await pool.query(`CREATE TABLE IF NOT EXISTS price_qty_tiers (
+      id SERIAL PRIMARY KEY,
+      customer_type VARCHAR(20) NOT NULL,
+      qty INTEGER NOT NULL,
+      label VARCHAR(50),
+      sort_order INTEGER DEFAULT 0,
+      active BOOLEAN DEFAULT true,
+      UNIQUE(customer_type, qty)
+    )`).catch(()=>{});
+    // seed default tiers
+    await pool.query(`INSERT INTO price_qty_tiers (customer_type, qty, label, sort_order) VALUES
+      ('retail', 1, 'ต่อฟอง', 1),
+      ('retail', 5, '5 ฟอง', 2),
+      ('retail', 10, '10 ฟอง', 3),
+      ('retail', 15, '15 ฟอง', 4),
+      ('retail', 20, '20 ฟอง', 5),
+      ('retail', 30, 'ต่อแผง (30)', 6),
+      ('restaurant', 1, 'ต่อฟอง', 1),
+      ('restaurant', 10, '10 ฟอง', 2),
+      ('restaurant', 30, 'ต่อแผง (30)', 3),
+      ('wholesale', 30, 'ต่อแผง (30)', 1),
+      ('wholesale', 300, 'ต่อลัง (300)', 2)
+      ON CONFLICT DO NOTHING
+    `).catch(()=>{});
     await pool.query(`CREATE TABLE IF NOT EXISTS member_points_log (
       id SERIAL PRIMARY KEY,
       member_id INTEGER REFERENCES members(id),
@@ -2327,6 +2350,16 @@ app.delete('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res
 
 
 
+// ============================================================
+// PRICE QTY TIERS API
+// ============================================================
+
+
+
+
+
+
+
 initSchema().then(() => {
   const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
   server.on('error', (err) => {
@@ -2677,6 +2710,33 @@ app.put('/api/permissions/:role', auth, async (req, res) => {
     console.error('PUT permissions error:', e.message);
     res.status(500).json({ error: e.message });
   } finally { client.release(); }
+});
+
+
+// ============================================================
+// PRICE QTY TIERS API
+// ============================================================
+app.get('/api/price-qty-tiers', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM price_qty_tiers WHERE active=true ORDER BY customer_type, sort_order, qty');
+    res.json(r.rows);
+  } catch(e) { res.json([]); }
+});
+
+app.post('/api/price-qty-tiers', auth, role('owner','admin'), async (req, res) => {
+  const { customer_type, qty, label, sort_order } = req.body;
+  if (!customer_type || !qty) return res.status(400).json({ error: 'กรุณาระบุ customer_type และ qty' });
+  try {
+    const r = await pool.query(
+      'INSERT INTO price_qty_tiers (customer_type,qty,label,sort_order) VALUES ($1,$2,$3,$4) ON CONFLICT (customer_type,qty) DO UPDATE SET active=true,label=$3 RETURNING *',
+      [customer_type, qty, label||qty+' ฟอง', sort_order||0]);
+    res.json(r.rows[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/price-qty-tiers/:id', auth, role('owner','admin'), async (req, res) => {
+  await pool.query('UPDATE price_qty_tiers SET active=false WHERE id=$1', [req.params.id]);
+  res.json({ message: 'ลบเรียบร้อย' });
 });
 
 
