@@ -751,7 +751,7 @@ async function initApp(){
   try{branches=await api.get('/branches');populateBranchSelects();}catch(e){}
   try{roles=await api.get('/roles');}catch(e){}
   try{mSet.eggs_required=(await api.get('/member-settings')).eggs_required||100;mSet.discount_amount=(await api.get('/member-settings')).discount_amount||5;}catch(e){}
-  initCompanySettings();
+  // company settings loaded on demand
   const def={owner:'dashboard',admin:'dashboard',manager:'dashboard',cashier:'pos',stock:'stock',viewer:'reports'}[CU.role]||'dashboard';
   showPage(def);
 }
@@ -3562,7 +3562,9 @@ async function printDC(id) {
 // ============================================================
 async function showTierModal() {
   try {
-    const tiersRaw = await api.get('/member-tiers').catch(() => []); const tiers = Array.isArray(tiersRaw) ? tiersRaw : [];
+    const tiersRaw = await api.get('/member-tiers');
+    const tiers = Array.isArray(tiersRaw) ? tiersRaw : [];
+    console.log('[TIER] loaded:', tiers.length, 'tiers', tiers);
     document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
     <div class="modal" style="max-width:600px">
       <div class="mh"><div class="mt">🏅 จัดการระดับสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
@@ -3659,6 +3661,7 @@ async function saveTier() {
       toast('✅ แก้ไขระดับสมาชิกเรียบร้อย','success');
     } else {
       const result = await api.post('/member-tiers', body);
+      console.log('[TIER] POST result:', result);
       if (result && result.id) {
         toast('✅ เพิ่มระดับสมาชิก "'+body.name+'" เรียบร้อย','success');
       } else {
