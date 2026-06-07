@@ -3929,21 +3929,28 @@ async function selectPermRole(roleName, btn) {
     btn.style.borderColor = 'var(--accent)';
     btn.style.fontWeight = '700';
   }
-  const container = document.getElementById('permContainer');
-  if (container) container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">⏳ กำลังโหลดสิทธิ์...</div>';
+  _curPerms = new Set();
+  // โหลด permissions จาก server พร้อม timeout 5 วินาที
   try {
     const token = localStorage.getItem('es_token') || '';
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
     const resp = await fetch('/api/permissions/' + roleName, {
-      headers: { 'Authorization': 'Bearer ' + token }
+      headers: { 'Authorization': 'Bearer ' + token },
+      signal: ctrl.signal
     });
-    const perms = resp.ok ? (await resp.json()) : [];
-    _curPerms = new Set(Array.isArray(perms) ? perms.map(p => p.permission) : []);
+    clearTimeout(timer);
+    if (resp.ok) {
+      const perms = await resp.json();
+      _curPerms = new Set(Array.isArray(perms) ? perms.map(p => p.permission) : []);
+    }
   } catch(e) {
-    console.error('permissions error:', e);
-    _curPerms = new Set();
+    // timeout หรือ network error → render ได้เลย (ไม่มีสิทธิ์บันทึก)
+    console.warn('permissions fetch failed:', e.message);
   }
   renderPermissions();
 }
+
 
 
 // ============================================================
