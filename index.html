@@ -459,6 +459,9 @@ tr:hover td{background:#fafafa}
 <div id="MC"></div>
 
 <script>
+window.onerror = function(msg, src, line, col, err) {
+  console.error('JS Error:', msg, 'at', line+':'+col, err);
+};
 let _recvProds=[], _recvRowCount=0;
 let _trProds=[], _trRowCount=0;
 let _curPermRole='manager', _curPerms=new Set(), _permSchema=[];
@@ -934,7 +937,7 @@ function addTrItemRow() {
 // ============================================================
 async function loadProdCats(){
   try{
-    const cats=await api.get('/product-categories');
+    const cats=await api.get('/product-categories').catch(()=>[]);
     const sel=document.getElementById('prodCatFilter');
     if(!sel) return;
     const cur=sel.value;
@@ -1098,7 +1101,7 @@ async function savePrice(pid,pname){
 
 async function showCategoryModal(){
   try{
-    const cats=await api.get('/product-categories');
+    const cats=await api.get('/product-categories').catch(()=>[]);
     document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">🗂️ จัดการกลุ่มสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
     <div style="border:1px solid var(--border);border-radius:7px;max-height:240px;overflow-y:auto;margin-bottom:14px">
       ${cats.map(c=>`<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;display:flex;align-items:center;gap:8px">
@@ -2916,30 +2919,39 @@ async function showUserModal(u={}) {
 }
 
 
-const _t = localStorage.getItem('es_token'), _u = localStorage.getItem('es_user');
-if (_t && _u) {
+// ============================================================
+// AUTO LOGIN — ถ้ามี token ที่ valid → เข้าระบบอัตโนมัติ
+// ============================================================
+(function() {
   try {
-    CU = JSON.parse(_u);
-    if (CU && CU.id) {
-      // verify กับ server แต่ถ้า error ก็ยัง login ได้
-      fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + _t } })
-        .then(r => {
-          if (r.ok || r.status === 403) {
-            // token ยังใช้ได้ หรือ role ไม่มีสิทธิ์แต่ยังใช้งานระบบได้
-            initApp();
-          } else if (r.status === 401) {
-            // token หมดอายุจริงๆ
-            localStorage.clear();
-            document.getElementById('loginPage').style.display='flex';
-          } else {
-            // error อื่น (server down ฯลฯ) ให้ยัง login ได้
-            initApp();
-          }
-        })
-        .catch(() => { initApp(); });
+    const _t = localStorage.getItem('es_token');
+    const _u = localStorage.getItem('es_user');
+    if (!_t || !_u) {
+      console.log('[AutoLogin] No token/user found → show login');
+      return;
     }
-  } catch(e) { localStorage.clear(); }
-}
+    const user = JSON.parse(_u);
+    if (!user || !user.id) {
+      console.log('[AutoLogin] Invalid user data → clear');
+      localStorage.clear(); return;
+    }
+    console.log('[AutoLogin] Found user:', user.username, '→ initApp');
+    CU = user;
+    document.getElementById('loginPage').style.display = 'none';
+    initApp();
+    // verify ใน background
+    fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + _t } })
+      .then(r => {
+        if (r.status === 401) {
+          console.log('[AutoLogin] Token expired → logout');
+          logout();
+        }
+      })
+      .catch(e => console.log('[AutoLogin] verify error (ignore):', e.message));
+  } catch(e) {
+    console.error('[AutoLogin] Error:', e);
+  }
+})();
 
 // ============================================================
 // DAILY SUMMARY PRINT (ใบสรุปยอดขาย)
@@ -3179,14 +3191,12 @@ async function selectPermRole(roleName, btn) {
 
 async function loadPermissions(roleName) {
   try {
-    const perms = await api.get('/permissions/'+roleName);
-    _curPerms = new Set(perms.map(p=>p.permission));
-    renderPermissions();
+    const perms = await api.get('/permissions/'+roleName).catch(()=>[]);
+    _curPerms = new Set((perms||[]).map(p=>p.permission));
   } catch(e) {
-    // ถ้า API ยังไม่มี ให้ render เปล่า
     _curPerms = new Set();
-    renderPermissions();
   }
+  renderPermissions();
 }
 
 function renderPermissions() {
