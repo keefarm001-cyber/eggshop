@@ -341,6 +341,24 @@ async function initSchema() {
     await pool.query(`ALTER TABLE stock_transfers ADD COLUMN IF NOT EXISTS doc_no VARCHAR(50)`).catch(()=>{});
     await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_mult INTEGER DEFAULT 1`).catch(()=>{});
 
+    
+    // daily_close table
+    await pool.query(`CREATE TABLE IF NOT EXISTS daily_closes (
+      id SERIAL PRIMARY KEY,
+      date DATE NOT NULL,
+      branch_id INTEGER REFERENCES branches(id),
+      sales_total NUMERIC(12,2) DEFAULT 0,
+      cash_amount NUMERIC(12,2) DEFAULT 0,
+      transfer_amount NUMERIC(12,2) DEFAULT 0,
+      broken_eggs INTEGER DEFAULT 0,
+      broken_price NUMERIC(8,2) DEFAULT 4.5,
+      note TEXT,
+      sales_snapshot JSONB DEFAULT '[]',
+      stock_snapshot JSONB DEFAULT '[]',
+      created_by INTEGER,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(date, branch_id)
+    )`).catch(()=>{});
     // damaged_eggs — บันทึกไข่บุบรายวัน
     await pool.query(`CREATE TABLE IF NOT EXISTS damaged_eggs (
       id SERIAL PRIMARY KEY,
@@ -2074,6 +2092,55 @@ app.get('/api/products/export-prices', auth, async (req, res) => {
 });
 
 
+// ============================================================
+// DAILY CLOSE API
+// ============================================================
+app.get('/api/daily-close', auth, async (req, res) => {
+  const { date, branch_id } = req.query;
+  if (!date || !branch_id) return res.status(400).json({ error: 'กรุณาระบุ date และ branch_id' });
+  const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.date=$1 AND dc.branch_id=$2',
+    [date, branch_id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'ยังไม่มีข้อมูล' });
+  res.json(r.rows[0]);
+});
+
+app.get('/api/daily-close/history', auth, async (req, res) => {
+  const { branch_id } = req.query;
+  let q = 'SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE 1=1';
+  const params = [];
+  if (branch_id) { params.push(branch_id); q += ` AND dc.branch_id=$${params.length}`; }
+  q += ' ORDER BY dc.date DESC LIMIT 60';
+  const r = await pool.query(q, params);
+  res.json(r.rows);
+});
+
+app.get('/api/daily-close/:id', auth, async (req, res) => {
+  const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.id=$1', [req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบข้อมูล' });
+  const dc = r.rows[0];
+  // ดึง snapshot หรือ realtime
+  const salesR = await pool.query(`SELECT p.name AS product_name,p.is_egg,COALESCE(SUM(si.qty_unit),0) AS qty_sold,COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue FROM sale_items si JOIN products p ON si.product_id=p.id JOIN sales s ON si.sale_id=s.id WHERE s.sale_date=$1 AND s.branch_id=$2 AND s.status='completed' GROUP BY p.id,p.name,p.is_egg ORDER BY qty_sold DESC`, [dc.date, dc.branch_id]);
+  const stockR = await pool.query(`SELECT s.qty_unit,p.name AS product_name,p.is_egg FROM stock s JOIN products p ON s.product_id=p.id WHERE s.branch_id=$1 AND (p.is_egg=true OR p.track_stock=true) ORDER BY p.code`, [dc.branch_id]);
+  res.json({ ...dc, sales_items: salesR.rows, stock_items: stockR.rows });
+});
+
+app.post('/api/daily-close', auth, async (req, res) => {
+  const { date, branch_id, sales_total, cash_amount, transfer_amount, broken_eggs, broken_price, note } = req.body;
+  if (!date || !branch_id) return res.status(400).json({ error: 'กรุณาระบุ date และ branch_id' });
+  try {
+    // บันทึก snapshot ณ เวลานี้
+    const salesR = await pool.query(`SELECT p.name AS product_name,p.is_egg,COALESCE(SUM(si.qty_unit),0) AS qty_sold,COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue FROM sale_items si JOIN products p ON si.product_id=p.id JOIN sales s ON si.sale_id=s.id WHERE s.sale_date=$1 AND s.branch_id=$2 AND s.status='completed' GROUP BY p.id,p.name,p.is_egg`, [date, branch_id]);
+    const stockR = await pool.query(`SELECT s.qty_unit,p.name AS product_name FROM stock s JOIN products p ON s.product_id=p.id WHERE s.branch_id=$1 AND p.track_stock=true`, [branch_id]);
+    await pool.query(`INSERT INTO daily_closes (date,branch_id,sales_total,cash_amount,transfer_amount,broken_eggs,broken_price,note,sales_snapshot,stock_snapshot,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      ON CONFLICT (date,branch_id) DO UPDATE SET sales_total=$3,cash_amount=$4,transfer_amount=$5,broken_eggs=$6,broken_price=$7,note=$8,sales_snapshot=$9,stock_snapshot=$10,created_by=$11`,
+      [date, branch_id, sales_total||0, cash_amount||0, transfer_amount||0, broken_eggs||0, broken_price||4.5, note||null,
+       JSON.stringify(salesR.rows), JSON.stringify(stockR.rows), req.user.id]);
+    res.json({ message: 'บันทึกปิดยอดเรียบร้อย' });
+  } catch(e) { console.error(e); res.status(500).json({ error: e.message }); }
+});
+
+
 initSchema().then(() => {
   const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
   server.on('error', (err) => {
@@ -2299,6 +2366,55 @@ app.get('/api/products/export-prices', auth, async (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="prices.csv"');
   res.send('\uFEFF'+csv); // BOM สำหรับ Excel
+});
+
+
+// ============================================================
+// DAILY CLOSE API
+// ============================================================
+app.get('/api/daily-close', auth, async (req, res) => {
+  const { date, branch_id } = req.query;
+  if (!date || !branch_id) return res.status(400).json({ error: 'กรุณาระบุ date และ branch_id' });
+  const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.date=$1 AND dc.branch_id=$2',
+    [date, branch_id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'ยังไม่มีข้อมูล' });
+  res.json(r.rows[0]);
+});
+
+app.get('/api/daily-close/history', auth, async (req, res) => {
+  const { branch_id } = req.query;
+  let q = 'SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE 1=1';
+  const params = [];
+  if (branch_id) { params.push(branch_id); q += ` AND dc.branch_id=$${params.length}`; }
+  q += ' ORDER BY dc.date DESC LIMIT 60';
+  const r = await pool.query(q, params);
+  res.json(r.rows);
+});
+
+app.get('/api/daily-close/:id', auth, async (req, res) => {
+  const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.id=$1', [req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบข้อมูล' });
+  const dc = r.rows[0];
+  // ดึง snapshot หรือ realtime
+  const salesR = await pool.query(`SELECT p.name AS product_name,p.is_egg,COALESCE(SUM(si.qty_unit),0) AS qty_sold,COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue FROM sale_items si JOIN products p ON si.product_id=p.id JOIN sales s ON si.sale_id=s.id WHERE s.sale_date=$1 AND s.branch_id=$2 AND s.status='completed' GROUP BY p.id,p.name,p.is_egg ORDER BY qty_sold DESC`, [dc.date, dc.branch_id]);
+  const stockR = await pool.query(`SELECT s.qty_unit,p.name AS product_name,p.is_egg FROM stock s JOIN products p ON s.product_id=p.id WHERE s.branch_id=$1 AND (p.is_egg=true OR p.track_stock=true) ORDER BY p.code`, [dc.branch_id]);
+  res.json({ ...dc, sales_items: salesR.rows, stock_items: stockR.rows });
+});
+
+app.post('/api/daily-close', auth, async (req, res) => {
+  const { date, branch_id, sales_total, cash_amount, transfer_amount, broken_eggs, broken_price, note } = req.body;
+  if (!date || !branch_id) return res.status(400).json({ error: 'กรุณาระบุ date และ branch_id' });
+  try {
+    // บันทึก snapshot ณ เวลานี้
+    const salesR = await pool.query(`SELECT p.name AS product_name,p.is_egg,COALESCE(SUM(si.qty_unit),0) AS qty_sold,COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue FROM sale_items si JOIN products p ON si.product_id=p.id JOIN sales s ON si.sale_id=s.id WHERE s.sale_date=$1 AND s.branch_id=$2 AND s.status='completed' GROUP BY p.id,p.name,p.is_egg`, [date, branch_id]);
+    const stockR = await pool.query(`SELECT s.qty_unit,p.name AS product_name FROM stock s JOIN products p ON s.product_id=p.id WHERE s.branch_id=$1 AND p.track_stock=true`, [branch_id]);
+    await pool.query(`INSERT INTO daily_closes (date,branch_id,sales_total,cash_amount,transfer_amount,broken_eggs,broken_price,note,sales_snapshot,stock_snapshot,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      ON CONFLICT (date,branch_id) DO UPDATE SET sales_total=$3,cash_amount=$4,transfer_amount=$5,broken_eggs=$6,broken_price=$7,note=$8,sales_snapshot=$9,stock_snapshot=$10,created_by=$11`,
+      [date, branch_id, sales_total||0, cash_amount||0, transfer_amount||0, broken_eggs||0, broken_price||4.5, note||null,
+       JSON.stringify(salesR.rows), JSON.stringify(stockR.rows), req.user.id]);
+    res.json({ message: 'บันทึกปิดยอดเรียบร้อย' });
+  } catch(e) { console.error(e); res.status(500).json({ error: e.message }); }
 });
 
 
