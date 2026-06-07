@@ -1940,27 +1940,7 @@ async function showProductModal(p={}) {
 
 async function delProd(id){if(!confirm('ต้องการลบสินค้านี้?')) return;try{await api.del('/products/'+id);toast('ลบเรียบร้อย','success');loadProds();}catch(e){toast(e.message,'error');}}
 
-async function showPriceM(pid,pname){
-  try{
-    const prices=await api.get('/products/'+pid+'/prices');
-    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:600px"><div class="mh"><div class="mt">💰 ราคา: ${pname}</div><button class="mc" onclick="CM()">✕</button></div>
-    <div style="border:1px solid var(--border);border-radius:7px;overflow:hidden;max-height:200px;overflow-y:auto;margin-bottom:12px">
-      <table><thead><tr><th>สาขา</th><th>กลุ่ม</th><th>ฟอง/แผง</th><th style="text-align:right">ราคา</th></tr></thead>
-      <tbody>${prices.map(p=>`<tr><td>${p.branch_code}</td><td>${p.customer_type}</td><td>${p.qty}</td><td style="text-align:right;font-weight:600">${fmt.b(p.price)}</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">ยังไม่มีราคา</td></tr>'}</tbody>
-      </table>
-    </div>
-    <div><div style="font-size:13px;font-weight:600;margin-bottom:8px">+ เพิ่มราคา</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 70px 90px auto;gap:6px;align-items:end">
-      <div><label class="lbl">สาขา</label><select class="ctrl" id="prBr" style="margin-top:3px">${branches.map(b=>`<option value="${b.id}">${b.code}</option>`).join('')}</select></div>
-      <div><label class="lbl">กลุ่ม</label><select class="ctrl" id="prTy" style="margin-top:3px"><option value="retail">ปลีก</option><option value="restaurant">ร้านข้าว</option><option value="wholesale">ส่ง</option></select></div>
-      <div><label class="lbl">ฟอง</label><input type="number" class="ctrl" id="prQty" value="30" min="1" style="margin-top:3px"></div>
-      <div><label class="lbl">ราคา</label><input type="number" class="ctrl" id="prPr" step="0.01" min="0" style="margin-top:3px"></div>
-      <button class="btn btn-primary btn-sm" onclick="savePrice(${pid},'${pname}')" style="height:38px">บันทึก</button>
-          <button class="btn btn-secondary btn-sm" onclick="savePriceAllBranches(${pid},'${pname}')" style="height:38px" title="ใช้ราคานี้กับทุกสาขา">ทุกสาขา</button>
-    </div></div>
-    </div></div>`;
-  }catch(e){toast('โหลดราคาไม่ได้: '+e.message,'error');}
-}
+
 
 
 
@@ -4499,6 +4479,189 @@ async function selectPOSBranch(bid, bcode, bname) {
   } catch(e) {
     toast(e.message, 'error');
   }
+}
+
+
+// ============================================================
+// PRICE MANAGER — จัดการราคาสินค้าแต่ละสาขา
+// ============================================================
+let _priceEdits = {}; // {branchId_type_qty: price}
+
+async function showPriceM(productId, productName) {
+  try {
+    const [prod, brs] = await Promise.all([
+      api.get('/products/'+productId),
+      api.get('/branches')
+    ]);
+    _priceEdits = {};
+    const prices = prod.prices || [];
+    const typeLabel = {retail:'ปลีก', restaurant:'ร้านข้าว', wholesale:'ส่ง'};
+    const typeBadge = {retail:'bi', restaurant:'bw', wholesale:'bs'};
+    const types = ['retail','restaurant','wholesale'];
+
+    // สร้าง lookup ราคา: branch_id + type + qty → price
+    const priceMap = {};
+    prices.forEach(p => {
+      const k = `${p.branch_id}_${p.customer_type}_${p.qty}`;
+      priceMap[k] = { price: parseFloat(p.price), id: p.id };
+    });
+
+    // หน่วยที่ใช้ (ฟอง/แผง)
+    const qtys = [...new Set(prices.map(p => parseInt(p.qty)))].sort((a,b)=>a-b);
+    if (!qtys.length) qtys.push(1, 30); // default
+
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:780px">
+      <div class="mh">
+        <div>
+          <div class="mt">💰 ราคาสินค้า</div>
+          <div style="font-size:13px;color:var(--text-muted)">${productName}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-secondary btn-sm" onclick="addPriceRow(${productId})">+ เพิ่มราคา</button>
+          <button class="btn btn-primary" onclick="saveAllPrices(${productId})">💾 บันทึกทั้งหมด</button>
+          <button class="mc" onclick="CM()">✕</button>
+        </div>
+      </div>
+
+      <!-- ตารางราคา -->
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:600px">
+          <thead>
+            <tr style="background:var(--surface2)">
+              <th style="padding:8px 12px;text-align:left;font-size:12px">สาขา</th>
+              ${types.map(t=>`<th colspan="${qtys.length}" style="padding:8px 12px;text-align:center;font-size:12px">
+                <span class="badge ${typeBadge[t]}">${typeLabel[t]}</span>
+              </th>`).join('')}
+            </tr>
+            <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
+              <th style="padding:5px 12px;font-size:11px;color:var(--text-muted)"></th>
+              ${types.flatMap(t => qtys.map(q => `
+                <th style="padding:5px 8px;text-align:center;font-size:11px;color:var(--text-muted)">
+                  ${q===1?'ต่อฟอง':q===30?'ต่อแผง':'x'+q+' ฟ.'}
+                </th>`)).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${brs.map(b => `
+              <tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+                <td style="padding:10px 12px;font-weight:700;white-space:nowrap">
+                  <div>${b.name}</div>
+                  <div style="font-size:11px;color:var(--text-muted)">${b.code}</div>
+                </td>
+                ${types.flatMap(t => qtys.map(q => {
+                  const k = `${b.id}_${t}_${q}`;
+                  const existing = priceMap[k];
+                  return `<td style="padding:6px 8px;text-align:center">
+                    <div style="position:relative;display:inline-flex;align-items:center;gap:2px">
+                      <span style="font-size:11px;color:var(--text-muted)">฿</span>
+                      <input type="number"
+                        class="price-cell"
+                        data-key="${k}"
+                        data-branch="${b.id}"
+                        data-type="${t}"
+                        data-qty="${q}"
+                        data-price-id="${existing?.id||''}"
+                        value="${existing?.price||''}"
+                        placeholder="-"
+                        min="0" step="0.01"
+                        oninput="markPriceEdit(this)"
+                        style="width:72px;padding:5px 6px;border:1.5px solid var(--border);
+                        border-radius:6px;text-align:right;font-size:13px;font-family:'Sarabun',sans-serif;
+                        background:${existing?'var(--surface)':'var(--surface2)'};
+                        color:var(--text)">
+                    </div>
+                  </td>`;
+                })).join('')}
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text-muted)">
+        💡 พิมพ์ราคาในช่อง แล้วกด <strong>💾 บันทึกทั้งหมด</strong> — เว้นว่างไว้ = ไม่มีราคาสำหรับช่องนั้น
+      </div>
+    </div></div>`;
+
+    // เก็บ product id ไว้ใช้
+    document.getElementById('MC').dataset.prodId = productId;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function markPriceEdit(input) {
+  input.style.borderColor = 'var(--accent)';
+  input.style.background = 'var(--accent-dim)';
+}
+
+async function saveAllPrices(productId) {
+  const inputs = document.querySelectorAll('.price-cell');
+  const toSave = [];
+  const toDelete = [];
+
+  inputs.forEach(inp => {
+    const val = inp.value.trim();
+    const price = parseFloat(val);
+    const priceId = inp.dataset.priceId;
+    const branchId = parseInt(inp.dataset.branch);
+    const custType = inp.dataset.type;
+    const qty = parseInt(inp.dataset.qty);
+
+    if (val === '' && priceId) {
+      // ลบราคาที่ลบออก
+      toDelete.push(priceId);
+    } else if (val !== '' && !isNaN(price) && price >= 0) {
+      toSave.push({ id: priceId||null, branch_id: branchId, customer_type: custType, qty, price });
+    }
+  });
+
+  try {
+    // บันทึก/อัพเดต
+    if (toSave.length) {
+      await api.put('/products/'+productId+'/prices', { prices: toSave });
+    }
+    // ลบ
+    for (const pid of toDelete) {
+      await api.del('/products/'+productId+'/prices/'+pid).catch(()=>{});
+    }
+    toast(`✅ บันทึกราคาเรียบร้อย (${toSave.length} รายการ)`, 'success');
+    // reset highlight
+    document.querySelectorAll('.price-cell').forEach(inp => {
+      inp.style.borderColor = 'var(--border)';
+      inp.style.background = inp.value ? 'var(--surface)' : 'var(--surface2)';
+    });
+    // reload ด้วยข้อมูลใหม่
+    const prod = await api.get('/products/'+productId);
+    if (prod.prices) {
+      const priceMap = {};
+      prod.prices.forEach(p => {
+        priceMap[`${p.branch_id}_${p.customer_type}_${p.qty}`] = { price: parseFloat(p.price), id: p.id };
+      });
+      document.querySelectorAll('.price-cell').forEach(inp => {
+        const k = inp.dataset.key;
+        if (priceMap[k]) {
+          inp.value = priceMap[k].price;
+          inp.dataset.priceId = priceMap[k].id;
+        } else {
+          inp.dataset.priceId = '';
+        }
+      });
+    }
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function addPriceRow(productId) {
+  // เพิ่ม qty ใหม่ในตาราง (เช่น 300 = ต่อลัง)
+  const qty = prompt('จำนวนฟองที่ต้องการเพิ่ม (เช่น 300 สำหรับราคาต่อลัง):');
+  if (!qty || isNaN(parseInt(qty))) return;
+  // reload modal พร้อม qty ใหม่
+  // หา product name จาก title
+  const title = document.querySelector('#MC .mt')?.nextSibling?.textContent || '';
+  const prod = await api.get('/products/'+productId);
+  // เพิ่ม price placeholder
+  await api.put('/products/'+productId+'/prices', {
+    prices: [{ branch_id: null, customer_type: 'retail', qty: parseInt(qty), price: 0 }]
+  }).catch(()=>{});
+  showPriceM(productId, prod.name);
 }
 
 </script>
