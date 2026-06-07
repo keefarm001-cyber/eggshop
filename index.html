@@ -746,7 +746,18 @@ async function initApp(){
   document.getElementById('appPage').classList.add('active');
   document.getElementById('navUserName').textContent=CU.full_name||CU.username;
   document.getElementById('navUserRole').textContent=fmt.role(CU.role);
-  document.getElementById('navBranch').textContent=CU.branch_name||(CU.branch_code?'สาขา '+CU.branch_code:'ทุกสาขา');
+  const _nb = document.getElementById('navBranch');
+  if (_nb) {
+    const _bname = CU.branch_name||(CU.branch_code?'สาขา '+CU.branch_code:'ทุกสาขา');
+    _nb.textContent = _bname;
+    // ถ้ามีหลายสาขา → กดเปลี่ยนสาขาได้
+    if ((CU.access_branches||branches).length > 1) {
+      _nb.style.cursor = 'pointer';
+      _nb.title = 'คลิกเพื่อเปลี่ยนสาขา';
+      _nb.innerHTML = _bname + ' <span style="font-size:9px;opacity:.7">▼</span>';
+      _nb.onclick = () => showBranchSwitcherMenu();
+    }
+  }
   buildNav();
   try{branches=await api.get('/branches');populateBranchSelects();}catch(e){}
   try{roles=await api.get('/roles');}catch(e){}
@@ -3990,19 +4001,22 @@ async function loadProductDetail() {
   if (!_curProdId) return;
   try {
     const data = await api.get('/products/'+_curProdId);
+    if (!data || !data.id) { toast('ไม่พบข้อมูลสินค้า','error'); return; }
+    data.stocks = data.stocks || [];
+    data.prices = data.prices || [];
     _curProdData = data;
 
     // Title
     document.getElementById('pdTitle').textContent = (data.code||'') + ' ' + data.name;
 
     // Cards
-    const totalStock = data.stocks.reduce((s,st)=>s+parseInt(st.qty_unit||0),0);
+    const totalStock = (data.stocks||[]).reduce((s,st)=>s+parseInt(st.qty_unit||0),0);
     document.getElementById('pdTotalStock').textContent = fmt.n(totalStock) + ' ฟอง';
     document.getElementById('pdCategory').textContent = data.category_name || '-';
 
     // หาราคาปลีก/ฟอง
-    const retailPrice = data.prices.find(p=>p.customer_type==='retail' && parseInt(p.qty)===1);
-    const restPrice = data.prices.find(p=>p.customer_type==='restaurant' && parseInt(p.qty)===1);
+    const retailPrice = data.prices||[].find(p=>p.customer_type==='retail' && parseInt(p.qty)===1);
+    const restPrice = data.prices||[].find(p=>p.customer_type==='restaurant' && parseInt(p.qty)===1);
     document.getElementById('pdSalePrice').textContent =
       (retailPrice ? '฿'+parseFloat(retailPrice.price).toFixed(2) : '-') +
       (restPrice ? ' / ฿'+parseFloat(restPrice.price).toFixed(2)+' (ร้านข้าว)' : '');
@@ -4025,8 +4039,8 @@ async function loadProductDetail() {
     // สต๊อกแยกสาขา
     const branchFilter = document.getElementById('pdBranchFilter');
     const curBranch = branchFilter.value;
-    if (data.stocks.length && branchFilter.options.length <= 1) {
-      data.stocks.forEach(s => {
+    if (data.stocks||[].length && branchFilter.options.length <= 1) {
+      data.stocks||[].forEach(s => {
         const opt = document.createElement('option');
         opt.value = s.branch_id; opt.textContent = s.branch_name;
         branchFilter.appendChild(opt);
@@ -4034,8 +4048,8 @@ async function loadProductDetail() {
       if (curBranch) branchFilter.value = curBranch;
     }
 
-    document.getElementById('pdStockTable').innerHTML = data.stocks.length
-      ? data.stocks.map(s => {
+    document.getElementById('pdStockTable').innerHTML = (data.stocks||[]).length
+      ? (data.stocks||[]).map(s => {
           const qty = parseInt(s.qty_unit||0);
           return `<tr>
             <td><strong>${s.branch_name}</strong> <span style="font-size:11px;color:var(--text-muted)">${s.branch_code}</span></td>
@@ -4053,7 +4067,7 @@ async function loadProductDetail() {
       : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">ยังไม่มีสต๊อก</td></tr>';
 
     // ตาราง ราคา
-    renderPriceTable(data.prices);
+    renderPriceTable(data.prices||[]);
 
     // โหลด movements
     loadProductMovements();
@@ -4287,8 +4301,11 @@ async function savePriceRow(priceId) {
     toast('บันทึกราคาเรียบร้อย','success');
     CM();
     const data = await api.get('/products/'+_curProdId);
+    if (!data || !data.id) { toast('ไม่พบข้อมูลสินค้า','error'); return; }
+    data.stocks = data.stocks || [];
+    data.prices = data.prices || [];
     _curProdData = data;
-    renderPriceTable(data.prices);
+    renderPriceTable(data.prices||[]);
   } catch(e) { toast(e.message,'error'); }
 }
 
@@ -4298,8 +4315,11 @@ async function delPrice(priceId) {
     await api.del('/products/'+_curProdId+'/prices/'+priceId);
     toast('ลบราคาเรียบร้อย','success');
     const data = await api.get('/products/'+_curProdId);
+    if (!data || !data.id) { toast('ไม่พบข้อมูลสินค้า','error'); return; }
+    data.stocks = data.stocks || [];
+    data.prices = data.prices || [];
     _curProdData = data;
-    renderPriceTable(data.prices);
+    renderPriceTable(data.prices||[]);
   } catch(e) { toast(e.message,'error'); }
 }
 
@@ -4737,6 +4757,45 @@ async function addPriceRow(productId) {
     prices: [{ branch_id: null, customer_type: 'retail', qty: parseInt(qty), price: 0 }]
   }).catch(()=>{});
   showPriceM(productId, prod.name);
+}
+
+
+// ============================================================
+// BRANCH SWITCHER MENU — กดที่ชื่อสาขามุมซ้าย
+// ============================================================
+function showBranchSwitcherMenu() {
+  const list = CU.access_branches && CU.access_branches.length ? CU.access_branches : branches;
+  if (!list.length) return;
+
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:360px">
+    <div class="mh">
+      <div>
+        <div class="mt">🏪 เปลี่ยนสาขา</div>
+        <div style="font-size:12px;color:var(--text-muted)">ปัจจุบัน: ${CU.branch_name||CU.branch_code||'ทุกสาขา'}</div>
+      </div>
+      <button class="mc" onclick="CM()">✕</button>
+    </div>
+    <div style="display:grid;gap:8px;margin-top:4px">
+      ${list.map(b => {
+        const bid = b.id || b.branch_id;
+        const bcode = b.code || b.branch_code;
+        const bname = b.name || b.branch_name;
+        const isActive = CU.branch_id === bid;
+        return `<button onclick="switchBranch(${bid},'${bcode}','${bname}')"
+          style="padding:14px 18px;border:2px solid ${isActive?'var(--accent)':'var(--border)'};
+          border-radius:10px;background:${isActive?'var(--accent-dim)':'var(--surface)'};
+          cursor:pointer;text-align:left;font-family:'Sarabun',sans-serif;width:100%;
+          display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:700;font-size:15px">${bname}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${bcode}</div>
+          </div>
+          ${isActive ? '<span style="color:var(--accent);font-size:18px">✓</span>' : ''}
+        </button>`;
+      }).join('')}
+    </div>
+  </div></div>`;
 }
 
 </script>
