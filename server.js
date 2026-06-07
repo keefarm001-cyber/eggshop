@@ -766,7 +766,7 @@ app.put('/api/permissions/:roleName', auth, async (req, res) => {
     }
     await client.query('COMMIT');
     res.json({ message: 'บันทึกสิทธิ์เรียบร้อย' });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
+  } catch(e) { try{await client.query('ROLLBACK');}catch(re){} console.error('PUT perm err:', e.message); res.status(500).json({ error: e.message }); }
   finally { client.release(); }
 });
 
