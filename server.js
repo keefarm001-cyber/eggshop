@@ -2289,17 +2289,19 @@ app.get('/api/member-tiers', auth, async (req, res) => {
   } catch(e) { res.json([]); }
 });
 
-app.post('/api/member-tiers', auth, role('owner','admin'), async (req, res) => {
+app.post('/api/member-tiers', auth, role('owner','admin','manager'), async (req, res) => {
   const { name, description, customer_type, discount_percent, discount_amount, min_eggs_required, sort_order } = req.body;
   if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อระดับสมาชิก' });
-  const r = await pool.query(
-    'INSERT INTO member_tiers (name,description,customer_type,discount_percent,discount_amount,min_eggs_required,sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-    [name, description||null, customer_type||'retail', discount_percent||0, discount_amount||0, min_eggs_required||0, sort_order||0]
-  );
-  res.status(201).json(r.rows[0]);
+  try {
+    const r = await pool.query(
+      'INSERT INTO member_tiers (name,description,customer_type,discount_percent,discount_amount,min_eggs_required,sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [name, description||null, customer_type||'retail', discount_percent||0, discount_amount||0, min_eggs_required||0, sort_order||0]
+    );
+    res.status(201).json(r.rows[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res) => {
+app.put('/api/member-tiers/:id', auth, role('owner','admin','manager'), async (req, res) => {
   const { name, description, customer_type, discount_percent, discount_amount, min_eggs_required, sort_order, active } = req.body;
   await pool.query(
     'UPDATE member_tiers SET name=$1,description=$2,customer_type=$3,discount_percent=$4,discount_amount=$5,min_eggs_required=$6,sort_order=$7,active=$8 WHERE id=$9',
@@ -2308,7 +2310,7 @@ app.put('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res) =
   res.json({ message: 'อัพเดทเรียบร้อย' });
 });
 
-app.delete('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res) => {
+app.delete('/api/member-tiers/:id', auth, role('owner','admin','manager'), async (req, res) => {
   await pool.query('UPDATE member_tiers SET active=false WHERE id=$1', [req.params.id]);
   res.json({ message: 'ลบเรียบร้อย' });
 });
