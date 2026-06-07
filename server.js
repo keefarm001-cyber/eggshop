@@ -751,24 +751,7 @@ app.get('/api/permissions/schema', auth, role('owner','admin'), async (req, res)
 
 
 
-app.put('/api/permissions/:roleName', auth, async (req, res) => {
-  const { permissions } = req.body; // array of permission keys
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    // ไม่แก้ owner/admin
-    if (['owner','admin'].includes(req.params.roleName)) {
-      return res.status(403).json({ error: 'ไม่สามารถแก้ไขสิทธิ์ของ owner/admin ได้' });
-    }
-    await client.query('DELETE FROM role_permissions WHERE role_name=$1', [req.params.roleName]);
-    for (const perm of (permissions||[])) {
-      await client.query('INSERT INTO role_permissions (role_name,permission,granted) VALUES ($1,$2,true) ON CONFLICT DO NOTHING', [req.params.roleName, perm]);
-    }
-    await client.query('COMMIT');
-    res.json({ message: 'บันทึกสิทธิ์เรียบร้อย' });
-  } catch(e) { try{await client.query('ROLLBACK');}catch(re){} console.error('PUT perm err:', e.message); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
-});
+
 
 // middleware ตรวจ permission (ใช้ใน API ที่ต้องการ)
 async function checkPerm(perm) {
@@ -2218,20 +2201,7 @@ app.get('/api/permissions/:role', auth, async (req, res) => {
   } catch(e) { res.json([]); }
 });
 
-app.put('/api/permissions/:role', auth, async (req, res) => {
-  const { permissions } = req.body; // array of permission strings
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('DELETE FROM role_permissions WHERE role_name=$1', [req.params.role]);
-    for (const perm of (permissions||[])) {
-      await client.query('INSERT INTO role_permissions (role_name,permission) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.role, perm]);
-    }
-    await client.query('COMMIT');
-    res.json({ message: 'บันทึกสิทธิ์เรียบร้อย' });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
-});
+
 
 
 // IMPORT PRICES FROM CSV/JSON
@@ -2340,6 +2310,8 @@ app.delete('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res
 
 
 // ลบราคา SKU
+
+
 
 
 
@@ -2665,6 +2637,29 @@ app.delete('/api/products/:id/prices/:priceId', auth, role('owner','admin','mana
     await pool.query('DELETE FROM product_prices WHERE id=$1 AND product_id=$2', [req.params.priceId, req.params.id]);
     res.json({ message: 'ลบราคาเรียบร้อย' });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/permissions/:role', auth, async (req, res) => {
+  const { permissions } = req.body;
+  if (!Array.isArray(permissions)) return res.status(400).json({ error: 'permissions must be array' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM role_permissions WHERE role_name=$1', [req.params.role]);
+    for (const perm of permissions) {
+      if (typeof perm !== 'string' || !perm) continue;
+      await client.query(
+        'INSERT INTO role_permissions (role_name, permission, granted) VALUES ($1,$2,true) ON CONFLICT (role_name,permission) DO UPDATE SET granted=true',
+        [req.params.role, perm]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ message: 'บันทึกสิทธิ์เรียบร้อย', count: permissions.length });
+  } catch(e) {
+    try { await client.query('ROLLBACK'); } catch(_) {}
+    console.error('PUT permissions error:', e.message);
+    res.status(500).json({ error: e.message });
+  } finally { client.release(); }
 });
 
 
