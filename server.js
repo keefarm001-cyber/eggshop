@@ -798,7 +798,7 @@ app.post('/api/auth/switch-branch', auth, async (req, res) => {
   if (!branch) return res.status(404).json({ error: 'ไม่พบสาขา' });
   const userR = await pool.query(`SELECT u.*,r.name AS role FROM users u JOIN roles r ON u.role_id=r.id WHERE u.id=$1`, [req.user.id]);
   const u = userR.rows[0];
-  const token = jwt.sign({ id:u.id, username:u.username, full_name:u.full_name, role:u.role, branch_id:branch.id, branch_code:branch.code }, process.env.JWT_SECRET, { expiresIn: '8h' });
+  const token = jwt.sign({ id:u.id, username:u.username, full_name:u.full_name, role:u.role, branch_id:branch.id, branch_code:branch.code }, process.env.JWT_SECRET, { expiresIn: '30d' });
   res.json({ token, branch_id: branch.id, branch_code: branch.code, branch_name: branch.name });
 });
 
@@ -890,18 +890,30 @@ app.post('/api/product-categories', auth, role('owner','admin','manager'), async
   const { name, type } = req.body;
   if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อกลุ่ม' });
   try {
+    // ตรวจว่ามีชื่อซ้ำไหม
+    const exist = await pool.query('SELECT id FROM product_categories WHERE name=$1', [name]);
+    if (exist.rows.length) return res.status(400).json({ error: 'มีกลุ่มสินค้าชื่อ "'+name+'" อยู่แล้ว' });
     const r = await pool.query('INSERT INTO product_categories (name,type) VALUES ($1,$2) RETURNING *', [name, type||'stock']);
     res.status(201).json(r.rows[0]);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) {
+    if (e.code === '23505') return res.status(400).json({ error: 'มีกลุ่มสินค้าชื่อ "'+name+'" อยู่แล้ว' });
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.put('/api/product-categories/:id', auth, role('owner','admin','manager'), async (req, res) => {
   const { name, type } = req.body;
   if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อ' });
   try {
+    // ตรวจชื่อซ้ำ (ยกเว้น id ตัวเอง)
+    const exist = await pool.query('SELECT id FROM product_categories WHERE name=$1 AND id!=$2', [name, req.params.id]);
+    if (exist.rows.length) return res.status(400).json({ error: 'มีกลุ่มสินค้าชื่อ "'+name+'" อยู่แล้ว' });
     await pool.query('UPDATE product_categories SET name=$1, type=$2 WHERE id=$3', [name, type||'stock', req.params.id]);
     res.json({ message: 'แก้ไขเรียบร้อย' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) {
+    if (e.code === '23505') return res.status(400).json({ error: 'มีกลุ่มสินค้าชื่อ "'+name+'" อยู่แล้ว' });
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.delete('/api/product-categories/:id', auth, role('owner','admin','manager'), async (req, res) => {
@@ -2614,15 +2626,20 @@ app.put('/api/products/:id/prices', auth, role('owner','admin','manager'), async
     await client.query('BEGIN');
     for (const p of prices) {
       const { branch_id, customer_type, qty, price } = p;
-      if (!branch_id || !customer_type || !qty || price === undefined) continue;
-      const ex = await client.query(
-        'SELECT id FROM product_prices WHERE product_id=$1 AND branch_id=$2 AND customer_type=$3 AND qty=$4',
-        [req.params.id, branch_id, customer_type, qty]);
+      if (!customer_type || !qty || price === undefined) continue; // branch_id=null = ทุกสาขา
+      // upsert — branch_id อาจเป็น null (ทุกสาขา)
+      const branchCond = branch_id ? 'AND branch_id=$2' : 'AND branch_id IS NULL';
+      const branchParams = branch_id ? [req.params.id, branch_id, customer_type, qty] : [req.params.id, customer_type, qty];
+      const exQ = branch_id
+        ? 'SELECT id FROM product_prices WHERE product_id=$1 AND branch_id=$2 AND customer_type=$3 AND qty=$4'
+        : 'SELECT id FROM product_prices WHERE product_id=$1 AND branch_id IS NULL AND customer_type=$2 AND qty=$3';
+      const ex = await client.query(exQ, branchParams);
       if (ex.rows.length) {
         await client.query('UPDATE product_prices SET price=$1 WHERE id=$2', [price, ex.rows[0].id]);
       } else {
-        await client.query('INSERT INTO product_prices (product_id,branch_id,customer_type,qty,price) VALUES ($1,$2,$3,$4,$5)',
-          [req.params.id, branch_id, customer_type, qty, price]);
+        await client.query(
+          'INSERT INTO product_prices (product_id,branch_id,customer_type,qty,price) VALUES ($1,$2,$3,$4,$5)',
+          [req.params.id, branch_id||null, customer_type, qty, price]);
       }
     }
     await client.query('COMMIT');
