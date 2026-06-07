@@ -663,7 +663,7 @@ function buildNav(){
   });
 }
 
-const PAGE_LOADERS={
+var PAGE_LOADERS={
   dashboard:loadDash,
   pos:()=>{loadShiftSt();loadPosProds();loadPosMem();},
   shifts:loadShifts,
@@ -3061,23 +3061,7 @@ async function submitQuickMember() {
 // ============================================================
 // CREATE BRANCH MODAL
 // ============================================================
-function showCreateBranchModal() {
-  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
-  <div class="modal"><div class="mh"><div class="mt">🏪 เพิ่มสาขาใหม่</div><button class="mc" onclick="CM()">✕</button></div>
-  <div style="display:grid;gap:10px">
-    <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">
-      <div><label class="lbl">ชื่อสาขา *</label><input type="text" class="ctrl" id="brName" style="margin-top:4px" placeholder="เช่น สาขาตลาดสดธนบุรี"></div>
-      <div><label class="lbl">รหัสสาขา *</label><input type="text" class="ctrl" id="brCode" style="margin-top:4px" placeholder="เช่น TB" maxlength="10"></div>
-    </div>
-    <div><label class="lbl">ที่อยู่</label><input type="text" class="ctrl" id="brAddr" style="margin-top:4px" placeholder="ที่อยู่สาขา"></div>
-    <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="brPhone" style="margin-top:4px" placeholder="เบอร์โทรสาขา"></div>
-    <div style="background:var(--info-dim);border-radius:7px;padding:10px;font-size:12px;color:var(--info)">
-      💡 หลังสร้างสาขาแล้ว ต้องไปตั้งค่าสิทธิ์ผู้ใช้งานด้วย เพื่อให้พนักงานเข้าถึงสาขานี้ได้
-    </div>
-  </div>
-  <button class="btn btn-primary" onclick="submitCreateBranch()" style="width:100%;margin-top:14px">🏪 สร้างสาขา</button>
-  </div></div>`;
-}
+
 
 async function submitCreateBranch() {
   const name = document.getElementById('brName').value.trim();
@@ -3097,7 +3081,7 @@ async function submitCreateBranch() {
 // ============================================================
 // PERMISSIONS
 // ============================================================
-const PERM_LIST = [
+var PERM_LIST = [
   {key:'pos.sale', label:'ขายหน้าร้าน', group:'การขาย'},
   {key:'pos.discount', label:'ให้ส่วนลด', group:'การขาย'},
   {key:'sales.view', label:'ดูประวัติการขาย', group:'การขาย'},
@@ -4300,6 +4284,100 @@ async function delPrice(priceId) {
 function showPriceEditorModal() {
   if (!_curProdData) return;
   showAddPriceRow();
+}
+
+
+async function loadCompanySettings() {
+  try {
+    const data = await api.get('/company').catch(()=>null);
+    if (!data) return;
+    if (document.getElementById('coName')) document.getElementById('coName').value = data.name||'';
+    if (document.getElementById('coTax')) document.getElementById('coTax').value = data.tax_id||'';
+    if (document.getElementById('coAddr')) document.getElementById('coAddr').value = data.address||'';
+    if (document.getElementById('coPhone')) document.getElementById('coPhone').value = data.phone||'';
+  } catch(e) { console.error('loadCompanySettings:', e); }
+}
+
+
+// ============================================================
+// STUB FUNCTIONS — หน้าที่ยังไม่ได้พัฒนา
+// ============================================================
+async function loadEmployees() {
+  try {
+    const data = await api.get('/employees').catch(()=>[]);
+    const el = document.getElementById('empT');
+    if (!el) return;
+    el.innerHTML = data.length
+      ? data.map(e=>`<tr>
+          <td><strong>${e.full_name||e.name||'-'}</strong></td>
+          <td>${e.position||'-'}</td>
+          <td>${e.branch_name||'-'}</td>
+          <td>${e.phone||'-'}</td>
+          <td><span class="badge ${e.active?'bs':'bg'}">${e.active?'ใช้งาน':'ปิด'}</span></td>
+          <td><button class="btn btn-secondary btn-sm" onclick='showEmployeeModal(${JSON.stringify(e).replace(/'/g,"&#39;")})'>แก้ไข</button></td>
+        </tr>`).join('')
+      : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ยังไม่มีพนักงาน</td></tr>';
+  } catch(e) { console.error('loadEmployees:', e); }
+}
+
+async function saveCompanySettings() {
+  try {
+    const body = {
+      name: document.getElementById('coName')?.value||'',
+      tax_id: document.getElementById('coTax')?.value||'',
+      address: document.getElementById('coAddr')?.value||'',
+      phone: document.getElementById('coPhone')?.value||'',
+    };
+    await api.post('/company', body);
+    toast('บันทึกข้อมูลบริษัทเรียบร้อย','success');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showCreateBranchModal() {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:400px">
+    <div class="mh"><div class="mt">🏪 เพิ่มสาขาใหม่</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:10px">
+      <div><label class="lbl">รหัสสาขา *</label><input type="text" class="ctrl" id="brCode" style="margin-top:4px" placeholder="เช่น TB, OM"></div>
+      <div><label class="lbl">ชื่อสาขา *</label><input type="text" class="ctrl" id="brName" style="margin-top:4px"></div>
+      <div><label class="lbl">ที่อยู่</label><input type="text" class="ctrl" id="brAddr" style="margin-top:4px"></div>
+    </div>
+    <button class="btn btn-primary" onclick="saveNewBranch()" style="width:100%;margin-top:14px">+ เพิ่มสาขา</button>
+  </div></div>`;
+}
+
+async function saveNewBranch() {
+  const code = document.getElementById('brCode')?.value?.trim();
+  const name = document.getElementById('brName')?.value?.trim();
+  if (!code || !name) { toast('กรุณากรอกรหัสและชื่อสาขา','error'); return; }
+  try {
+    await api.post('/branches', { code, name, address: document.getElementById('brAddr')?.value||'' });
+    toast('เพิ่มสาขาเรียบร้อย','success');
+    CM();
+    const data = await api.get('/branches');
+    branches = data;
+    populateBranchSelects();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function loadPromos() {
+  const el = document.getElementById('promoT');
+  if (el) el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">ยังไม่ได้พัฒนาโมดูลโปรโมชัน</td></tr>';
+}
+
+function loadDebtNotes() {
+  const el = document.getElementById('debtT');
+  if (el) el.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ยังไม่ได้พัฒนาโมดูลใบหนี้</td></tr>';
+}
+
+function loadExpenseDocs() {
+  const el = document.getElementById('expDocT');
+  if (el) el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">ยังไม่ได้พัฒนาโมดูลเอกสารค่าใช้จ่าย</td></tr>';
+}
+
+function loadPayroll() {
+  const el = document.getElementById('payrollT');
+  if (el) el.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ยังไม่ได้พัฒนาโมดูลเงินเดือน</td></tr>';
 }
 
 </script>
