@@ -1364,16 +1364,16 @@ async function savePermissions() {
     const perms = [..._curPerms];
     await api.put('/permissions/'+_curPermRole, { permissions: perms });
     toast('💾 บันทึกสิทธิ์ "'+_curPermRole+'" เรียบร้อย ('+perms.length+' สิทธิ์)','success');
-    // reload เพื่อยืนยัน — fetch จาก DB จริง
-    const token = localStorage.getItem('es_token') || '';
-    const resp = await fetch('/api/permissions/'+_curPermRole, {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    if (resp.ok) {
-      const saved = await resp.json();
-      _curPerms = new Set(saved.map(p => p.permission || p));
-      renderPermissions();
-      console.log('[PERM] saved & reloaded:', _curPerms.size, 'perms');
+    // reload เพื่อยืนยัน — ใช้ api.get ที่มี JSON guard แล้ว
+    try {
+      const saved = await api.get('/permissions/'+_curPermRole);
+      if (Array.isArray(saved)) {
+        _curPerms = new Set(saved.map(p => typeof p === 'string' ? p : (p.permission||'')));
+        renderPermissions();
+      }
+    } catch(re) {
+      // reload ไม่ได้ก็ไม่เป็นไร save แล้ว
+      console.warn('reload perms failed:', re.message);
     }
   } catch(e) { toast(e.message,'error'); }
 }
@@ -3946,11 +3946,13 @@ async function selectPermRole(roleName, btn) {
     });
     clearTimeout(timer);
     if (resp.ok) {
-      const data = await resp.json();
-      const perms = Array.isArray(data) ? data : [];
-      // รองรับทั้ง [{permission:'...'}, ...] และ ['...', ...]
-      _curPerms = new Set(perms.map(p => typeof p === 'string' ? p : (p.permission || '')));
-      renderPermissions(); // re-render พร้อม ticks
+      const ct = resp.headers.get('content-type') || '';
+      if (ct.includes('json')) {
+        const data = await resp.json().catch(() => []);
+        const perms = Array.isArray(data) ? data : [];
+        _curPerms = new Set(perms.map(p => typeof p === 'string' ? p : (p.permission || '')));
+        renderPermissions(); // re-render พร้อม ticks
+      }
     }
   } catch(e) {
     console.warn('permissions fetch:', e.message);
