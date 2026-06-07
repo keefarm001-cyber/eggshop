@@ -1355,9 +1355,22 @@ var _invN=0;
 // SAVE PERMISSIONS
 // ============================================================
 async function savePermissions() {
+  if (!_curPermRole) { toast('กรุณาเลือก Role ก่อน','error'); return; }
   try {
-    await api.put('/permissions/'+_curPermRole, {permissions:[..._curPerms]});
-    toast('บันทึกสิทธิ์เรียบร้อย ✓','success');
+    const perms = [..._curPerms];
+    await api.put('/permissions/'+_curPermRole, { permissions: perms });
+    toast('💾 บันทึกสิทธิ์ "'+_curPermRole+'" เรียบร้อย ('+perms.length+' สิทธิ์)','success');
+    // reload เพื่อยืนยัน — fetch จาก DB จริง
+    const token = localStorage.getItem('es_token') || '';
+    const resp = await fetch('/api/permissions/'+_curPermRole, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (resp.ok) {
+      const saved = await resp.json();
+      _curPerms = new Set(saved.map(p => p.permission || p));
+      renderPermissions();
+      console.log('[PERM] saved & reloaded:', _curPerms.size, 'perms');
+    }
   } catch(e) { toast(e.message,'error'); }
 }
 
