@@ -974,70 +974,14 @@ async function loadProds() {
         <button class="btn btn-danger btn-sm" onclick="confirmDelProd(${p.id},'${p.name.replace(/'/g,'')}')">🗑️</button>
       </td>
     </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">ไม่มีสินค้า<br><small>กด "+ เพิ่มสินค้า" เพื่อเริ่มต้น</small></td></tr>';
-  } catch(e) { console.error('loadProds error:', e); toast('โหลดสินค้าไม่ได้: '+e.message,'error'); }
+  } catch(e) {
+    console.error('loadProds error:', e);
+    const el2 = document.getElementById('prodT');
+    if (el2) el2.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--error)">โหลดสินค้าไม่ได้: '+e.message+'</td></tr>';
+  }
 }
 
 
-async function showProductModal(p={}) {
-  const cats = await api.get('/product-categories').catch(()=>[]);
-  const contacts = await api.get('/contacts?type=supplier').catch(()=>[]);
-  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
-  <div class="modal" style="max-width:580px">
-    <div class="mh"><div class="mt">${p.id?'แก้ไข':'เพิ่ม'}สินค้า</div><button class="mc" onclick="CM()">✕</button></div>
-    <div style="display:grid;gap:10px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label class="lbl">รหัสสินค้า *</label><input type="text" class="ctrl" id="pCode" value="${p.code||''}" style="margin-top:4px" placeholder="เช่น EGG-0"></div>
-        <div><label class="lbl">ชื่อสินค้า *</label><input type="text" class="ctrl" id="pName" value="${p.name||''}" style="margin-top:4px" placeholder="เช่น ไข่ไก่เบอร์ 0"></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label class="lbl">กลุ่มสินค้า</label>
-          <select class="ctrl" id="pCat" style="margin-top:4px">
-            ${cats.map(c=>`<option value="${c.id}" ${c.id===p.category_id?'selected':''}>${c.name}</option>`).join('')}
-          </select>
-        </div>
-        <div><label class="lbl">หน่วยหลัก</label>
-          <select class="ctrl" id="pUnit" style="margin-top:4px">
-            <option value="ฟอง" ${p.unit==='ฟอง'||!p.unit?'selected':''}>ฟอง</option>
-            <option value="แผง" ${p.unit==='แผง'?'selected':''}>แผง (30 ฟอง)</option>
-            <option value="ลัง" ${p.unit==='ลัง'?'selected':''}>ลัง (300 ฟอง)</option>
-            <option value="ชุด" ${p.unit==='ชุด'?'selected':''}>ชุด</option>
-            <option value="อื่นๆ" ${p.unit==='อื่นๆ'?'selected':''}>อื่นๆ</option>
-          </select>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="display:flex;align-items:center;gap:7px;font-size:13px;margin-top:4px">
-          <input type="checkbox" id="pIsEgg" ${p.is_egg?'checked':''} style="accent-color:var(--accent)"> เป็นไข่ (นับสต๊อกเป็นฟอง)
-        </label></div>
-        <div><label style="display:flex;align-items:center;gap:7px;font-size:13px;margin-top:4px">
-          <input type="checkbox" id="pTrack" ${p.track_stock!==false?'checked':''} style="accent-color:var(--accent)"> นับสต๊อก
-        </label></div>
-      </div>
-
-      <div style="border-top:1px solid var(--border);padding-top:10px">
-        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 ราคาขายหน้าร้าน (บาท/ฟอง)</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          <div><label class="lbl">1 ฟอง</label><input type="number" class="ctrl" id="pr1" value="${p.price_1||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">5 ฟอง</label><input type="number" class="ctrl" id="pr5" value="${p.price_5||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">10 ฟอง</label><input type="number" class="ctrl" id="pr10" value="${p.price_10||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">15 ฟอง</label><input type="number" class="ctrl" id="pr15" value="${p.price_15||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">20 ฟอง</label><input type="number" class="ctrl" id="pr20" value="${p.price_20||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">30 ฟอง (แผง)</label><input type="number" class="ctrl" id="pr30" value="${p.price_30||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-        </div>
-      </div>
-
-      <div style="border-top:1px solid var(--border);padding-top:10px">
-        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">🚚 ราคาส่ง (บาท/ฟอง)</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          <div><label class="lbl">1 แผง (30ฟ.)</label><input type="number" class="ctrl" id="pw30" value="${p.wholesale_30||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">2 แผง+ (60ฟ.)</label><input type="number" class="ctrl" id="pw60" value="${p.wholesale_60||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">1 ลัง (300ฟ.)</label><input type="number" class="ctrl" id="pw300" value="${p.wholesale_300||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-        </div>
-      </div>
-    </div>
-    <button class="btn btn-primary" onclick="saveProd(${p.id||0})" style="width:100%;margin-top:14px">💾 บันทึก</button>
-  </div></div>`;
-}
 
 
 async function saveProd(id){
@@ -1168,24 +1112,7 @@ async function loadMembers(){
   }catch(e){}
 }
 
-async function showMemModal(m={}) {
-  const tiers = await api.get('/member-tiers').catch(()=>[]);
-  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">${m.id?'แก้ไข':'เพิ่ม'}สมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
-  <div style="display:grid;gap:9px">
-    <div><label class="lbl">ชื่อ *</label><input type="text" class="ctrl" id="mName" value="${m.name||''}" style="margin-top:4px"></div>
-    <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="mPhone" value="${m.phone||''}" style="margin-top:4px"></div>
-    <div><label class="lbl">ระดับสมาชิก</label>
-      <select class="ctrl" id="mTier" style="margin-top:4px">
-        <option value="">— ไม่ระบุ —</option>
-        ${tiers.map(t=>`<option value="${t.id}" ${t.id===m.tier_id?'selected':''}>${t.name}</option>`).join('')}
-      </select>
-    </div>
-    <div><label class="lbl">สาขา</label><select class="ctrl" id="mBr" style="margin-top:4px"><option value="">ทุกสาขา</option>${branches.map(b=>`<option value="${b.id}" ${b.id===m.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
-    ${m.id?`<label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="mAct" ${m.active?'checked':''}> เปิดใช้งาน</label>`:''}
-  </div>
-  <button class="btn btn-primary" onclick="saveMem(${m.id||0})" style="width:100%;margin-top:14px">บันทึก</button>
-  </div></div>`;
-}
+
 
 
 
@@ -1222,27 +1149,6 @@ async function loadContacts(){
   }catch(e){}
 }
 
-function showContactModal(c={}) {
-  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">${c.id?'แก้ไข':'เพิ่ม'}ผู้ติดต่อ</div><button class="mc" onclick="CM()">✕</button></div>
-  <div style="display:grid;gap:9px">
-    <div><label class="lbl">ชื่อกิจการ</label><input type="text" class="ctrl" id="cBiz" value="${c.business_name||''}" style="margin-top:4px"></div>
-    <div class="g2">
-      <div><label class="lbl">ผู้ติดต่อ</label><input type="text" class="ctrl" id="cName" value="${c.contact_name||''}" style="margin-top:4px"></div>
-      <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="cPhone" value="${c.phone||''}" style="margin-top:4px"></div>
-    </div>
-    <div><label class="lbl">ที่อยู่</label><input type="text" class="ctrl" id="cAddr" value="${c.address||''}" style="margin-top:4px"></div>
-    <div class="g2">
-      <div><label class="lbl">เลขภาษี</label><input type="text" class="ctrl" id="cTax" value="${c.tax_id||''}" style="margin-top:4px"></div>
-      <div><label class="lbl">เครดิต (วัน)</label><input type="number" class="ctrl" id="cCredit" value="${c.credit_days||0}" min="0" style="margin-top:4px"></div>
-    </div>
-    <div class="g2">
-      <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="cIsCust" ${c.is_customer?'checked':''}> ลูกค้า</label>
-      <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="cIsSupp" ${c.is_supplier?'checked':''}> ผู้จำหน่าย</label>
-    </div>
-  </div>
-  <button class="btn btn-primary" onclick="saveContact(${c.id||0})" style="width:100%;margin-top:14px">บันทึก</button>
-  </div></div>`;
-}
 
 
 
@@ -1374,98 +1280,9 @@ async function savePermissions() {
 // ============================================================
 // EMPLOYEES (เพิ่ม/แก้ไขพนักงาน + สร้าง Account)
 // ============================================================
-async function showEmployeeModal(e={}) {
-  const roleOptions = [
-    {val:'manager',label:'👨‍💼 ผู้จัดการ'},{val:'cashier',label:'💁 แคชเชียร์'},
-    {val:'stock',label:'📦 สต๊อก'},{val:'viewer',label:'👁️ ผู้ชม'},
-    {val:'accountant',label:'📊 บัญชี'},{val:'sales_pc',label:'🛍️ พนักงานขาย (PC)'},
-  ];
-  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
-  <div class="modal" style="max-width:660px">
-    <div class="mh"><div class="mt">${e.id?'แก้ไข':'➕ เพิ่ม'}พนักงาน</div><button class="mc" onclick="CM()">✕</button></div>
-
-    <!-- แท็บ -->
-    <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
-      <button class="emp-tab" onclick="switchEmpTab('info',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid var(--accent);color:var(--accent);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer">📋 ข้อมูล</button>
-      <button class="emp-tab" onclick="switchEmpTab('pay',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer">💰 เงินเดือน</button>
-      <button class="emp-tab" onclick="switchEmpTab('edu',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer">📚 ประวัติ</button>
-    </div>
-
-    <!-- แท็บ: ข้อมูล -->
-    <div id="empTab-info" style="display:grid;gap:9px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
-        <div><label class="lbl">ชื่อ-นามสกุล *</label><input type="text" class="ctrl" id="emName" value="${e.full_name||''}" style="margin-top:4px"></div>
-        <div><label class="lbl">ชื่อเล่น</label><input type="text" class="ctrl" id="emNick" value="${e.nickname||''}" style="margin-top:4px"></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
-        <div><label class="lbl">เลขบัตรประชาชน</label><input type="text" class="ctrl" id="emNID" value="${e.national_id||''}" maxlength="13" style="margin-top:4px"></div>
-        <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="emPhone" value="${e.phone||''}" style="margin-top:4px"></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
-        <div><label class="lbl">ตำแหน่ง / สิทธิ์ในระบบ *</label>
-          <select class="ctrl" id="emRoleName" style="margin-top:4px">
-            ${roleOptions.map(r=>`<option value="${r.val}" ${(e.role_name||'cashier')===r.val?'selected':''}>${r.label}</option>`).join('')}
-          </select>
-        </div>
-        <div><label class="lbl">สาขาประจำ</label>
-          <select class="ctrl" id="emBr" style="margin-top:4px">
-            <option value="">ทุกสาขา</option>
-            ${branches.map(b=>`<option value="${b.id}" ${b.id===e.branch_id?'selected':''}>${b.name}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <div>
-        <label class="lbl" style="margin-bottom:6px;display:block">🏪 สาขาที่ทำงานได้ (ติ๊กหลายสาขาได้)</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${branches.map(b=>`<label style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-size:13px">
-            <input type="checkbox" class="emBrAccess" value="${b.id}" style="accent-color:var(--accent)">
-            ${b.name}
-          </label>`).join('')}
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
-        <div><label class="lbl">วันเริ่มงาน</label><input type="date" class="ctrl" id="emStart" value="${e.start_date?e.start_date.slice(0,10):''}" style="margin-top:4px"></div>
-        <div><label class="lbl">วันผ่านโปร</label><input type="date" class="ctrl" id="emProb" value="${e.probation_end_date?e.probation_end_date.slice(0,10):''}" style="margin-top:4px"></div>
-      </div>
-      ${!e.id ? `
-      <div style="background:var(--info-dim);border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-top:4px">
-        <div style="font-size:12px;font-weight:700;color:var(--info);margin-bottom:8px">🔐 Account เข้าใช้งานระบบ (ไม่บังคับ)</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div><label class="lbl">Username</label><input type="text" class="ctrl" id="emUser" placeholder="เช่น somchai หรือ email" style="margin-top:4px"></div>
-          <div><label class="lbl">Password</label><input type="password" class="ctrl" id="emPass" placeholder="อย่างน้อย 6 ตัว" style="margin-top:4px"></div>
-        </div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">💡 ถ้าไม่กรอก พนักงานจะไม่มี account เข้าระบบ</div>
-      </div>` : ''}
-      ${e.id ? `<label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="emAct" ${e.active?'checked':''}> เปิดใช้งาน</label>` : ''}
-    </div>
-
-    <!-- แท็บ: เงินเดือน -->
-    <div id="empTab-pay" style="display:none;grid-template-columns:1fr 1fr;gap:9px">
-      <div><label class="lbl">ฐานเงินเดือน (บาท)</label><input type="number" class="ctrl" id="emSalBase" value="${e.salary_base||0}" min="0" style="margin-top:4px"></div>
-      <div><label class="lbl">เงินเดือนปัจจุบัน (บาท)</label><input type="number" class="ctrl" id="emSal" value="${e.salary||0}" min="0" style="margin-top:4px"></div>
-      <div><label class="lbl">ธนาคาร</label><input type="text" class="ctrl" id="emBank" value="${e.bank_name||''}" placeholder="เช่น กสิกรไทย" style="margin-top:4px"></div>
-      <div><label class="lbl">เลขบัญชี</label><input type="text" class="ctrl" id="emBankAcc" value="${e.bank_account||''}" style="margin-top:4px"></div>
-    </div>
-
-    <!-- แท็บ: ประวัติ -->
-    <div id="empTab-edu" style="display:none;gap:9px">
-      <div><label class="lbl">ประวัติการศึกษา</label><textarea class="ctrl" id="emEdu" rows="3" style="margin-top:4px;resize:vertical">${e.education||''}</textarea></div>
-      <div><label class="lbl">ประวัติการทำงาน</label><textarea class="ctrl" id="emWork" rows="3" style="margin-top:4px;resize:vertical">${e.work_history||''}</textarea></div>
-      <div><label class="lbl">ผู้ติดต่อฉุกเฉิน</label><input type="text" class="ctrl" id="emEmerg" value="${e.emergency_contact||''}" style="margin-top:4px"></div>
-    </div>
-
-    <button class="btn btn-primary" onclick="saveEmployee(${e.id||0})" style="width:100%;margin-top:16px">💾 บันทึกพนักงาน</button>
-  </div></div>`;
-}
 
 
 
-async function showUserModal(u={}) {
-  // redirect ไปหน้าพนักงาน
-  toast('เพิ่มพนักงานได้ที่หน้า 👔 พนักงาน', 'info');
-  CM();
-  showPage('employees');
-}
 
 
 
@@ -2979,7 +2796,7 @@ async function printDailySummary() {
 
     const html = [
       '<!DOCTYPE html>',
-      '<html lang="th">',
+      '\x3chtml lang="th">',
       '<head><meta charset="UTF-8"><title>ใบสรุปยอดขาย</title>',
       '<style>',
       'body{font-family:"Sarabun",sans-serif;font-size:14px;margin:0;padding:0}',
@@ -3557,7 +3374,7 @@ async function printDC(id) {
 
     const html = [
       '<!DOCTYPE html>',
-      '<html lang="th"><head><meta charset="UTF-8"><title>ใบปิดยอด '+d.date+'</title>',
+      '\x3chtml lang="th"><head><meta charset="UTF-8"><title>ใบปิดยอด '+d.date+'</title>',
       '<style>',
       'body{font-family:"Sarabun",sans-serif;font-size:13px;margin:0;background:#f4f4f4}',
       '.toolbar{background:#1f2937;padding:10px 20px;display:flex;gap:10px}',
@@ -3579,7 +3396,7 @@ async function printDC(id) {
       '.footer{text-align:center;font-size:11px;color:#999;margin-top:14px;padding-top:10px;border-top:1px dashed #ccc}',
       '@media print{.toolbar{display:none}body{background:#fff}.page{box-shadow:none;margin:0;border-radius:0}}',
       '<\\/style></head>',
-      '<body>',
+      '\x3cbody>',
       '<div class="toolbar">',
       '<button onclick="window.print()" style="background:#e67e00;color:#fff">🖨️ พิมพ์</button>',
       '<button onclick="window.close()" style="background:#374151;color:#fff">✕</button>',
@@ -3620,7 +3437,7 @@ async function printDC(id) {
       '</div>',
       '</div>',
       '<div class="footer">พิมพ์เมื่อ ' + new Date().toLocaleString('th-TH') + '</div>',
-      '</div></body></html>'
+      '</div><\/body><\/html>'
     ].join('\n');
 
     const blob = new Blob([html], {type:'text/html;charset=utf-8'});
@@ -3636,7 +3453,7 @@ async function printDC(id) {
 // ============================================================
 async function showTierModal() {
   try {
-    const tiers = await api.get('/member-tiers');
+    const tiers = await api.get('/member-tiers').catch(e => { console.error('member-tiers:', e); return []; });
     document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
     <div class="modal" style="max-width:600px">
       <div class="mh"><div class="mt">🏅 จัดการระดับสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
