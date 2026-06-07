@@ -571,6 +571,12 @@ let _curPermRole='manager', _curPerms=new Set(), _permSchema=[];
 
 
 'use strict';
+function safeArray(data) {
+  return Array.isArray(data) ? data : (data ? [data] : []);
+}
+function safeTiers(data) {
+  return Array.isArray(data) ? data : [];
+}
 let CU=null, cart=[], allMembers=[], allContacts=[], branches=[], roles=[], curShift=null, selMember=null;
 let _companySettings={};
 var _invProducts=[], _invN=0;
@@ -583,6 +589,7 @@ const api={
     if(body) opts.body=JSON.stringify(body);
     const res=await fetch('/api'+path,opts);
     if(res.status===401){logout();return null;}
+    if(res.status===403){return [];} // 403 = no permission, return empty array
     if(res.status===204){return {};}
     const ct=res.headers.get('content-type')||'';
     if(!ct.includes('json')){if(!res.ok)throw new Error('Server error ('+res.status+')');return {};}
@@ -2990,7 +2997,7 @@ async function printDailySummary() {
 // QUICK MEMBER MODAL (จาก POS)
 // ============================================================
 async function showQuickMemberModal() {
-  const tiers = await api.get('/member-tiers').catch(()=>[]);
+  const tiersRaw2 = await api.get('/member-tiers').catch(()=>[]); const tiers = Array.isArray(tiersRaw2) ? tiersRaw2 : [];
   document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
   <div class="modal" style="max-width:440px"><div class="mh"><div class="mt">⭐ สมัครสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
   <div style="display:grid;gap:10px">
@@ -3555,7 +3562,7 @@ async function printDC(id) {
 // ============================================================
 async function showTierModal() {
   try {
-    const tiers = await api.get('/member-tiers').catch(e => { console.error('member-tiers:', e); return []; });
+    const tiersRaw = await api.get('/member-tiers').catch(() => []); const tiers = Array.isArray(tiersRaw) ? tiersRaw : [];
     document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
     <div class="modal" style="max-width:600px">
       <div class="mh"><div class="mt">🏅 จัดการระดับสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
@@ -4489,104 +4496,162 @@ let _priceEdits = {}; // {branchId_type_qty: price}
 
 async function showPriceM(productId, productName) {
   try {
-    const [prod, brs] = await Promise.all([
+    const [prod, brs, qtyTiers] = await Promise.all([
       api.get('/products/'+productId),
-      api.get('/branches')
+      api.get('/branches'),
+      api.get('/price-qty-tiers')
     ]);
-    _priceEdits = {};
+
     const prices = prod.prices || [];
-    const typeLabel = {retail:'ปลีก', restaurant:'ร้านข้าว', wholesale:'ส่ง'};
+    const typeLabel = {retail:'🛒 ปลีก', restaurant:'🍳 ร้านข้าว', wholesale:'🚚 ส่ง'};
     const typeBadge = {retail:'bi', restaurant:'bw', wholesale:'bs'};
     const types = ['retail','restaurant','wholesale'];
 
-    // สร้าง lookup ราคา: branch_id + type + qty → price
-    const priceMap = {};
-    prices.forEach(p => {
-      const k = `${p.branch_id}_${p.customer_type}_${p.qty}`;
-      priceMap[k] = { price: parseFloat(p.price), id: p.id };
+    // จัด tiers แยกตาม customer_type
+    const tiersByType = {};
+    types.forEach(t => {
+      tiersByType[t] = qtyTiers.filter(q => q.customer_type === t).sort((a,b) => a.sort_order-b.sort_order);
+      if (!tiersByType[t].length) tiersByType[t] = [{qty:1, label:'ต่อฟอง'},{qty:30, label:'ต่อแผง (30)'}];
     });
 
-    // หน่วยที่ใช้ (ฟอง/แผง)
-    const qtys = [...new Set(prices.map(p => parseInt(p.qty)))].sort((a,b)=>a-b);
-    if (!qtys.length) qtys.push(1, 30); // default
+    // price lookup: branch_id + type + qty → {price, id}
+    const priceMap = {};
+    prices.forEach(p => {
+      priceMap[`${p.branch_id}_${p.customer_type}_${p.qty}`] = { price: parseFloat(p.price), id: p.id };
+    });
+
+    // สร้าง section แต่ละ customer_type
+    const sections = types.map(t => {
+      const tiers = tiersByType[t];
+      const headerCols = tiers.map(tier =>
+        `<th style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text-muted);min-width:80px">${tier.label}</th>`
+      ).join('');
+
+      const rows = brs.map(b => {
+        const cells = tiers.map(tier => {
+          const k = `${b.id}_${t}_${tier.qty}`;
+          const ex = priceMap[k];
+          return `<td style="padding:4px 6px;text-align:center">
+            <div style="display:flex;align-items:center;gap:2px;justify-content:center">
+              <span style="font-size:11px;color:var(--text-muted)">฿</span>
+              <input type="number" class="price-cell"
+                data-key="${k}" data-branch="${b.id}"
+                data-type="${t}" data-qty="${tier.qty}"
+                data-price-id="${ex?.id||''}"
+                value="${ex?.price != null ? ex.price : ''}"
+                placeholder="—" min="0" step="0.01"
+                oninput="markPriceEdit(this)"
+                style="width:70px;padding:4px 6px;border:1.5px solid ${ex?'var(--accent)':'var(--border)'};
+                border-radius:6px;text-align:right;font-size:13px;font-family:'Sarabun',sans-serif;
+                background:${ex?'var(--accent-dim)':'var(--surface2)'};color:var(--text)">
+            </div>
+          </td>`;
+        }).join('');
+        return `<tr style="border-bottom:1px solid var(--border)"
+          onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+          <td style="padding:8px 12px;font-weight:700;white-space:nowrap;min-width:120px">
+            ${b.name}<br><span style="font-size:11px;color:var(--text-muted);font-weight:400">${b.code}</span>
+          </td>
+          ${cells}
+        </tr>`;
+      }).join('');
+
+      return `<div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span class="badge ${typeBadge[t]}" style="font-size:13px;padding:4px 10px">${typeLabel[t]}</span>
+          <button class="btn btn-secondary btn-sm" onclick="managePriceTiers('${t}')">⚙️ จัดการ tiers</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr style="background:var(--surface2)">
+              <th style="padding:6px 12px;text-align:left;font-size:12px">สาขา</th>
+              ${headerCols}
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }).join('<hr style="border-color:var(--border);margin:8px 0">');
 
     document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
-    <div class="modal" style="max-width:780px">
-      <div class="mh">
+    <div class="modal" style="max-width:820px;max-height:90vh;overflow-y:auto">
+      <div class="mh" style="position:sticky;top:0;background:var(--surface);z-index:10">
         <div>
-          <div class="mt">💰 ราคาสินค้า</div>
+          <div class="mt">💰 จัดการราคา</div>
           <div style="font-size:13px;color:var(--text-muted)">${productName}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-secondary btn-sm" onclick="addPriceRow(${productId})">+ เพิ่มราคา</button>
           <button class="btn btn-primary" onclick="saveAllPrices(${productId})">💾 บันทึกทั้งหมด</button>
           <button class="mc" onclick="CM()">✕</button>
         </div>
       </div>
-
-      <!-- ตารางราคา -->
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;min-width:600px">
-          <thead>
-            <tr style="background:var(--surface2)">
-              <th style="padding:8px 12px;text-align:left;font-size:12px">สาขา</th>
-              ${types.map(t=>`<th colspan="${qtys.length}" style="padding:8px 12px;text-align:center;font-size:12px">
-                <span class="badge ${typeBadge[t]}">${typeLabel[t]}</span>
-              </th>`).join('')}
-            </tr>
-            <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
-              <th style="padding:5px 12px;font-size:11px;color:var(--text-muted)"></th>
-              ${types.flatMap(t => qtys.map(q => `
-                <th style="padding:5px 8px;text-align:center;font-size:11px;color:var(--text-muted)">
-                  ${q===1?'ต่อฟอง':q===30?'ต่อแผง':'x'+q+' ฟ.'}
-                </th>`)).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${brs.map(b => `
-              <tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-                <td style="padding:10px 12px;font-weight:700;white-space:nowrap">
-                  <div>${b.name}</div>
-                  <div style="font-size:11px;color:var(--text-muted)">${b.code}</div>
-                </td>
-                ${types.flatMap(t => qtys.map(q => {
-                  const k = `${b.id}_${t}_${q}`;
-                  const existing = priceMap[k];
-                  return `<td style="padding:6px 8px;text-align:center">
-                    <div style="position:relative;display:inline-flex;align-items:center;gap:2px">
-                      <span style="font-size:11px;color:var(--text-muted)">฿</span>
-                      <input type="number"
-                        class="price-cell"
-                        data-key="${k}"
-                        data-branch="${b.id}"
-                        data-type="${t}"
-                        data-qty="${q}"
-                        data-price-id="${existing?.id||''}"
-                        value="${existing?.price||''}"
-                        placeholder="-"
-                        min="0" step="0.01"
-                        oninput="markPriceEdit(this)"
-                        style="width:72px;padding:5px 6px;border:1.5px solid var(--border);
-                        border-radius:6px;text-align:right;font-size:13px;font-family:'Sarabun',sans-serif;
-                        background:${existing?'var(--surface)':'var(--surface2)'};
-                        color:var(--text)">
-                    </div>
-                  </td>`;
-                })).join('')}
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-
-      <div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text-muted)">
-        💡 พิมพ์ราคาในช่อง แล้วกด <strong>💾 บันทึกทั้งหมด</strong> — เว้นว่างไว้ = ไม่มีราคาสำหรับช่องนั้น
+      <div style="padding:4px 0">
+        ${sections}
+        <div style="margin-top:8px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text-muted)">
+          💡 ช่องที่มีราคา = ขอบสีส้ม | เว้นว่าง = ไม่มีราคา | กด <strong>💾 บันทึกทั้งหมด</strong> เพื่อ save
+        </div>
       </div>
     </div></div>`;
-
-    // เก็บ product id ไว้ใช้
-    document.getElementById('MC').dataset.prodId = productId;
   } catch(e) { toast(e.message,'error'); }
 }
+
+async function managePriceTiers(custType) {
+  const typeLabel = {retail:'🛒 ปลีก', restaurant:'🍳 ร้านข้าว', wholesale:'🚚 ส่ง'};
+  try {
+    const tiers = await api.get('/price-qty-tiers');
+    const mine = tiers.filter(t => t.customer_type === custType);
+
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:420px">
+      <div class="mh">
+        <div class="mt">⚙️ Qty Tiers — ${typeLabel[custType]}</div>
+        <button class="mc" onclick="CM()">✕</button>
+      </div>
+      <div style="margin-bottom:12px">
+        ${mine.map(t => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--border);border-radius:7px;margin-bottom:6px">
+            <div>
+              <span style="font-weight:700">${t.qty} ฟอง</span>
+              <span style="color:var(--text-muted);font-size:12px;margin-left:8px">${t.label||''}</span>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="deletePriceTier(${t.id})">ลบ</button>
+          </div>`).join('') || '<div style="color:var(--text-muted);text-align:center;padding:12px">ยังไม่มี tier</div>'}
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px">+ เพิ่ม qty ใหม่</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
+          <div><label class="lbl">จำนวนฟอง</label>
+            <input type="number" class="ctrl" id="newTierQty" min="1" style="margin-top:4px" placeholder="เช่น 15"></div>
+          <div><label class="lbl">ชื่อแสดง</label>
+            <input type="text" class="ctrl" id="newTierLabel" style="margin-top:4px" placeholder="เช่น 15 ฟอง"></div>
+          <button class="btn btn-primary" onclick="addPriceTier('${custType}')" style="height:38px">เพิ่ม</button>
+        </div>
+      </div>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function addPriceTier(custType) {
+  const qty = parseInt(document.getElementById('newTierQty')?.value||0);
+  const label = document.getElementById('newTierLabel')?.value?.trim()||`${qty} ฟอง`;
+  if (!qty) { toast('กรุณากรอกจำนวนฟอง','error'); return; }
+  try {
+    await api.post('/price-qty-tiers', { customer_type: custType, qty, label });
+    toast(`เพิ่ม tier ${qty} ฟอง เรียบร้อย`,'success');
+    managePriceTiers(custType);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function deletePriceTier(tierId) {
+  if (!confirm('ลบ tier นี้? (ราคาที่ตั้งไว้จะยังอยู่)')) return;
+  try {
+    await api.del('/price-qty-tiers/'+tierId);
+    toast('ลบเรียบร้อย','success');
+    managePriceTiers('retail'); // reload
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
 
 function markPriceEdit(input) {
   input.style.borderColor = 'var(--accent)';
