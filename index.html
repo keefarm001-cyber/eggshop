@@ -4151,7 +4151,7 @@ async function loadProductMovements() {
 // ============================================================
 function showAdjustModal() {
   if (!_curProdData) return;
-  const stocks = _curProdData.stocks;
+  const stocks = _curProdData.stocks || [];
   document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
   <div class="modal" style="max-width:460px">
     <div class="mh"><div class="mt">📦 ปรับยอดคงคลัง — ${_curProdData.name}</div><button class="mc" onclick="CM()">✕</button></div>
