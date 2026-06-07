@@ -791,9 +791,7 @@ app.put('/api/users/:id/branches', auth, role('owner','admin'), async (req, res)
 });
 
 // Switch branch (เปลี่ยนสาขาที่ทำงาน)
-app.get('/api/auth/me', auth, async (req, res) => {
-  res.json({ id: req.user.id, username: req.user.username, role: req.user.role });
-});
+
 
 app.post('/api/auth/switch-branch', auth, async (req, res) => {
   const { branch_id } = req.body;
@@ -828,21 +826,24 @@ app.put('/api/members/:id', auth, async (req, res) => { const { name, phone, bra
 // PRODUCTS
 app.get('/api/products', auth, async (req, res) => {
   const { category_id, search } = req.query;
-  let q = `SELECT p.*,
-    pc.name AS category_name, pc.type AS category_type,
-    COALESCE(SUM(s.qty_unit),0) AS total_stock
-    FROM products p
-    LEFT JOIN product_categories pc ON p.category_id=pc.id
-    LEFT JOIN stock s ON s.product_id=p.id
-    WHERE 1=1`;
   try {
-  const params = [];
-  if (category_id) { params.push(category_id); q += ` AND p.category_id=$${params.length}`; }
-  if (search) { params.push('%'+search+'%'); q += ` AND (p.name ILIKE $${params.length} OR p.code ILIKE $${params.length})`; }
-  q += ' GROUP BY p.id, pc.name, pc.type ORDER BY pc.type NULLS LAST, p.code';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-  } catch(e) { console.error('products GET error:', e.message); res.status(500).json({ error: e.message }); }
+    let q = `SELECT p.*,
+      COALESCE(pc.name,'') AS category_name,
+      COALESCE(SUM(s.qty_unit),0) AS total_stock
+      FROM products p
+      LEFT JOIN product_categories pc ON p.category_id=pc.id
+      LEFT JOIN stock s ON s.product_id=p.id
+      WHERE 1=1`;
+    const params = [];
+    if (category_id) { params.push(category_id); q += ` AND p.category_id=$${params.length}`; }
+    if (search) { params.push('%'+search+'%'); q += ` AND (p.name ILIKE $${params.length} OR p.code ILIKE $${params.length})`; }
+    q += ' GROUP BY p.id, pc.name ORDER BY p.code NULLS LAST';
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch(e) {
+    console.error('products GET error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 app.post('/api/products', auth, role('owner','admin','manager'), async (req, res) => {
   const { category_id, code, name, unit, is_egg, track_stock } = req.body;
@@ -1249,13 +1250,12 @@ app.get('/api/contacts', auth, async (req, res) => {
   const { type } = req.query;
   try {
     let q = 'SELECT * FROM contacts WHERE 1=1';
-    const params = [];
     if (type === 'customer') q += ' AND is_customer=true';
     else if (type === 'supplier') q += ' AND is_supplier=true';
     q += ' ORDER BY COALESCE(business_name,contact_name)';
-    const r = await pool.query(q, params);
+    const r = await pool.query(q);
     res.json(r.rows);
-  } catch(e) { res.json([]); }
+  } catch(e) { console.error('contacts:', e.message); res.json([]); }
 });
 app.post('/api/contacts', auth, async (req, res) => {
   const { entity_type,is_customer,is_supplier,business_name,tax_id,branch_office,address,postal_code,office_phone,contact_name,email,mobile,credit_days,note } = req.body;
@@ -2222,60 +2222,7 @@ app.put('/api/permissions/:role', auth, async (req, res) => {
 
 
 // IMPORT PRICES FROM CSV/JSON
-app.post('/api/products/import-prices', auth, role('owner','admin','manager'), upload.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
-  const fs2 = require('fs');
-  const content = fs2.readFileSync(req.file.path, 'utf8');
-  
-  // รองรับทั้ง CSV และ JSON
-  let rows = [];
-  if (req.file.originalname.endsWith('.json')) {
-    rows = JSON.parse(content);
-  } else {
-    // CSV: code,branch_code,customer_type,qty,price
-    const lines = content.split('\n').filter(l=>l.trim());
-    const headers = lines[0].split(',').map(h=>h.trim().toLowerCase());
-    rows = lines.slice(1).map(line => {
-      const vals = line.split(',').map(v=>v.trim().replace(/^"|"$/g,''));
-      return Object.fromEntries(headers.map((h,i)=>[h, vals[i]]));
-    });
-  }
-  
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    let updated = 0, errors = [];
-    for (const row of rows) {
-      const { code, branch_code, customer_type, qty, price } = row;
-      if (!code || !price) continue;
-      // หา product
-      const prod = await client.query('SELECT id FROM products WHERE code=$1', [code]);
-      if (!prod.rows.length) { errors.push('ไม่พบสินค้า: '+code); continue; }
-      // หา branch
-      const br = branch_code
-        ? await client.query('SELECT id FROM branches WHERE code=$1', [branch_code.toUpperCase()])
-        : await client.query('SELECT id FROM branches WHERE active=true ORDER BY id LIMIT 1');
-      if (!br.rows.length) { errors.push('ไม่พบสาขา: '+branch_code); continue; }
-      
-      const prodId = prod.rows[0].id;
-      const branchId = br.rows[0].id;
-      const ct = customer_type || 'retail';
-      const q = parseInt(qty)||1;
-      const p = parseFloat(price);
-      
-      // upsert ราคา
-      await client.query(`INSERT INTO product_prices (product_id,branch_id,customer_type,qty,price)
-        VALUES ($1,$2,$3,$4,$5)
-        ON CONFLICT (product_id,branch_id,customer_type,qty) DO UPDATE SET price=$5, updated_at=NOW()`,
-        [prodId, branchId, ct, q, p]);
-      updated++;
-    }
-    await client.query('COMMIT');
-    fs2.unlinkSync(req.file.path);
-    res.json({ message: 'Import เรียบร้อย '+updated+' รายการ', errors: errors.slice(0,10) });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
-});
+
 
 // EXPORT PRICES TO CSV
 app.get('/api/products/export-prices', auth, async (req, res) => {
@@ -2307,41 +2254,11 @@ app.get('/api/daily-close', auth, async (req, res) => {
   res.json(r.rows[0]);
 });
 
-app.get('/api/daily-close/history', auth, async (req, res) => {
-  const { branch_id } = req.query;
-  let q = 'SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE 1=1';
-  const params = [];
-  if (branch_id) { params.push(branch_id); q += ` AND dc.branch_id=$${params.length}`; }
-  q += ' ORDER BY dc.date DESC LIMIT 60';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
 
-app.get('/api/daily-close/:id', auth, async (req, res) => {
-  const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.id=$1', [req.params.id]);
-  if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบข้อมูล' });
-  const dc = r.rows[0];
-  // ดึง snapshot หรือ realtime
-  const salesR = await pool.query(`SELECT p.name AS product_name,p.is_egg,COALESCE(SUM(si.qty_unit),0) AS qty_sold,COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue FROM sale_items si JOIN products p ON si.product_id=p.id JOIN sales s ON si.sale_id=s.id WHERE s.sale_date=$1 AND s.branch_id=$2 AND s.status='completed' GROUP BY p.id,p.name,p.is_egg ORDER BY qty_sold DESC`, [dc.date, dc.branch_id]);
-  const stockR = await pool.query(`SELECT s.qty_unit,p.name AS product_name,p.is_egg FROM stock s JOIN products p ON s.product_id=p.id WHERE s.branch_id=$1 AND (p.is_egg=true OR p.track_stock=true) ORDER BY p.code`, [dc.branch_id]);
-  res.json({ ...dc, sales_items: salesR.rows, stock_items: stockR.rows });
-});
 
-app.post('/api/daily-close', auth, async (req, res) => {
-  const { date, branch_id, sales_total, cash_amount, transfer_amount, broken_eggs, broken_price, note } = req.body;
-  if (!date || !branch_id) return res.status(400).json({ error: 'กรุณาระบุ date และ branch_id' });
-  try {
-    // บันทึก snapshot ณ เวลานี้
-    const salesR = await pool.query(`SELECT p.name AS product_name,p.is_egg,COALESCE(SUM(si.qty_unit),0) AS qty_sold,COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue FROM sale_items si JOIN products p ON si.product_id=p.id JOIN sales s ON si.sale_id=s.id WHERE s.sale_date=$1 AND s.branch_id=$2 AND s.status='completed' GROUP BY p.id,p.name,p.is_egg`, [date, branch_id]);
-    const stockR = await pool.query(`SELECT s.qty_unit,p.name AS product_name FROM stock s JOIN products p ON s.product_id=p.id WHERE s.branch_id=$1 AND p.track_stock=true`, [branch_id]);
-    await pool.query(`INSERT INTO daily_closes (date,branch_id,sales_total,cash_amount,transfer_amount,broken_eggs,broken_price,note,sales_snapshot,stock_snapshot,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-      ON CONFLICT (date,branch_id) DO UPDATE SET sales_total=$3,cash_amount=$4,transfer_amount=$5,broken_eggs=$6,broken_price=$7,note=$8,sales_snapshot=$9,stock_snapshot=$10,created_by=$11`,
-      [date, branch_id, sales_total||0, cash_amount||0, transfer_amount||0, broken_eggs||0, broken_price||4.5, note||null,
-       JSON.stringify(salesR.rows), JSON.stringify(stockR.rows), req.user.id]);
-    res.json({ message: 'บันทึกปิดยอดเรียบร้อย' });
-  } catch(e) { console.error(e); res.status(500).json({ error: e.message }); }
-});
+
+
+
 
 
 // ============================================================
@@ -2389,37 +2306,6 @@ initSchema().then(() => {
       throw err;
     }
   });
-});app.post('/api/stock/receipts', auth, async (req, res) => {
-  const { branch_id, receipt_date, supplier_name, items, note, status } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
-    const isApproved = status === 'approved' && ['owner','admin'].includes(req.user.role);
-    const docNo = isApproved ? await genDocNo('stock_receipt', branchR.rows[0]?.code||'') : null;
-    const pre_no = isApproved ? null : 'PRE-'+branchR.rows[0]?.code+'-'+new Date().toISOString().slice(2,7).replace('-','')+'-'+String(Date.now()).slice(-4);
-    
-    const recv = await client.query(`INSERT INTO stock_receipts (doc_no,branch_id,receipt_date,supplier_name,status,note,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [docNo||pre_no, branch_id, receipt_date||new Date().toISOString().slice(0,10), supplier_name||null, isApproved?'approved':'pre', note||null, req.user.id]);
-    const recvId = recv.rows[0].id;
-
-    for (const item of (items||[])) {
-      await client.query('INSERT INTO stock_receipt_items (receipt_id,product_id,qty_unit,unit_cost) VALUES ($1,$2,$3,$4)',
-        [recvId, item.product_id, item.qty_unit, item.unit_cost||null]);
-      
-      if (isApproved) {
-        // ตัดสต๊อกทันที
-        await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3) ON CONFLICT (product_id,branch_id) DO UPDATE SET qty_unit=stock.qty_unit+$3, updated_at=NOW()',
-          [item.product_id, branch_id, item.qty_unit]);
-        await client.query('INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note) VALUES ($1,$2,$3,$4,$5,$6)',
-          [item.product_id, branch_id, 'in', item.qty_unit, docNo||pre_no, supplier_name||'รับสินค้า']).catch(()=>{});
-      }
-    }
-    await client.query('COMMIT');
-    res.status(201).json({ message: isApproved?'รับสินค้าและตัดสต๊อกเรียบร้อย':'บันทึก Pre เรียบร้อย', id: recvId, doc_no: docNo||pre_no });
-  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
 });
 
 
@@ -2458,22 +2344,7 @@ function role(...roles) { return (req, res, next) => { if (!roles.includes(req.u
 // ============================================================
 // SALES BY PRODUCT REPORT
 // ============================================================
-app.get('/api/reports/sales-by-product', auth, async (req, res) => {
-  const { date, branch_id } = req.query;
-  const d = date || new Date().toISOString().slice(0,10);
-  let q = `SELECT p.name AS product_name, p.code,
-    COALESCE(SUM(si.qty_unit),0) AS qty_sold,
-    COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue
-    FROM sale_items si
-    JOIN products p ON si.product_id=p.id
-    JOIN sales s ON si.sale_id=s.id
-    WHERE s.sale_date=$1 AND s.status='completed'`;
-  const params = [d];
-  if (branch_id) { params.push(branch_id); q += ` AND s.branch_id=$${params.length}`; }
-  q += ' GROUP BY p.id, p.name, p.code ORDER BY qty_sold DESC';
-  const r = await pool.query(q, params);
-  res.json({ items: r.rows });
-});
+
 
 // ============================================================
 // STOCK RECEIPTS - รับสินค้า (Pre + Approved)
@@ -2522,124 +2393,24 @@ app.post('/api/stock/receipts', auth, async (req, res) => {
 // ============================================================
 // PERMISSIONS API
 // ============================================================
-app.get('/api/permissions/:role', auth, async (req, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM role_permissions WHERE role_name=$1', [req.params.role]);
-    res.json(r.rows);
-  } catch(e) { res.json([]); }
-});
 
-app.put('/api/permissions/:role', auth, async (req, res) => {
-  const { permissions } = req.body; // array of permission strings
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('DELETE FROM role_permissions WHERE role_name=$1', [req.params.role]);
-    for (const perm of (permissions||[])) {
-      await client.query('INSERT INTO role_permissions (role_name,permission) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.role, perm]);
-    }
-    await client.query('COMMIT');
-    res.json({ message: 'บันทึกสิทธิ์เรียบร้อย' });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
-});
+
+
 
 
 // IMPORT PRICES FROM CSV/JSON
-app.post('/api/products/import-prices', auth, role('owner','admin','manager'), upload.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
-  const fs2 = require('fs');
-  const content = fs2.readFileSync(req.file.path, 'utf8');
-  
-  // รองรับทั้ง CSV และ JSON
-  let rows = [];
-  if (req.file.originalname.endsWith('.json')) {
-    rows = JSON.parse(content);
-  } else {
-    // CSV: code,branch_code,customer_type,qty,price
-    const lines = content.split('\n').filter(l=>l.trim());
-    const headers = lines[0].split(',').map(h=>h.trim().toLowerCase());
-    rows = lines.slice(1).map(line => {
-      const vals = line.split(',').map(v=>v.trim().replace(/^"|"$/g,''));
-      return Object.fromEntries(headers.map((h,i)=>[h, vals[i]]));
-    });
-  }
-  
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    let updated = 0, errors = [];
-    for (const row of rows) {
-      const { code, branch_code, customer_type, qty, price } = row;
-      if (!code || !price) continue;
-      // หา product
-      const prod = await client.query('SELECT id FROM products WHERE code=$1', [code]);
-      if (!prod.rows.length) { errors.push('ไม่พบสินค้า: '+code); continue; }
-      // หา branch
-      const br = branch_code
-        ? await client.query('SELECT id FROM branches WHERE code=$1', [branch_code.toUpperCase()])
-        : await client.query('SELECT id FROM branches WHERE active=true ORDER BY id LIMIT 1');
-      if (!br.rows.length) { errors.push('ไม่พบสาขา: '+branch_code); continue; }
-      
-      const prodId = prod.rows[0].id;
-      const branchId = br.rows[0].id;
-      const ct = customer_type || 'retail';
-      const q = parseInt(qty)||1;
-      const p = parseFloat(price);
-      
-      // upsert ราคา
-      await client.query(`INSERT INTO product_prices (product_id,branch_id,customer_type,qty,price)
-        VALUES ($1,$2,$3,$4,$5)
-        ON CONFLICT (product_id,branch_id,customer_type,qty) DO UPDATE SET price=$5, updated_at=NOW()`,
-        [prodId, branchId, ct, q, p]);
-      updated++;
-    }
-    await client.query('COMMIT');
-    fs2.unlinkSync(req.file.path);
-    res.json({ message: 'Import เรียบร้อย '+updated+' รายการ', errors: errors.slice(0,10) });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
-});
+
 
 // EXPORT PRICES TO CSV
-app.get('/api/products/export-prices', auth, async (req, res) => {
-  const r = await pool.query(`
-    SELECT p.code, b.code AS branch_code, pp.customer_type, pp.qty, pp.price
-    FROM product_prices pp
-    JOIN products p ON pp.product_id=p.id
-    JOIN branches b ON pp.branch_id=b.id
-    ORDER BY p.code, b.code, pp.customer_type, pp.qty
-  `);
-  const csv = ['code,branch_code,customer_type,qty,price',
-    ...r.rows.map(r=>`${r.code},${r.branch_code},${r.customer_type},${r.qty},${r.price}`)
-  ].join('\n');
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="prices.csv"');
-  res.send('\uFEFF'+csv); // BOM สำหรับ Excel
-});
+
 
 
 // ============================================================
 // DAILY CLOSE API
 // ============================================================
-app.get('/api/daily-close', auth, async (req, res) => {
-  const { date, branch_id } = req.query;
-  if (!date || !branch_id) return res.status(400).json({ error: 'กรุณาระบุ date และ branch_id' });
-  const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.date=$1 AND dc.branch_id=$2',
-    [date, branch_id]);
-  if (!r.rows.length) return res.status(404).json({ error: 'ยังไม่มีข้อมูล' });
-  res.json(r.rows[0]);
-});
 
-app.get('/api/daily-close/history', auth, async (req, res) => {
-  const { branch_id } = req.query;
-  let q = 'SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE 1=1';
-  const params = [];
-  if (branch_id) { params.push(branch_id); q += ` AND dc.branch_id=$${params.length}`; }
-  q += ' ORDER BY dc.date DESC LIMIT 60';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
+
+
 
 app.get('/api/daily-close/:id', auth, async (req, res) => {
   const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.id=$1', [req.params.id]);
@@ -2651,56 +2422,19 @@ app.get('/api/daily-close/:id', auth, async (req, res) => {
   res.json({ ...dc, sales_items: salesR.rows, stock_items: stockR.rows });
 });
 
-app.post('/api/daily-close', auth, async (req, res) => {
-  const { date, branch_id, sales_total, cash_amount, transfer_amount, broken_eggs, broken_price, note } = req.body;
-  if (!date || !branch_id) return res.status(400).json({ error: 'กรุณาระบุ date และ branch_id' });
-  try {
-    // บันทึก snapshot ณ เวลานี้
-    const salesR = await pool.query(`SELECT p.name AS product_name,p.is_egg,COALESCE(SUM(si.qty_unit),0) AS qty_sold,COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue FROM sale_items si JOIN products p ON si.product_id=p.id JOIN sales s ON si.sale_id=s.id WHERE s.sale_date=$1 AND s.branch_id=$2 AND s.status='completed' GROUP BY p.id,p.name,p.is_egg`, [date, branch_id]);
-    const stockR = await pool.query(`SELECT s.qty_unit,p.name AS product_name FROM stock s JOIN products p ON s.product_id=p.id WHERE s.branch_id=$1 AND p.track_stock=true`, [branch_id]);
-    await pool.query(`INSERT INTO daily_closes (date,branch_id,sales_total,cash_amount,transfer_amount,broken_eggs,broken_price,note,sales_snapshot,stock_snapshot,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-      ON CONFLICT (date,branch_id) DO UPDATE SET sales_total=$3,cash_amount=$4,transfer_amount=$5,broken_eggs=$6,broken_price=$7,note=$8,sales_snapshot=$9,stock_snapshot=$10,created_by=$11`,
-      [date, branch_id, sales_total||0, cash_amount||0, transfer_amount||0, broken_eggs||0, broken_price||4.5, note||null,
-       JSON.stringify(salesR.rows), JSON.stringify(stockR.rows), req.user.id]);
-    res.json({ message: 'บันทึกปิดยอดเรียบร้อย' });
-  } catch(e) { console.error(e); res.status(500).json({ error: e.message }); }
-});
+
 
 
 // ============================================================
 // MEMBER TIERS API
 // ============================================================
-app.get('/api/member-tiers', auth, async (req, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM member_tiers WHERE active=true ORDER BY sort_order, id');
-    res.json(r.rows);
-  } catch(e) { res.json([]); }
-});
 
-app.post('/api/member-tiers', auth, role('owner','admin'), async (req, res) => {
-  const { name, description, customer_type, discount_percent, discount_amount, min_eggs_required, sort_order } = req.body;
-  if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อระดับสมาชิก' });
-  const r = await pool.query(
-    'INSERT INTO member_tiers (name,description,customer_type,discount_percent,discount_amount,min_eggs_required,sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-    [name, description||null, customer_type||'retail', discount_percent||0, discount_amount||0, min_eggs_required||0, sort_order||0]
-  );
-  res.status(201).json(r.rows[0]);
-});
 
-app.put('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res) => {
-  const { name, description, customer_type, discount_percent, discount_amount, min_eggs_required, sort_order, active } = req.body;
-  await pool.query(
-    'UPDATE member_tiers SET name=$1,description=$2,customer_type=$3,discount_percent=$4,discount_amount=$5,min_eggs_required=$6,sort_order=$7,active=$8 WHERE id=$9',
-    [name, description, customer_type||'retail', discount_percent||0, discount_amount||0, min_eggs_required||0, sort_order||0, active!==false, req.params.id]
-  );
-  res.json({ message: 'อัพเดทเรียบร้อย' });
-});
 
-app.delete('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res) => {
-  await pool.query('UPDATE member_tiers SET active=false WHERE id=$1', [req.params.id]);
-  res.json({ message: 'ลบเรียบร้อย' });
-});
+
+
+
+
 
 
 initSchema().then(() => {
