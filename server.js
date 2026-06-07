@@ -400,8 +400,10 @@ async function initSchema() {
       id SERIAL PRIMARY KEY,
       role_name VARCHAR(50) NOT NULL,
       permission VARCHAR(100) NOT NULL,
+      granted BOOLEAN DEFAULT true,
       UNIQUE(role_name, permission)
     )`).catch(()=>{});
+    await pool.query('ALTER TABLE role_permissions ADD COLUMN IF NOT EXISTS granted BOOLEAN DEFAULT true').catch(()=>{});
     await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(10,4) DEFAULT 0`).catch(()=>{});
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER').catch(()=>{});
     await pool.query(`CREATE TABLE IF NOT EXISTS member_points_log (
@@ -747,10 +749,7 @@ app.get('/api/permissions/schema', auth, role('owner','admin'), async (req, res)
   res.json(ALL_PERMISSIONS);
 });
 
-app.get('/api/permissions/:roleName', auth, role('owner','admin'), async (req, res) => {
-  const r = await pool.query('SELECT permission FROM role_permissions WHERE role_name=$1 AND granted=true', [req.params.roleName]);
-  res.json(r.rows.map(x => x.permission));
-});
+
 
 app.put('/api/permissions/:roleName', auth, role('owner','admin'), async (req, res) => {
   const { permissions } = req.body; // array of permission keys
@@ -2214,7 +2213,7 @@ app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 // ============================================================
 app.get('/api/permissions/:role', auth, async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM role_permissions WHERE role_name=$1', [req.params.role]);
+    const r = await pool.query("SELECT * FROM role_permissions WHERE role_name=$1 AND granted=true", [req.params.role]);
     res.json(r.rows);
   } catch(e) { res.json([]); }
 });
