@@ -836,14 +836,17 @@ app.put('/api/members/:id', auth, async (req, res) => { const { name, phone, bra
 
 // PRODUCTS
 app.get('/api/products', auth, async (req, res) => {
-  const { category_id, search } = req.query;
+  const { category_id, search, branch_id } = req.query;
   try {
+    let stockJoin = branch_id
+      ? `LEFT JOIN stock s ON s.product_id=p.id AND s.branch_id=${parseInt(branch_id)}`
+      : `LEFT JOIN stock s ON s.product_id=p.id`;
     let q = `SELECT p.*,
       COALESCE(pc.name,'') AS category_name,
       COALESCE(SUM(s.qty_unit),0) AS total_stock
       FROM products p
       LEFT JOIN product_categories pc ON p.category_id=pc.id
-      LEFT JOIN stock s ON s.product_id=p.id
+      ${stockJoin}
       WHERE 1=1`;
     const params = [];
     if (category_id) { params.push(category_id); q += ` AND p.category_id=$${params.length}`; }
