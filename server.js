@@ -341,6 +341,10 @@ async function initSchema() {
       UNIQUE(role_name, permission)
     )`).catch(()=>{});
     await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(10,4) DEFAULT 0`).catch(()=>{});
+    await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER').catch(()=>{});
+    await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS line_id TEXT').catch(()=>{});
+    await pool.query('ALTER TABLE contacts ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true').catch(()=>{});
+    await pool.query('ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tax_id VARCHAR(30)').catch(()=>{});
     await pool.query(`ALTER TABLE stock ADD CONSTRAINT IF NOT EXISTS stock_unique UNIQUE (product_id, branch_id)`).catch(()=>{});
     await pool.query(`ALTER TABLE product_prices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`).catch(()=>{});
     await pool.query(`ALTER TABLE product_prices ADD CONSTRAINT IF NOT EXISTS pp_unique UNIQUE (product_id,branch_id,customer_type,qty)`).catch(()=>{});
@@ -1062,33 +1066,100 @@ app.post('/api/stock/receipts/:id/photo', auth, upload.single('photo'), async (r
 
 app.post('/api/stock/transfer', auth, role('owner','admin','manager','stock'), async (req, res) => {
   const { from_branch_id, to_branch_id, items, note,
-          // backward compat - single item
           product_id, qty_unit } = req.body;
   if (!from_branch_id || !to_branch_id) return res.status(400).json({ error: 'กรุณาระบุสาขา' });
 
-  // รองรับทั้ง single item (เดิม) และ multiple items (ใหม่)
   const transferItems = items && items.length ? items : (product_id ? [{ product_id, qty_unit }] : []);
   if (!transferItems.length) return res.status(400).json({ error: 'กรุณาเพิ่มสินค้า' });
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const fromBr = await client.query('SELECT code FROM branches WHERE id=$1', [from_branch_id]);
+    const bCode = fromBr.rows[0]?.code||'';
+    const docNo = 'TRF-'+bCode+'-'+Date.now().toString().slice(-6);
+
+    // สร้าง transfer record
+    const trR = await client.query(
+      "INSERT INTO stock_transfers (doc_no,from_branch_id,to_branch_id,note,status,created_by) VALUES ($1,$2,$3,$4,'pending',$5) RETURNING id",
+      [docNo, from_branch_id, to_branch_id, note||null, req.user.id]
+    );
+    const trId = trR.rows[0].id;
+
+    // ตัดสต๊อกจากต้นทางทันที + บันทึก items
     for (const item of transferItems) {
-      const pid = item.product_id, qty = parseInt(item.qty_unit||0);
-      if (!pid || qty <= 0) continue;
-      const stock = await client.query('SELECT qty_unit FROM stock WHERE product_id=$1 AND branch_id=$2', [pid, from_branch_id]);
-      const current = parseInt(stock.rows[0]?.qty_unit||0);
-      if (current < qty) {
+      const { product_id: pid, qty_unit: qty } = item;
+      if (!pid || !qty) continue;
+      // ตรวจสต๊อกต้นทาง
+      const stk = await client.query('SELECT qty_unit FROM stock WHERE product_id=$1 AND branch_id=$2', [pid, from_branch_id]);
+      const cur = parseInt(stk.rows[0]?.qty_unit||0);
+      if (cur < qty) {
         const prodR = await client.query('SELECT name FROM products WHERE id=$1', [pid]);
-        throw new Error('สต๊อก "'+prodR.rows[0]?.name+'" ไม่พอ (มี '+current+' ฟอง)');
+        throw new Error('สต๊อก "'+prodR.rows[0]?.name+'" ไม่พอ (มี '+cur+' ฟอง)');
       }
+      // ตัดจากต้นทาง
       await client.query('UPDATE stock SET qty_unit=qty_unit-$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [qty, pid, from_branch_id]);
-      await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3) ON CONFLICT (product_id,branch_id) DO UPDATE SET qty_unit=stock.qty_unit+$3,updated_at=NOW()', [pid, to_branch_id, qty]);
+      // บันทึก item
+      await client.query('INSERT INTO stock_transfer_items (transfer_id,product_id,qty_unit) VALUES ($1,$2,$3)', [trId, pid, qty]).catch(()=>{});
     }
     await client.query('COMMIT');
-    res.json({ message: 'โอนย้าย '+transferItems.length+' รายการ เรียบร้อย' });
+    res.json({ message: 'ส่งออกสินค้าเรียบร้อย รอปลายทางกดรับสินค้า', doc_no: docNo, id: trId });
   } catch(e) { await client.query('ROLLBACK'); res.status(400).json({ error: e.message }); }
   finally { client.release(); }
+});
+
+// ปลายทางกดยืนยันรับสินค้า
+app.post('/api/stock/transfer/:id/confirm', auth, role('owner','admin','manager','stock'), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const tr = await client.query("SELECT * FROM stock_transfers WHERE id=$1 AND status='pending'", [req.params.id]);
+    if (!tr.rows.length) return res.status(404).json({ error: 'ไม่พบเอกสารหรือยืนยันแล้ว' });
+    const trData = tr.rows[0];
+    // ตรวจสิทธิ์สาขา — ต้องเป็นสาขาปลายทาง
+    if (req.user.branch_id && req.user.branch_id !== trData.to_branch_id &&
+        !['owner','admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์รับสินค้าสาขาอื่น' });
+    }
+    const items = await client.query('SELECT * FROM stock_transfer_items WHERE transfer_id=$1', [req.params.id]);
+    for (const item of items.rows) {
+      const ex = await client.query('SELECT id FROM stock WHERE product_id=$1 AND branch_id=$2', [item.product_id, trData.to_branch_id]);
+      if (ex.rows.length) {
+        await client.query('UPDATE stock SET qty_unit=qty_unit+$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [item.qty_unit, item.product_id, trData.to_branch_id]);
+      } else {
+        await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [item.product_id, trData.to_branch_id, item.qty_unit]);
+      }
+    }
+    await client.query("UPDATE stock_transfers SET status='confirmed',confirmed_by=$1,confirmed_at=NOW() WHERE id=$2", [req.user.id, req.params.id]);
+    await client.query('COMMIT');
+    res.json({ message: 'รับสินค้าเรียบร้อย สต๊อกปลายทางอัพเดทแล้ว' });
+  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
+  finally { client.release(); }
+});
+
+// ดูประวัติโอนย้าย (รอรับ + รับแล้ว)
+app.get('/api/stock/transfers', auth, async (req, res) => {
+  const { branch_id, status } = req.query;
+  let q = `SELECT st.*,
+    fb.name AS from_branch_name, fb.code AS from_branch_code,
+    tb.name AS to_branch_name, tb.code AS to_branch_code,
+    u.full_name AS created_by_name
+    FROM stock_transfers st
+    JOIN branches fb ON st.from_branch_id=fb.id
+    JOIN branches tb ON st.to_branch_id=tb.id
+    LEFT JOIN users u ON st.created_by=u.id
+    WHERE 1=1`;
+  const params = [];
+  if (branch_id) { params.push(branch_id); q += ' AND (st.from_branch_id=$'+params.length+' OR st.to_branch_id=$'+params.length+')'; }
+  if (status) { params.push(status); q += ' AND st.status=$'+params.length; }
+  q += ' ORDER BY st.created_at DESC LIMIT 100';
+  const r = await pool.query(q, params);
+  res.json(r.rows);
+});
+
+app.get('/api/stock/transfers/:id/items', auth, async (req, res) => {
+  const r = await pool.query('SELECT sti.*,p.name AS product_name,p.code FROM stock_transfer_items sti JOIN products p ON sti.product_id=p.id WHERE sti.transfer_id=$1', [req.params.id]);
+  res.json(r.rows);
 });
 
 // CONTACTS
@@ -2042,12 +2113,14 @@ app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 // ============================================================
 // PERMISSIONS API
 // ============================================================
-app.get('/api/permissions/:role', auth, role('owner','admin'), async (req, res) => {
-  const r = await pool.query('SELECT * FROM role_permissions WHERE role_name=$1', [req.params.role]);
-  res.json(r.rows);
+app.get('/api/permissions/:role', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM role_permissions WHERE role_name=$1', [req.params.role]);
+    res.json(r.rows);
+  } catch(e) { res.json([]); }
 });
 
-app.put('/api/permissions/:role', auth, role('owner','admin'), async (req, res) => {
+app.put('/api/permissions/:role', auth, async (req, res) => {
   const { permissions } = req.body; // array of permission strings
   const client = await pool.connect();
   try {
@@ -2362,12 +2435,14 @@ app.post('/api/stock/receipts', auth, async (req, res) => {
 // ============================================================
 // PERMISSIONS API
 // ============================================================
-app.get('/api/permissions/:role', auth, role('owner','admin'), async (req, res) => {
-  const r = await pool.query('SELECT * FROM role_permissions WHERE role_name=$1', [req.params.role]);
-  res.json(r.rows);
+app.get('/api/permissions/:role', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM role_permissions WHERE role_name=$1', [req.params.role]);
+    res.json(r.rows);
+  } catch(e) { res.json([]); }
 });
 
-app.put('/api/permissions/:role', auth, role('owner','admin'), async (req, res) => {
+app.put('/api/permissions/:role', auth, async (req, res) => {
   const { permissions } = req.body; // array of permission strings
   const client = await pool.connect();
   try {
