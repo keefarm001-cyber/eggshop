@@ -583,7 +583,8 @@ const api={
     if(body) opts.body=JSON.stringify(body);
     const res=await fetch('/api'+path,opts);
     if(res.status===401){logout();return null;}
-    const data=await res.json();
+    let data;
+    try { data = await res.json(); } catch(e) { throw new Error('Server error ('+res.status+')'); }
     if(!res.ok) throw new Error(data.error||'เกิดข้อผิดพลาด');
     return data;
   },
