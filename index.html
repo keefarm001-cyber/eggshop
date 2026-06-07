@@ -266,10 +266,10 @@ tr:hover td{background:#fafafa}
 
     <!-- MEMBERS -->
     <div class="page" id="page-members">
-      <div class="ph"><div class="pt">⭐ สมาชิก</div><button class="btn btn-primary" onclick="showMemModal()">+ เพิ่มสมาชิก</button></div>
+      <div class="ph"><div class="pt">⭐ สมาชิก</div><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="showTierModal()">🏅 ระดับสมาชิก</button><button class="btn btn-primary" onclick="showMemModal()">+ เพิ่มสมาชิก</button></div></div>
       <div class="pb">
         <div class="g3" id="memStats" style="margin-bottom:12px"></div>
-        <div class="card"><table><thead><tr><th>ชื่อ</th><th>เบอร์โทร</th><th>สาขา</th><th>สะสม (ฟอง)</th><th>ส่วนลด</th><th>สถานะ</th><th></th></tr></thead><tbody id="memT"></tbody></table></div>
+        <div class="card"><table><thead><tr><th>ชื่อ</th><th>เบอร์โทร</th><th>ระดับ</th><th>สาขา</th><th>สะสม (ฟอง)</th><th>สถานะ</th><th></th></tr></thead><tbody id="memT"></tbody></table></div>
       </div>
     </div>
 
@@ -955,6 +955,7 @@ async function loadProds() {
       <td style="display:flex;gap:4px">
         <button class="btn btn-secondary btn-sm" onclick='showProductModal(${JSON.stringify(p).replace(/'/g,"&#39;")})'>แก้ไข</button>
         <button class="btn btn-info btn-sm" onclick="showPriceM(${p.id},'${p.name.replace(/'/g,'')}')">💰 ราคา</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelProd(${p.id},'${p.name.replace(/'/g,'')}')">🗑️</button>
       </td>
     </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">ไม่มีสินค้า<br><small>กด "+ เพิ่มสินค้า" เพื่อเริ่มต้น</small></td></tr>';
   } catch(e) { console.error('loadProds error:', e); toast('โหลดสินค้าไม่ได้: '+e.message,'error'); }
@@ -1138,20 +1139,28 @@ async function loadMembers(){
       <div class="sc"><div class="sl">รับส่วนลดได้</div><div class="sv" style="color:var(--success)">${ready}</div></div>
       <div class="sc"><div class="sl">สะสม ${mSet.eggs_required} ฟอง = ส่วนลด ${mSet.discount_amount} บาท</div><div class="sv" style="font-size:14px">⚙️ <button class="btn btn-secondary btn-sm" onclick="showMemSettings()">ตั้งค่า</button></div></div>`;
     document.getElementById('memT').innerHTML=data.map(m=>`<tr>
-      <td><strong>${m.name}</strong></td><td>${m.phone||'-'}</td><td>${m.branch_code||'-'}</td>
+      <td><strong>${m.name}</strong></td><td>${m.phone||'-'}</td>
+      <td><span class="badge ${m.tier_name?'bi':'bg'}" style="font-size:11px">${m.tier_name||'ไม่ระบุ'}</span></td>
+      <td>${m.branch_code||'-'}</td>
       <td style="font-weight:600">${fmt.n(m.egg_count||0)}</td>
-      <td>${(m.egg_count||0)>=mSet.eggs_required?'<span class="badge bs">ได้ส่วนลด</span>':'<span class="badge bg">ยังไม่ถึง</span>'}</td>
       <td>${m.active?'<span class="badge bs">ใช้งาน</span>':'<span class="badge be">ปิด</span>'}</td>
       <td><button class="btn btn-secondary btn-sm" onclick='showMemModal(${JSON.stringify(m).replace(/'/g,"&#39;")})'>แก้ไข</button></td>
     </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ยังไม่มีสมาชิก</td></tr>';
   }catch(e){}
 }
 
-function showMemModal(m={}) {
+async function showMemModal(m={}) {
+  const tiers = await api.get('/member-tiers').catch(()=>[]);
   document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">${m.id?'แก้ไข':'เพิ่ม'}สมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
   <div style="display:grid;gap:9px">
     <div><label class="lbl">ชื่อ *</label><input type="text" class="ctrl" id="mName" value="${m.name||''}" style="margin-top:4px"></div>
     <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="mPhone" value="${m.phone||''}" style="margin-top:4px"></div>
+    <div><label class="lbl">ระดับสมาชิก</label>
+      <select class="ctrl" id="mTier" style="margin-top:4px">
+        <option value="">— ไม่ระบุ —</option>
+        ${tiers.map(t=>`<option value="${t.id}" ${t.id===m.tier_id?'selected':''}>${t.name}</option>`).join('')}
+      </select>
+    </div>
     <div><label class="lbl">สาขา</label><select class="ctrl" id="mBr" style="margin-top:4px"><option value="">ทุกสาขา</option>${branches.map(b=>`<option value="${b.id}" ${b.id===m.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
     ${m.id?`<label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="mAct" ${m.active?'checked':''}> เปิดใช้งาน</label>`:''}
   </div>
@@ -2040,7 +2049,13 @@ function showMemModal(m={}){
 }
 
 async function saveMem(id){
-  const body={name:document.getElementById('mName').value,phone:document.getElementById('mPhone').value,branch_id:document.getElementById('mBr').value?parseInt(document.getElementById('mBr').value):null};
+  const tierId = document.getElementById('mTier')?.value;
+  const body={
+    name:document.getElementById('mName').value,
+    phone:document.getElementById('mPhone').value,
+    branch_id:document.getElementById('mBr').value?parseInt(document.getElementById('mBr').value):null,
+    tier_id: tierId ? parseInt(tierId) : null,
+  };
   if(id) body.active=document.getElementById('mAct').checked;
   if(!body.name){toast('กรุณากรอกชื่อ','error');return;}
   try{if(id) await api.put('/members/'+id,body);else await api.post('/members',body);toast('บันทึกเรียบร้อย','success');CM();loadMembers();}catch(e){toast(e.message,'error');}
@@ -2971,33 +2986,68 @@ async function printDailySummary() {
 // ============================================================
 // QUICK MEMBER MODAL (จาก POS)
 // ============================================================
-function showQuickMemberModal() {
+async function showQuickMemberModal() {
+  const tiers = await api.get('/member-tiers').catch(()=>[]);
   document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
-  <div class="modal" style="max-width:420px"><div class="mh"><div class="mt">⭐ สมัครสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
+  <div class="modal" style="max-width:440px"><div class="mh"><div class="mt">⭐ สมัครสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
   <div style="display:grid;gap:10px">
-    <div><label class="lbl">ชื่อสมาชิก *</label><input type="text" class="ctrl" id="qmName" style="margin-top:4px" placeholder="ชื่อ-นามสกุล"></div>
-    <div><label class="lbl">เบอร์โทร *</label><input type="text" class="ctrl" id="qmPhone" style="margin-top:4px" placeholder="0812345678"></div>
-    <div><label class="lbl">LINE ID</label><input type="text" class="ctrl" id="qmLine" style="margin-top:4px" placeholder="(ถ้ามี)"></div>
-    <div><label class="lbl">บันทึก</label><input type="text" class="ctrl" id="qmNote" style="margin-top:4px" placeholder="หมายเหตุ (ถ้ามี)"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="lbl">ชื่อสมาชิก *</label><input type="text" class="ctrl" id="qmName" style="margin-top:4px" placeholder="ชื่อ-นามสกุล"></div>
+      <div><label class="lbl">เบอร์โทร *</label><input type="text" class="ctrl" id="qmPhone" style="margin-top:4px" placeholder="0812345678"></div>
+    </div>
+    <div>
+      <label class="lbl">ระดับสมาชิก *</label>
+      <select class="ctrl" id="qmTier" style="margin-top:4px" onchange="onTierChange(${JSON.stringify(tiers).replace(/"/g,'&quot;')})">
+        <option value="">— เลือกระดับสมาชิก —</option>
+        ${tiers.map(t=>`<option value="${t.id}" data-type="${t.customer_type}">${t.name}</option>`).join('')}
+      </select>
+      <div id="qmTierDesc" style="font-size:12px;color:var(--text-muted);margin-top:5px;padding:7px 10px;background:var(--surface2);border-radius:6px;display:none"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="lbl">LINE ID</label><input type="text" class="ctrl" id="qmLine" style="margin-top:4px" placeholder="(ถ้ามี)"></div>
+      <div><label class="lbl">หมายเหตุ</label><input type="text" class="ctrl" id="qmNote" style="margin-top:4px" placeholder="(ถ้ามี)"></div>
+    </div>
   </div>
   <button class="btn btn-primary" onclick="submitQuickMember()" style="width:100%;margin-top:14px">⭐ สมัครสมาชิก</button>
   </div></div>`;
 }
 
+function onTierChange(tiers) {
+  const sel = document.getElementById('qmTier');
+  const tierId = parseInt(sel.value);
+  const tier = tiers.find(t=>t.id===tierId);
+  const desc = document.getElementById('qmTierDesc');
+  if (tier && desc) {
+    const parts = [];
+    if (tier.description) parts.push(tier.description);
+    if (tier.customer_type) parts.push('ช่องทาง: ' + {retail:'ปลีก',restaurant:'ร้านข้าว',wholesale:'ส่ง'}[tier.customer_type]);
+    if (tier.discount_percent > 0) parts.push(`ส่วนลด ${tier.discount_percent}%`);
+    if (tier.discount_amount > 0) parts.push(`ส่วนลด ${tier.discount_amount} บาท`);
+    desc.textContent = parts.join(' | ');
+    desc.style.display = 'block';
+  } else if (desc) {
+    desc.style.display = 'none';
+  }
+}
+
 async function submitQuickMember() {
   const name = document.getElementById('qmName').value.trim();
   const phone = document.getElementById('qmPhone').value.trim();
+  const tierId = document.getElementById('qmTier')?.value;
   if (!name || !phone) { toast('กรุณากรอกชื่อและเบอร์โทร','error'); return; }
+  if (!tierId) { toast('กรุณาเลือกระดับสมาชิก','error'); return; }
   try {
-    const res = await api.post('/members', {
+    await api.post('/members', {
       name, phone,
-      line_id: document.getElementById('qmLine').value,
-      note: document.getElementById('qmNote').value,
+      tier_id: parseInt(tierId),
+      line_id: document.getElementById('qmLine')?.value||'',
+      note: document.getElementById('qmNote')?.value||'',
       branch_id: CU.branch_id,
     });
-    toast(`✅ สมัครสมาชิก "${name}" เรียบร้อย`, 'success');
+    const tierSel = document.getElementById('qmTier');
+    const tierName = tierSel?.options[tierSel.selectedIndex]?.text||'';
+    toast(`✅ สมัครสมาชิก "${name}" (${tierName}) เรียบร้อย`, 'success');
     CM();
-    // auto-fill member ใน POS ถ้าเปิดอยู่
     if (typeof loadPosMem === 'function') loadPosMem();
   } catch(e) { toast(e.message,'error'); }
 }
@@ -3524,6 +3574,149 @@ async function printDC(id) {
     const url = URL.createObjectURL(blob);
     window.open(url,'_blank');
     setTimeout(()=>URL.revokeObjectURL(url), 10000);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+// ============================================================
+// MEMBER TIERS MANAGEMENT
+// ============================================================
+async function showTierModal() {
+  try {
+    const tiers = await api.get('/member-tiers');
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:600px">
+      <div class="mh"><div class="mt">🏅 จัดการระดับสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
+
+      <!-- รายการ tiers -->
+      <div style="margin-bottom:14px">
+        ${tiers.map(t=>`
+          <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start">
+            <div>
+              <div style="font-weight:700;font-size:14px">${t.name}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+                ${t.description||''}
+                ${t.customer_type ? ' | ช่องทาง: <strong>'+{retail:'ปลีก',restaurant:'ร้านข้าว',wholesale:'ส่ง'}[t.customer_type]+'</strong>' : ''}
+                ${t.discount_percent > 0 ? ' | ส่วนลด: <strong>'+t.discount_percent+'%</strong>' : ''}
+                ${t.discount_amount > 0 ? ' | ส่วนลด: <strong>'+t.discount_amount+' บาท</strong>' : ''}
+                ${t.min_eggs_required > 0 ? ' | ขั้นต่ำ: '+t.min_eggs_required+' ฟอง' : ''}
+              </div>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-secondary btn-sm" onclick="showEditTier(${JSON.stringify(t).replace(/"/g,'&quot;')})">แก้ไข</button>
+              <button class="btn btn-danger btn-sm" onclick="delTier(${t.id})">ลบ</button>
+            </div>
+          </div>
+        `).join('') || '<div style="text-align:center;color:var(--text-muted);padding:16px">ยังไม่มีระดับสมาชิก</div>'}
+      </div>
+
+      <!-- เพิ่มใหม่ -->
+      <div style="border-top:1px solid var(--border);padding-top:14px" id="tierFormArea">
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px" id="tierFormTitle">+ เพิ่มระดับสมาชิกใหม่</div>
+        <input type="hidden" id="editTierId">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="grid-column:1/-1">
+            <label class="lbl">ชื่อระดับ *</label>
+            <input type="text" class="ctrl" id="tierName" style="margin-top:4px" placeholder="เช่น ระดับ 1 (ทั่วไป)">
+          </div>
+          <div style="grid-column:1/-1">
+            <label class="lbl">คำอธิบาย</label>
+            <input type="text" class="ctrl" id="tierDesc" style="margin-top:4px" placeholder="เช่น ลูกค้าทั่วไปซื้อปลีก">
+          </div>
+          <div>
+            <label class="lbl">ช่องทางราคา</label>
+            <select class="ctrl" id="tierType" style="margin-top:4px">
+              <option value="retail">ปลีก (retail)</option>
+              <option value="restaurant">ร้านข้าว (restaurant)</option>
+              <option value="wholesale">ส่ง (wholesale)</option>
+            </select>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">⬆️ ราคาจะดึงตามช่องทางนี้จากหน้า 💰 ราคา</div>
+          </div>
+          <div>
+            <label class="lbl">ลำดับแสดง</label>
+            <input type="number" class="ctrl" id="tierOrder" value="0" min="0" style="margin-top:4px">
+          </div>
+          <div>
+            <label class="lbl">ส่วนลดเพิ่มเติม (%)</label>
+            <input type="number" class="ctrl" id="tierDiscPct" value="0" min="0" step="0.1" style="margin-top:4px">
+          </div>
+          <div>
+            <label class="lbl">ส่วนลดเพิ่มเติม (บาท)</label>
+            <input type="number" class="ctrl" id="tierDiscAmt" value="0" min="0" step="0.01" style="margin-top:4px">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveTier()" style="width:100%;margin-top:12px" id="tierSaveBtn">+ เพิ่มระดับสมาชิก</button>
+      </div>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function showEditTier(t) {
+  document.getElementById('editTierId').value = t.id;
+  document.getElementById('tierName').value = t.name;
+  document.getElementById('tierDesc').value = t.description||'';
+  document.getElementById('tierType').value = t.customer_type||'retail';
+  document.getElementById('tierOrder').value = t.sort_order||0;
+  document.getElementById('tierDiscPct').value = t.discount_percent||0;
+  document.getElementById('tierDiscAmt').value = t.discount_amount||0;
+  document.getElementById('tierFormTitle').textContent = '✏️ แก้ไขระดับสมาชิก';
+  document.getElementById('tierSaveBtn').textContent = '💾 บันทึกการแก้ไข';
+}
+
+async function saveTier() {
+  const id = document.getElementById('editTierId').value;
+  const body = {
+    name: document.getElementById('tierName').value.trim(),
+    description: document.getElementById('tierDesc').value,
+    customer_type: document.getElementById('tierType').value,
+    sort_order: parseInt(document.getElementById('tierOrder').value)||0,
+    discount_percent: parseFloat(document.getElementById('tierDiscPct').value)||0,
+    discount_amount: parseFloat(document.getElementById('tierDiscAmt').value)||0,
+  };
+  if (!body.name) { toast('กรุณากรอกชื่อระดับสมาชิก','error'); return; }
+  try {
+    if (id) {
+      await api.put('/member-tiers/'+id, body);
+      toast('แก้ไขระดับสมาชิกเรียบร้อย','success');
+    } else {
+      await api.post('/member-tiers', body);
+      toast('เพิ่มระดับสมาชิกเรียบร้อย','success');
+    }
+    showTierModal();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function delTier(id) {
+  if (!confirm('ลบระดับสมาชิกนี้?')) return;
+  try {
+    await api.del('/member-tiers/'+id);
+    toast('ลบเรียบร้อย','success');
+    showTierModal();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+async function confirmDelProd(id, name) {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:380px">
+    <div class="mh"><div class="mt">🗑️ ยืนยันการลบสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="text-align:center;padding:16px 0">
+      <div style="font-size:32px;margin-bottom:10px">⚠️</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px">ลบ "${name}"?</div>
+      <div style="font-size:13px;color:var(--text-muted)">การลบสินค้าจะลบราคาและสต๊อกที่เกี่ยวข้องด้วย<br>ไม่สามารถกู้คืนได้</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <button class="btn btn-secondary" onclick="CM()" style="justify-content:center">ยกเลิก</button>
+      <button class="btn btn-danger" onclick="doDelProd(${id})" style="justify-content:center">🗑️ ยืนยันลบ</button>
+    </div>
+  </div></div>`;
+}
+
+async function doDelProd(id) {
+  try {
+    await api.del('/products/'+id);
+    toast('ลบสินค้าเรียบร้อย','success');
+    CM(); loadProds();
   } catch(e) { toast(e.message,'error'); }
 }
 
