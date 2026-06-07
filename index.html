@@ -3656,13 +3656,20 @@ async function saveTier() {
   try {
     if (id) {
       await api.put('/member-tiers/'+id, body);
-      toast('แก้ไขระดับสมาชิกเรียบร้อย','success');
+      toast('✅ แก้ไขระดับสมาชิกเรียบร้อย','success');
     } else {
-      await api.post('/member-tiers', body);
-      toast('เพิ่มระดับสมาชิกเรียบร้อย','success');
+      const result = await api.post('/member-tiers', body);
+      if (result && result.id) {
+        toast('✅ เพิ่มระดับสมาชิก "'+body.name+'" เรียบร้อย','success');
+      } else {
+        toast('⚠️ บันทึกแล้วแต่ไม่ได้รับผลลัพธ์','warning');
+      }
     }
-    showTierModal();
-  } catch(e) { toast(e.message,'error'); }
+    await showTierModal(); // await เพื่อให้ reload ก่อนแสดง
+  } catch(e) { 
+    console.error('saveTier error:', e);
+    toast(e.message||'เกิดข้อผิดพลาด','error'); 
+  }
 }
 
 async function delTier(id) {
