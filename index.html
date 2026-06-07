@@ -4149,7 +4149,11 @@ async function loadProductMovements() {
 // ============================================================
 // ปรับยอดคงคลัง
 // ============================================================
-function showAdjustModal() {
+async function showAdjustModal() {
+  if (!_curProdId) { toast('กรุณาเลือกสินค้าก่อน','error'); return; }
+  if (!_curProdData) {
+    await loadProductDetail();
+  }
   if (!_curProdData) return;
   const stocks = _curProdData.stocks || [];
   document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
@@ -4323,9 +4327,13 @@ async function delPrice(priceId) {
   } catch(e) { toast(e.message,'error'); }
 }
 
-function showPriceEditorModal() {
+async function showPriceEditorModal() {
+  if (!_curProdId) { toast('กรุณาเลือกสินค้าก่อน','error'); return; }
+  if (!_curProdData) {
+    await loadProductDetail();
+  }
   if (!_curProdData) return;
-  showAddPriceRow();
+  showPriceM(_curProdId, _curProdData.name);
 }
 
 
