@@ -314,6 +314,9 @@ tr:hover td{background:#fafafa}
         <div class="card" style="margin-bottom:12px">
           <div style="display:flex;gap:8px">
             <select class="ctrl" id="prodCatFilter" onchange="loadProds()" style="width:200px"><option value="">ทุกกลุ่มสินค้า</option></select>
+            <select class="ctrl" id="prodBranchFilter" style="width:160px" onchange="loadProds()">
+              <option value="">ทุกสาขา</option>
+            </select>
             <input type="text" class="ctrl" id="prodSearch" placeholder="ค้นหาชื่อ/รหัส..." oninput="loadProds()" style="max-width:240px">
           </div>
         </div>
@@ -1038,6 +1041,15 @@ function addTrItemRow() {
 async function loadProdCats(){
   try{
     const cats=await api.get('/product-categories').catch(()=>[]);
+    // populate branch filter
+    const brSel = document.getElementById('prodBranchFilter');
+    if (brSel && brSel.options.length <= 1 && branches.length) {
+      branches.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.id; opt.textContent = b.name;
+        brSel.appendChild(opt);
+      });
+    }
     const sel=document.getElementById('prodCatFilter');
     if(!sel) return;
     const cur=sel.value;
@@ -1049,10 +1061,12 @@ async function loadProdCats(){
 async function loadProds() {
   const catId = document.getElementById('prodCatFilter')?.value||'';
   const search = document.getElementById('prodSearch')?.value||'';
+  const branchId = document.getElementById('prodBranchFilter')?.value||'';
   let q = '/products';
   const params = [];
   if (catId) params.push('category_id='+catId);
   if (search) params.push('search='+encodeURIComponent(search));
+  if (branchId) params.push('branch_id='+branchId);
   if (params.length) q += '?'+params.join('&');
   try {
     const data = await api.get(q);
@@ -3916,14 +3930,16 @@ async function selectPermRole(roleName, btn) {
     btn.style.fontWeight = '700';
   }
   const container = document.getElementById('permContainer');
-  if (container) container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted)">⏳</div>';
+  if (container) container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">⏳ กำลังโหลดสิทธิ์...</div>';
   try {
-    const resp = await fetch('/api/permissions/'+roleName, {
-      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('es_token') }
+    const token = localStorage.getItem('es_token') || '';
+    const resp = await fetch('/api/permissions/' + roleName, {
+      headers: { 'Authorization': 'Bearer ' + token }
     });
-    const perms = resp.ok ? await resp.json() : [];
-    _curPerms = new Set((Array.isArray(perms) ? perms : []).map(p => p.permission));
+    const perms = resp.ok ? (await resp.json()) : [];
+    _curPerms = new Set(Array.isArray(perms) ? perms.map(p => p.permission) : []);
   } catch(e) {
+    console.error('permissions error:', e);
     _curPerms = new Set();
   }
   renderPermissions();
@@ -3939,7 +3955,15 @@ let _curProdData = null;
 async function openProductDetail(productId) {
   _curProdId = productId;
   showPage('product-detail');
-  await loadProductDetail();
+  // reset branch filter
+  const bf = document.getElementById('pdBranchFilter');
+  if (bf) { while (bf.options.length > 1) bf.remove(1); bf.value = ''; }
+  try {
+    await loadProductDetail();
+  } catch(e) {
+    toast('โหลดรายละเอียดสินค้าไม่ได้: '+e.message, 'error');
+    console.error('openProductDetail error:', e);
+  }
 }
 
 async function loadProductDetail() {
@@ -4013,7 +4037,12 @@ async function loadProductDetail() {
 
     // โหลด movements
     loadProductMovements();
-  } catch(e) { toast(e.message,'error'); }
+  } catch(e) {
+    toast(e.message,'error');
+    console.error('loadProductDetail:', e);
+    const info = document.getElementById('pdInfoTable');
+    if (info) info.innerHTML = '<tr><td colspan="2" style="color:var(--error)">โหลดไม่ได้: '+e.message+'</td></tr>';
+  }
 }
 
 function renderPriceTable(prices) {
