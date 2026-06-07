@@ -334,6 +334,12 @@ async function initSchema() {
     )`);
 
     // เพิ่ม columns ที่อาจหายไป
+    await pool.query(`CREATE TABLE IF NOT EXISTS role_permissions (
+      id SERIAL PRIMARY KEY,
+      role_name VARCHAR(50) NOT NULL,
+      permission VARCHAR(100) NOT NULL,
+      UNIQUE(role_name, permission)
+    )`).catch(()=>{});
     await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(10,4) DEFAULT 0`).catch(()=>{});
     await pool.query(`ALTER TABLE stock ADD CONSTRAINT IF NOT EXISTS stock_unique UNIQUE (product_id, branch_id)`).catch(()=>{});
     await pool.query(`ALTER TABLE product_prices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`).catch(()=>{});
@@ -342,6 +348,30 @@ async function initSchema() {
     await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_mult INTEGER DEFAULT 1`).catch(()=>{});
 
     
+    
+    // member_tiers — ระดับสมาชิก
+    await pool.query(`CREATE TABLE IF NOT EXISTS member_tiers (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      description TEXT,
+      customer_type VARCHAR(20) DEFAULT 'retail',
+      discount_percent NUMERIC(5,2) DEFAULT 0,
+      discount_amount NUMERIC(10,2) DEFAULT 0,
+      min_eggs_required INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
+
+    // เพิ่ม column tier_id ในตาราง members ถ้ายังไม่มี
+    await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER REFERENCES member_tiers(id)').catch(()=>{});
+
+    // สร้าง tier เริ่มต้น
+    await pool.query(`INSERT INTO member_tiers (name, description, customer_type, sort_order) VALUES
+      ('ระดับ 1 (ทั่วไป)', 'ลูกค้าทั่วไป', 'retail', 1),
+      ('ระดับ 2 (ร้านข้าว)', 'ร้านอาหาร/ร้านข้าว', 'restaurant', 2),
+      ('ระดับ 3 (ส่ง/ลูกค้าประจำ)', 'ลูกค้าส่งหรือประจำ', 'wholesale', 3)
+      ON CONFLICT DO NOTHING`).catch(()=>{});
     // daily_close table
     await pool.query(`CREATE TABLE IF NOT EXISTS daily_closes (
       id SERIAL PRIMARY KEY,
@@ -463,6 +493,14 @@ async function initSchema() {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
 app.use((req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -710,14 +748,14 @@ app.get('/api/member-settings', auth, async (req, res) => { const r = await pool
 app.put('/api/member-settings', auth, role('owner','admin'), async (req, res) => { await pool.query('UPDATE member_settings SET eggs_required=$1,discount_amount=$2,updated_at=NOW()', [req.body.eggs_required, req.body.discount_amount]); res.json({ message: 'บันทึกเรียบร้อย' }); });
 
 // MEMBERS
-app.get('/api/members', auth, async (req, res) => { const r = await pool.query(`SELECT m.*,b.code AS branch_code FROM members m LEFT JOIN branches b ON m.branch_id=b.id WHERE m.active=true ORDER BY m.name`); res.json(r.rows); });
+app.get('/api/members', auth, async (req, res) => { const r = await pool.query(`SELECT m.*,b.code AS branch_code, t.name AS tier_name, t.customer_type AS tier_customer_type FROM members m LEFT JOIN branches b ON m.branch_id=b.id LEFT JOIN member_tiers t ON m.tier_id=t.id WHERE m.active=true ORDER BY m.name`); res.json(r.rows); });
 app.post('/api/members', auth, async (req, res) => {
   const { name, phone, branch_id } = req.body;
   if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อ' });
-  try { const code = 'M' + Date.now().toString().slice(-6); const r = await pool.query('INSERT INTO members (code,name,phone,branch_id) VALUES ($1,$2,$3,$4) RETURNING *', [code, name, phone||null, branch_id||null]); res.status(201).json({ message: 'เพิ่มสมาชิกเรียบร้อย', member: r.rows[0] }); }
+  try { const code = 'M' + Date.now().toString().slice(-6); const r = await pool.query('INSERT INTO members (code,name,phone,line_id,note,branch_id,tier_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *', [code, name, phone||null, req.body.line_id||null, req.body.note||null, branch_id||null, req.body.tier_id||null]); res.status(201).json({ message: 'เพิ่มสมาชิกเรียบร้อย', member: r.rows[0] }); }
   catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
 });
-app.put('/api/members/:id', auth, async (req, res) => { const { name, phone, branch_id, active } = req.body; await pool.query('UPDATE members SET name=$1,phone=$2,branch_id=$3,active=$4 WHERE id=$5', [name, phone, branch_id||null, active, req.params.id]); res.json({ message: 'แก้ไขเรียบร้อย' }); });
+app.put('/api/members/:id', auth, async (req, res) => { const { name, phone, branch_id, active } = req.body; await pool.query('UPDATE members SET name=$1,phone=$2,branch_id=$3,active=$4,tier_id=$5 WHERE id=$6', [name, phone, branch_id||null, active, req.body.tier_id||null, req.params.id]); res.json({ message: 'แก้ไขเรียบร้อย' }); });
 
 // PRODUCTS
 app.get('/api/products', auth, async (req, res) => {
@@ -761,17 +799,17 @@ app.post('/api/products', auth, role('owner','admin','manager'), async (req, res
   }
 });
 app.put('/api/products/:id', auth, role('owner','admin','manager'), async (req, res) => { const { name, unit, active, track_stock } = req.body; await pool.query('UPDATE products SET name=$1,unit=$2,active=$3,track_stock=$4 WHERE id=$5', [name, unit, active, track_stock!==false, req.params.id]); res.json({ message: 'แก้ไขเรียบร้อย' }); });
-app.delete('/api/products/:id', auth, role('owner','admin'), async (req, res) => { await pool.query('UPDATE products SET active=false WHERE id=$1', [req.params.id]); res.json({ message: 'ลบเรียบร้อย' }); });
-app.get('/api/product-categories', auth, async (req, res) => { const r = await pool.query('SELECT * FROM product_categories WHERE active=true ORDER BY id'); res.json(r.rows); });
-app.post('/api/product-categories', auth, role('owner','admin','manager'), async (req, res) => {
-  const { name, type } = req.body;
-  if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อกลุ่ม' });
+app.delete('/api/products/:id', auth, role('owner','admin'), async (req, res) => {
+  const client = await pool.connect();
   try {
-    const check = await pool.query('SELECT id FROM product_categories WHERE name=$1', [name]);
-    if (check.rows.length > 0) return res.status(409).json({ error: 'กลุ่มนี้มีอยู่แล้ว' });
-    const r = await pool.query('INSERT INTO product_categories (name,type) VALUES ($1,$2) RETURNING *', [name, type||'stock']);
-    res.status(201).json(r.rows[0]);
-  } catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
+    await client.query('BEGIN');
+    await client.query('DELETE FROM product_prices WHERE product_id=$1', [req.params.id]);
+    await client.query('DELETE FROM stock WHERE product_id=$1', [req.params.id]);
+    await client.query('DELETE FROM products WHERE id=$1', [req.params.id]);
+    await client.query('COMMIT');
+    res.json({ message: 'ลบสินค้าเรียบร้อย' });
+  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
+  finally { client.release(); }
 });
 
 app.put('/api/product-categories/:id', auth, role('owner','admin','manager'), async (req, res) => {
@@ -980,7 +1018,7 @@ app.post('/api/stock/receive', auth, role('owner','admin','manager','stock'), as
 
 // Owner ใส่ราคาและอนุมัติ → ตัดสต๊อก
 app.post('/api/stock/receipts/:id/approve', auth, role('owner','admin'), async (req, res) => {
-  const { items } = req.body; // items = [{id, cost_per_unit}]
+  const { items } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -995,18 +1033,25 @@ app.post('/api/stock/receipts/:id/approve', auth, role('owner','admin'), async (
       const cost = parseFloat(item.cost_per_unit) || 0;
       const itemR = await client.query('SELECT * FROM stock_receipt_items WHERE id=$1', [item.id]);
       const it = itemR.rows[0];
+      if (!it) continue;
       const itemTotal = cost * it.qty_unit;
       totalCost += itemTotal;
-      await client.query('UPDATE stock_receipt_items SET cost_per_unit=$1,total_cost=$2 WHERE id=$3', [cost, itemTotal, item.id]);
-      const before = await client.query('SELECT qty_unit FROM stock WHERE product_id=$1 AND branch_id=$2', [it.product_id, rec.branch_id]);
-      const qBefore = before.rows[0] ? parseInt(before.rows[0].qty_unit) : 0;
-      await client.query(`INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3) ON CONFLICT (product_id,branch_id) DO UPDATE SET qty_unit=stock.qty_unit+$3,updated_at=NOW()`, [it.product_id, rec.branch_id, it.qty_unit]);
-      await client.query('INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,qty_before,qty_after,ref_type,ref_id,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [it.product_id, rec.branch_id, 'receive', it.qty_unit, qBefore, qBefore+it.qty_unit, 'receipt', rec.id, rec.supplier_name||'', req.user.id]);
+      await client.query('UPDATE stock_receipt_items SET unit_cost=$1 WHERE id=$2', [cost, item.id]).catch(()=>{});
+      // upsert stock — ไม่ใช้ ON CONFLICT ที่อาจ fail ถ้าไม่มี constraint
+      const existing = await client.query('SELECT id,qty_unit FROM stock WHERE product_id=$1 AND branch_id=$2', [it.product_id, rec.branch_id]);
+      if (existing.rows.length) {
+        await client.query('UPDATE stock SET qty_unit=qty_unit+$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [it.qty_unit, it.product_id, rec.branch_id]);
+      } else {
+        await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [it.product_id, rec.branch_id, it.qty_unit]);
+      }
+      // log movement
+      await client.query('INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note) VALUES ($1,$2,$3,$4,$5,$6)',
+        [it.product_id, rec.branch_id, 'in', it.qty_unit, grDocNo, rec.supplier_name||'รับสินค้า']).catch(()=>{});
     }
-    await client.query(`UPDATE stock_receipts SET status='approved',doc_no=$1,total_cost=$2,priced_by=$3,priced_at=NOW() WHERE id=$4`, [grDocNo, totalCost, req.user.id, req.params.id]);
+    await client.query("UPDATE stock_receipts SET status='approved',doc_no=$1,total_cost=$2 WHERE id=$3", [grDocNo, totalCost, req.params.id]);
     await client.query('COMMIT');
     res.json({ message: 'อนุมัติใบรับสินค้าเรียบร้อย', doc_no: grDocNo });
-  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); } finally { client.release(); }
+  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: e.message }); } finally { client.release(); }
 });
 
 app.post('/api/stock/receipts/:id/photo', auth, upload.single('photo'), async (req, res) => {
@@ -2141,6 +2186,39 @@ app.post('/api/daily-close', auth, async (req, res) => {
 });
 
 
+// ============================================================
+// MEMBER TIERS API
+// ============================================================
+app.get('/api/member-tiers', auth, async (req, res) => {
+  const r = await pool.query('SELECT * FROM member_tiers WHERE active=true ORDER BY sort_order, id');
+  res.json(r.rows);
+});
+
+app.post('/api/member-tiers', auth, role('owner','admin'), async (req, res) => {
+  const { name, description, customer_type, discount_percent, discount_amount, min_eggs_required, sort_order } = req.body;
+  if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อระดับสมาชิก' });
+  const r = await pool.query(
+    'INSERT INTO member_tiers (name,description,customer_type,discount_percent,discount_amount,min_eggs_required,sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+    [name, description||null, customer_type||'retail', discount_percent||0, discount_amount||0, min_eggs_required||0, sort_order||0]
+  );
+  res.status(201).json(r.rows[0]);
+});
+
+app.put('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res) => {
+  const { name, description, customer_type, discount_percent, discount_amount, min_eggs_required, sort_order, active } = req.body;
+  await pool.query(
+    'UPDATE member_tiers SET name=$1,description=$2,customer_type=$3,discount_percent=$4,discount_amount=$5,min_eggs_required=$6,sort_order=$7,active=$8 WHERE id=$9',
+    [name, description, customer_type||'retail', discount_percent||0, discount_amount||0, min_eggs_required||0, sort_order||0, active!==false, req.params.id]
+  );
+  res.json({ message: 'อัพเดทเรียบร้อย' });
+});
+
+app.delete('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res) => {
+  await pool.query('UPDATE member_tiers SET active=false WHERE id=$1', [req.params.id]);
+  res.json({ message: 'ลบเรียบร้อย' });
+});
+
+
 initSchema().then(() => {
   const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
   server.on('error', (err) => {
@@ -2188,6 +2266,14 @@ initSchema().then(() => {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
 app.use((req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -2254,10 +2340,12 @@ app.post('/api/stock/receipts', auth, async (req, res) => {
       await client.query('INSERT INTO stock_receipt_items (receipt_id,product_id,qty_unit,unit_cost) VALUES ($1,$2,$3,$4)',
         [recvId, item.product_id, item.qty_unit, item.unit_cost||null]);
       if (isApproved) {
-        await client.query(
-          'INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3) ON CONFLICT (product_id,branch_id) DO UPDATE SET qty_unit=stock.qty_unit+$3, updated_at=NOW()',
-          [item.product_id, branch_id, item.qty_unit]
-        );
+        const _ex = await client.query('SELECT id FROM stock WHERE product_id=$1 AND branch_id=$2', [item.product_id, branch_id]);
+        if (_ex.rows.length) {
+          await client.query('UPDATE stock SET qty_unit=qty_unit+$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [item.qty_unit, item.product_id, branch_id]);
+        } else {
+          await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [item.product_id, branch_id, item.qty_unit]);
+        }
         await client.query(
           'INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note) VALUES ($1,$2,$3,$4,$5,$6)',
           [item.product_id, branch_id, 'in', item.qty_unit, docNo, supplier_name||'รับสินค้า']
@@ -2415,6 +2503,39 @@ app.post('/api/daily-close', auth, async (req, res) => {
        JSON.stringify(salesR.rows), JSON.stringify(stockR.rows), req.user.id]);
     res.json({ message: 'บันทึกปิดยอดเรียบร้อย' });
   } catch(e) { console.error(e); res.status(500).json({ error: e.message }); }
+});
+
+
+// ============================================================
+// MEMBER TIERS API
+// ============================================================
+app.get('/api/member-tiers', auth, async (req, res) => {
+  const r = await pool.query('SELECT * FROM member_tiers WHERE active=true ORDER BY sort_order, id');
+  res.json(r.rows);
+});
+
+app.post('/api/member-tiers', auth, role('owner','admin'), async (req, res) => {
+  const { name, description, customer_type, discount_percent, discount_amount, min_eggs_required, sort_order } = req.body;
+  if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อระดับสมาชิก' });
+  const r = await pool.query(
+    'INSERT INTO member_tiers (name,description,customer_type,discount_percent,discount_amount,min_eggs_required,sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+    [name, description||null, customer_type||'retail', discount_percent||0, discount_amount||0, min_eggs_required||0, sort_order||0]
+  );
+  res.status(201).json(r.rows[0]);
+});
+
+app.put('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res) => {
+  const { name, description, customer_type, discount_percent, discount_amount, min_eggs_required, sort_order, active } = req.body;
+  await pool.query(
+    'UPDATE member_tiers SET name=$1,description=$2,customer_type=$3,discount_percent=$4,discount_amount=$5,min_eggs_required=$6,sort_order=$7,active=$8 WHERE id=$9',
+    [name, description, customer_type||'retail', discount_percent||0, discount_amount||0, min_eggs_required||0, sort_order||0, active!==false, req.params.id]
+  );
+  res.json({ message: 'อัพเดทเรียบร้อย' });
+});
+
+app.delete('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res) => {
+  await pool.query('UPDATE member_tiers SET active=false WHERE id=$1', [req.params.id]);
+  res.json({ message: 'ลบเรียบร้อย' });
 });
 
 
