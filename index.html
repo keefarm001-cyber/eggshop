@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Egg Station</title>
+<title>Egg Station v2.1</title>
 <style>
 :root{--bg:#f4f6f9;--surface:#fff;--surface2:#f0f2f5;--surface3:#e8eaed;--border:#d1d5db;--accent:#e67e00;--accent2:#d97706;--accent-dim:#fff3e0;--text:#1f2937;--text-muted:#6b7280;--error:#dc2626;--error-dim:#fef2f2;--success:#16a34a;--success-dim:#f0fdf4;--info:#2563eb;--info-dim:#eff6ff;--warning:#d97706;--warning-dim:#fffbeb;--shadow:0 1px 3px rgba(0,0,0,.1)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -680,13 +680,7 @@ const PAGE_LOADERS={
   products:()=>{loadProdCats();loadProds();},
   reports:()=>{document.getElementById('rptDate').value=new Date().toISOString().slice(0,10);loadReport();},
   users:loadUsers,
-  permissions:()=>{
-    // รอให้ page render ก่อน แล้วค่อย auto-select role แรก
-    setTimeout(()=>{
-      const firstBtn = document.querySelector('#page-permissions .perm-role-btn');
-      selectPermRole('manager', firstBtn);
-    }, 50);
-  },
+  permissions:()=>{const fb=document.querySelector('#page-permissions .perm-role-btn');selectPermRole('manager',fb);},
   company:loadCompanySettings,
   employees:loadEmployees,
   expenses:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('expFrom').value=t;document.getElementById('expTo').value=t;loadExpenses();},
@@ -3144,7 +3138,8 @@ async function loadPermissions(roleName) {
 
 function renderPermissions() {
   const container = document.getElementById('permContainer');
-  if (!container) return;
+  if (!container) { console.error('[PERM] permContainer not found'); return; }
+  console.log('[PERM] renderPermissions called, PERM_LIST:', PERM_LIST.length, '_curPerms:', _curPerms.size);
   // จัด group
   const groups = {};
   PERM_LIST.forEach(p => {
