@@ -404,6 +404,17 @@ async function initSchema() {
     )`).catch(()=>{});
     await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(10,4) DEFAULT 0`).catch(()=>{});
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER').catch(()=>{});
+    await pool.query(`CREATE TABLE IF NOT EXISTS member_points_log (
+      id SERIAL PRIMARY KEY,
+      member_id INTEGER REFERENCES members(id),
+      change_eggs INTEGER NOT NULL,
+      reason VARCHAR(100),
+      sale_id INTEGER,
+      created_by INTEGER,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
+    await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS total_eggs INTEGER DEFAULT 0').catch(()=>{});
+    await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS redeemed_eggs INTEGER DEFAULT 0').catch(()=>{});
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS line_id TEXT').catch(()=>{});
     await pool.query('ALTER TABLE contacts ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true').catch(()=>{});
     await pool.query('UPDATE contacts SET active=true WHERE active IS NULL').catch(()=>{});
@@ -2296,6 +2307,40 @@ app.delete('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res
 });
 
 
+// ============================================================
+// MEMBER POINTS / LOYALTY
+// ============================================================
+// ดูยอดสะสม
+
+
+// ใช้คะแนน (redeem)
+
+
+// เพิ่มฟองหลังขาย (เรียกจาก completeSale)
+
+
+// ดึงราคาตาม tier ของสมาชิก
+
+
+
+// ============================================================
+// PRODUCT DETAIL APIs
+// ============================================================
+
+
+// ปรับยอดคงคลัง
+
+
+// ประวัติการเคลื่อนไหวสต๊อกแยกสินค้า
+
+
+// แก้ราคาสินค้าแต่ละ SKU (upsert)
+
+
+// ลบราคา SKU
+
+
+
 initSchema().then(() => {
   const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
   server.on('error', (err) => {
@@ -2435,6 +2480,190 @@ app.get('/api/daily-close/:id', auth, async (req, res) => {
 
 
 
+
+
+// ============================================================
+// MEMBER POINTS / LOYALTY
+// ============================================================
+// ดูยอดสะสม
+app.get('/api/members/:id/points', auth, async (req, res) => {
+  try {
+    const mem = await pool.query('SELECT id,name,phone,total_eggs,redeemed_eggs,tier_id FROM members WHERE id=$1', [req.params.id]);
+    if (!mem.rows.length) return res.status(404).json({ error: 'ไม่พบสมาชิก' });
+    const log = await pool.query('SELECT * FROM member_points_log WHERE member_id=$1 ORDER BY created_at DESC LIMIT 20', [req.params.id]);
+    const tier = mem.rows[0].tier_id ?
+      await pool.query('SELECT * FROM member_tiers WHERE id=$1', [mem.rows[0].tier_id]).then(r => r.rows[0]) : null;
+    res.json({ member: mem.rows[0], tier, log: log.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ใช้คะแนน (redeem)
+app.post('/api/members/:id/redeem', auth, async (req, res) => {
+  const { eggs_to_redeem, discount_amount } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const mem = await client.query('SELECT * FROM members WHERE id=$1 FOR UPDATE', [req.params.id]);
+    if (!mem.rows.length) return res.status(404).json({ error: 'ไม่พบสมาชิก' });
+    const m = mem.rows[0];
+    const available = (m.total_eggs||0) - (m.redeemed_eggs||0);
+    if (available < eggs_to_redeem) return res.status(400).json({ error: `ฟองสะสมไม่พอ (มี ${available} ฟอง)` });
+    await client.query('UPDATE members SET redeemed_eggs=redeemed_eggs+$1 WHERE id=$2', [eggs_to_redeem, req.params.id]);
+    await client.query('INSERT INTO member_points_log (member_id,change_eggs,reason,created_by) VALUES ($1,$2,$3,$4)',
+      [req.params.id, -eggs_to_redeem, 'แลกส่วนลด '+discount_amount+' บาท', req.user.id]);
+    await client.query('COMMIT');
+    res.json({ message: `แลกสำเร็จ ${eggs_to_redeem} ฟอง = ลด ${discount_amount} บาท` });
+  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
+  finally { client.release(); }
+});
+
+// เพิ่มฟองหลังขาย (เรียกจาก completeSale)
+app.post('/api/members/:id/add-eggs', auth, async (req, res) => {
+  const { eggs, sale_id } = req.body;
+  if (!eggs || eggs <= 0) return res.json({ ok: true });
+  try {
+    await pool.query('UPDATE members SET total_eggs=COALESCE(total_eggs,0)+$1 WHERE id=$2', [eggs, req.params.id]);
+    await pool.query('INSERT INTO member_points_log (member_id,change_eggs,reason,sale_id,created_by) VALUES ($1,$2,$3,$4,$5)',
+      [req.params.id, eggs, 'ซื้อไข่', sale_id||null, req.user.id]);
+    res.json({ ok: true });
+  } catch(e) { res.json({ ok: false }); }
+});
+
+// ดึงราคาตาม tier ของสมาชิก
+app.get('/api/pos/products-for-member/:member_id', auth, async (req, res) => {
+  try {
+    const mem = await pool.query('SELECT m.*,t.customer_type FROM members m LEFT JOIN member_tiers t ON m.tier_id=t.id WHERE m.id=$1', [req.params.member_id]);
+    if (!mem.rows.length) return res.status(404).json({ error: 'ไม่พบสมาชิก' });
+    const ctype = mem.rows[0].customer_type || 'retail';
+    const branchId = req.query.branch_id || mem.rows[0].branch_id;
+    const r = await pool.query(`
+      SELECT p.id AS product_id, p.code, p.name, p.unit, p.is_egg,
+        pp.qty, pp.price, COALESCE(s.qty_unit,0) AS stock_qty,
+        $2 AS customer_type
+      FROM products p
+      LEFT JOIN product_prices pp ON pp.product_id=p.id AND pp.branch_id=$1 AND pp.customer_type=$2
+      LEFT JOIN stock s ON s.product_id=p.id AND s.branch_id=$1
+      WHERE p.track_stock=true OR p.is_egg=true
+      ORDER BY p.is_egg DESC, p.code, pp.qty NULLS LAST`,
+      [branchId, ctype]);
+    const grouped = {};
+    r.rows.forEach(row => {
+      if (!grouped[row.product_id]) grouped[row.product_id] = { ...row, prices: [] };
+      if (row.qty && row.price) grouped[row.product_id].prices.push({ qty: parseInt(row.qty), price: parseFloat(row.price) });
+    });
+    res.json({ customer_type: ctype, products: Object.values(grouped) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ============================================================
+// PRODUCT DETAIL APIs
+// ============================================================
+app.get('/api/products/:id', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT p.*, pc.name AS category_name, pc.type AS category_type
+      FROM products p
+      LEFT JOIN product_categories pc ON p.category_id=pc.id
+      WHERE p.id=$1`, [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบสินค้า' });
+    const prod = r.rows[0];
+    // ราคาแยก branch + customer_type
+    const prices = await pool.query(`
+      SELECT pp.*, b.name AS branch_name, b.code AS branch_code
+      FROM product_prices pp
+      LEFT JOIN branches b ON pp.branch_id=b.id
+      WHERE pp.product_id=$1 ORDER BY b.code, pp.customer_type, pp.qty`, [req.params.id]);
+    // สต๊อกแยกสาขา
+    const stocks = await pool.query(`
+      SELECT s.*, b.name AS branch_name, b.code AS branch_code
+      FROM stock s
+      JOIN branches b ON s.branch_id=b.id
+      WHERE s.product_id=$1 ORDER BY b.code`, [req.params.id]);
+    res.json({ ...prod, prices: prices.rows, stocks: stocks.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ปรับยอดคงคลัง
+app.post('/api/stock/adjust', auth, role('owner','admin','manager','stock'), async (req, res) => {
+  const { product_id, branch_id, adjust_type, qty, reason, note } = req.body;
+  if (!product_id || !branch_id || !qty) return res.status(400).json({ error: 'ข้อมูลไม่ครบ' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query('SELECT qty_unit FROM stock WHERE product_id=$1 AND branch_id=$2', [product_id, branch_id]);
+    const before = parseInt(cur.rows[0]?.qty_unit||0);
+    const change = adjust_type === 'add' ? parseInt(qty) : -parseInt(qty);
+    const after = before + change;
+    if (after < 0) throw new Error('สต๊อกติดลบไม่ได้ (มี '+before+' หน่วย)');
+    if (cur.rows.length) {
+      await client.query('UPDATE stock SET qty_unit=$1, updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [after, product_id, branch_id]);
+    } else {
+      await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [product_id, branch_id, after]);
+    }
+    // log movement
+    const moveType = adjust_type === 'add' ? 'adjust_in' : 'adjust_out';
+    await client.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [product_id, branch_id, moveType, Math.abs(change),
+       'ADJ-'+Date.now().toString().slice(-6), (reason||'')+(note?' | '+note:''), req.user.id]).catch(()=>{});
+    await client.query('COMMIT');
+    res.json({ message: 'ปรับยอดเรียบร้อย', before, after, change });
+  } catch(e) { await client.query('ROLLBACK'); res.status(400).json({ error: e.message }); }
+  finally { client.release(); }
+});
+
+// ประวัติการเคลื่อนไหวสต๊อกแยกสินค้า
+app.get('/api/stock/movements/product/:id', auth, async (req, res) => {
+  const { branch_id } = req.query;
+  try {
+    let q = `SELECT sm.*, b.name AS branch_name, b.code AS branch_code,
+      u.full_name AS created_by_name
+      FROM stock_movements sm
+      JOIN branches b ON sm.branch_id=b.id
+      LEFT JOIN users u ON sm.created_by=u.id
+      WHERE sm.product_id=$1`;
+    const params = [req.params.id];
+    if (branch_id) { params.push(branch_id); q += ` AND sm.branch_id=$${params.length}`; }
+    q += ' ORDER BY sm.created_at DESC LIMIT 100';
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch(e) { res.json([]); }
+});
+
+// แก้ราคาสินค้าแต่ละ SKU (upsert)
+app.put('/api/products/:id/prices', auth, role('owner','admin','manager'), async (req, res) => {
+  const { prices } = req.body; // [{branch_id, customer_type, qty, price}]
+  if (!prices || !prices.length) return res.status(400).json({ error: 'ไม่มีราคา' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const p of prices) {
+      const { branch_id, customer_type, qty, price } = p;
+      if (!branch_id || !customer_type || !qty || price === undefined) continue;
+      const ex = await client.query(
+        'SELECT id FROM product_prices WHERE product_id=$1 AND branch_id=$2 AND customer_type=$3 AND qty=$4',
+        [req.params.id, branch_id, customer_type, qty]);
+      if (ex.rows.length) {
+        await client.query('UPDATE product_prices SET price=$1 WHERE id=$2', [price, ex.rows[0].id]);
+      } else {
+        await client.query('INSERT INTO product_prices (product_id,branch_id,customer_type,qty,price) VALUES ($1,$2,$3,$4,$5)',
+          [req.params.id, branch_id, customer_type, qty, price]);
+      }
+    }
+    await client.query('COMMIT');
+    res.json({ message: 'บันทึกราคาเรียบร้อย' });
+  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
+  finally { client.release(); }
+});
+
+// ลบราคา SKU
+app.delete('/api/products/:id/prices/:priceId', auth, role('owner','admin','manager'), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM product_prices WHERE id=$1 AND product_id=$2', [req.params.priceId, req.params.id]);
+    res.json({ message: 'ลบราคาเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 
 initSchema().then(() => {
