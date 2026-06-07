@@ -680,7 +680,13 @@ const PAGE_LOADERS={
   products:()=>{loadProdCats();loadProds();},
   reports:()=>{document.getElementById('rptDate').value=new Date().toISOString().slice(0,10);loadReport();},
   users:loadUsers,
-  permissions:()=>selectPermRole('manager',document.querySelector('.perm-role-btn')),
+  permissions:()=>{
+    // รอให้ page render ก่อน แล้วค่อย auto-select role แรก
+    setTimeout(()=>{
+      const firstBtn = document.querySelector('#page-permissions .perm-role-btn');
+      selectPermRole('manager', firstBtn);
+    }, 50);
+  },
   company:loadCompanySettings,
   employees:loadEmployees,
   expenses:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('expFrom').value=t;document.getElementById('expTo').value=t;loadExpenses();},
@@ -3919,6 +3925,7 @@ async function showMemberPoints(memberId, memberName) {
 // ============================================================
 async function selectPermRole(roleName, btn) {
   _curPermRole = roleName;
+  // highlight ปุ่ม
   document.querySelectorAll('.perm-role-btn').forEach(b => {
     b.style.background = 'var(--surface)';
     b.style.borderColor = 'var(--border)';
@@ -3929,27 +3936,32 @@ async function selectPermRole(roleName, btn) {
     btn.style.borderColor = 'var(--accent)';
     btn.style.fontWeight = '700';
   }
+  // render ทันทีด้วย empty permissions ก่อน (ไม่รอ API)
   _curPerms = new Set();
-  // โหลด permissions จาก server พร้อม timeout 5 วินาที
+  renderPermissions();
+  // โหลด permissions จาก server ใน background
   try {
     const token = localStorage.getItem('es_token') || '';
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const timer = setTimeout(() => ctrl.abort(), 8000);
     const resp = await fetch('/api/permissions/' + roleName, {
       headers: { 'Authorization': 'Bearer ' + token },
       signal: ctrl.signal
     });
     clearTimeout(timer);
     if (resp.ok) {
-      const perms = await resp.json();
-      _curPerms = new Set(Array.isArray(perms) ? perms.map(p => p.permission) : []);
+      const data = await resp.json();
+      const perms = Array.isArray(data) ? data : [];
+      // รองรับทั้ง [{permission:'...'}, ...] และ ['...', ...]
+      _curPerms = new Set(perms.map(p => typeof p === 'string' ? p : (p.permission || '')));
+      renderPermissions(); // re-render พร้อม ticks
     }
   } catch(e) {
-    // timeout หรือ network error → render ได้เลย (ไม่มีสิทธิ์บันทึก)
-    console.warn('permissions fetch failed:', e.message);
+    console.warn('permissions fetch:', e.message);
+    // ไม่ต้อง render อีก เพราะ render แล้วตอนต้น
   }
-  renderPermissions();
 }
+
 
 
 
