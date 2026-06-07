@@ -136,6 +136,37 @@ async function initSchema() {
     await pool.query(`CREATE TABLE IF NOT EXISTS damage_photos (id SERIAL PRIMARY KEY, branch_id INTEGER REFERENCES branches(id), product_id INTEGER REFERENCES products(id), photo_url TEXT NOT NULL, photo_date DATE NOT NULL DEFAULT CURRENT_DATE, note TEXT, uploaded_by INTEGER REFERENCES users(id), created_at TIMESTAMPTZ DEFAULT NOW())`);
 
     // role_permissions — สิทธิ์ตาม role
+    await pool.query(`CREATE TABLE IF NOT EXISTS product_categories (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      type VARCHAR(20) DEFAULT 'stock',
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS member_tiers (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      description TEXT,
+      customer_type VARCHAR(20) DEFAULT 'retail',
+      discount_percent NUMERIC(5,2) DEFAULT 0,
+      discount_amount NUMERIC(10,2) DEFAULT 0,
+      min_eggs_required INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
+
+    // seed default tiers ถ้ายังไม่มี
+    await pool.query(`INSERT INTO member_tiers (name, description, customer_type, sort_order)
+      SELECT * FROM (VALUES
+        ('ระดับ 1 (ทั่วไป)', 'ลูกค้าทั่วไป', 'retail', 1),
+        ('ระดับ 2 (ร้านข้าว)', 'ร้านอาหาร/ร้านข้าว', 'restaurant', 2),
+        ('ระดับ 3 (ส่ง/ลูกค้าประจำ)', 'ลูกค้าส่งหรือประจำ', 'wholesale', 3)
+      ) AS v(name, description, customer_type, sort_order)
+      WHERE NOT EXISTS (SELECT 1 FROM member_tiers LIMIT 1)
+    `).catch(()=>{});
+
     await pool.query(`CREATE TABLE IF NOT EXISTS role_permissions (
       id SERIAL PRIMARY KEY,
       role_name VARCHAR(50) NOT NULL,
@@ -334,6 +365,37 @@ async function initSchema() {
     )`);
 
     // เพิ่ม columns ที่อาจหายไป
+    await pool.query(`CREATE TABLE IF NOT EXISTS product_categories (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      type VARCHAR(20) DEFAULT 'stock',
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS member_tiers (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      description TEXT,
+      customer_type VARCHAR(20) DEFAULT 'retail',
+      discount_percent NUMERIC(5,2) DEFAULT 0,
+      discount_amount NUMERIC(10,2) DEFAULT 0,
+      min_eggs_required INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
+
+    // seed default tiers ถ้ายังไม่มี
+    await pool.query(`INSERT INTO member_tiers (name, description, customer_type, sort_order)
+      SELECT * FROM (VALUES
+        ('ระดับ 1 (ทั่วไป)', 'ลูกค้าทั่วไป', 'retail', 1),
+        ('ระดับ 2 (ร้านข้าว)', 'ร้านอาหาร/ร้านข้าว', 'restaurant', 2),
+        ('ระดับ 3 (ส่ง/ลูกค้าประจำ)', 'ลูกค้าส่งหรือประจำ', 'wholesale', 3)
+      ) AS v(name, description, customer_type, sort_order)
+      WHERE NOT EXISTS (SELECT 1 FROM member_tiers LIMIT 1)
+    `).catch(()=>{});
+
     await pool.query(`CREATE TABLE IF NOT EXISTS role_permissions (
       id SERIAL PRIMARY KEY,
       role_name VARCHAR(50) NOT NULL,
@@ -344,6 +406,7 @@ async function initSchema() {
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER').catch(()=>{});
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS line_id TEXT').catch(()=>{});
     await pool.query('ALTER TABLE contacts ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true').catch(()=>{});
+    await pool.query('UPDATE contacts SET active=true WHERE active IS NULL').catch(()=>{});
     await pool.query('ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tax_id VARCHAR(30)').catch(()=>{});
     await pool.query(`ALTER TABLE stock ADD CONSTRAINT IF NOT EXISTS stock_unique UNIQUE (product_id, branch_id)`).catch(()=>{});
     await pool.query(`ALTER TABLE product_prices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`).catch(()=>{});
@@ -577,8 +640,9 @@ app.post('/api/auth/login', async (req, res) => {
   } catch(e) { console.error(e); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
 });
 app.get('/api/auth/me', auth, async (req, res) => {
-  const r = await pool.query(`SELECT u.id,u.username,u.full_name,u.phone,u.branch_id,b.code AS branch_code,b.name AS branch_name,ro.name AS role,u.last_login FROM users u JOIN roles ro ON u.role_id=ro.id LEFT JOIN branches b ON u.branch_id=b.id WHERE u.id=$1`, [req.user.id]);
-  res.json(r.rows[0]);
+  try {
+    res.json({ id: req.user.id, username: req.user.username, role: req.user.role, branch_id: req.user.branch_id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // BRANCHES
@@ -771,12 +835,14 @@ app.get('/api/products', auth, async (req, res) => {
     LEFT JOIN product_categories pc ON p.category_id=pc.id
     LEFT JOIN stock s ON s.product_id=p.id
     WHERE 1=1`;
+  try {
   const params = [];
   if (category_id) { params.push(category_id); q += ` AND p.category_id=$${params.length}`; }
   if (search) { params.push('%'+search+'%'); q += ` AND (p.name ILIKE $${params.length} OR p.code ILIKE $${params.length})`; }
   q += ' GROUP BY p.id, pc.name, pc.type ORDER BY pc.type NULLS LAST, p.code';
   const r = await pool.query(q, params);
   res.json(r.rows);
+  } catch(e) { console.error('products GET error:', e.message); res.status(500).json({ error: e.message }); }
 });
 app.post('/api/products', auth, role('owner','admin','manager'), async (req, res) => {
   const { category_id, code, name, unit, is_egg, track_stock } = req.body;
@@ -814,6 +880,22 @@ app.delete('/api/products/:id', auth, role('owner','admin'), async (req, res) =>
     res.json({ message: 'ลบสินค้าเรียบร้อย' });
   } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
   finally { client.release(); }
+});
+
+app.get('/api/product-categories', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM product_categories ORDER BY id');
+    res.json(r.rows);
+  } catch(e) { res.json([]); }
+});
+
+app.post('/api/product-categories', auth, role('owner','admin','manager'), async (req, res) => {
+  const { name, type } = req.body;
+  if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อกลุ่ม' });
+  try {
+    const r = await pool.query('INSERT INTO product_categories (name,type) VALUES ($1,$2) RETURNING *', [name, type||'stock']);
+    res.status(201).json(r.rows[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/product-categories/:id', auth, role('owner','admin','manager'), async (req, res) => {
@@ -1165,12 +1247,15 @@ app.get('/api/stock/transfers/:id/items', auth, async (req, res) => {
 // CONTACTS
 app.get('/api/contacts', auth, async (req, res) => {
   const { type } = req.query;
-  let q = `SELECT * FROM contacts WHERE active=true`;
-  if (type === 'customer') q += ` AND is_customer=true`;
-  else if (type === 'supplier') q += ` AND is_supplier=true`;
-  q += ' ORDER BY business_name,contact_name';
-  const r = await pool.query(q);
-  res.json(r.rows);
+  try {
+    let q = 'SELECT * FROM contacts WHERE 1=1';
+    const params = [];
+    if (type === 'customer') q += ' AND is_customer=true';
+    else if (type === 'supplier') q += ' AND is_supplier=true';
+    q += ' ORDER BY COALESCE(business_name,contact_name)';
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch(e) { res.json([]); }
 });
 app.post('/api/contacts', auth, async (req, res) => {
   const { entity_type,is_customer,is_supplier,business_name,tax_id,branch_office,address,postal_code,office_phone,contact_name,email,mobile,credit_days,note } = req.body;
@@ -2263,8 +2348,10 @@ app.post('/api/daily-close', auth, async (req, res) => {
 // MEMBER TIERS API
 // ============================================================
 app.get('/api/member-tiers', auth, async (req, res) => {
-  const r = await pool.query('SELECT * FROM member_tiers WHERE active=true ORDER BY sort_order, id');
-  res.json(r.rows);
+  try {
+    const r = await pool.query('SELECT * FROM member_tiers WHERE active=true ORDER BY sort_order, id');
+    res.json(r.rows);
+  } catch(e) { res.json([]); }
 });
 
 app.post('/api/member-tiers', auth, role('owner','admin'), async (req, res) => {
@@ -2585,8 +2672,10 @@ app.post('/api/daily-close', auth, async (req, res) => {
 // MEMBER TIERS API
 // ============================================================
 app.get('/api/member-tiers', auth, async (req, res) => {
-  const r = await pool.query('SELECT * FROM member_tiers WHERE active=true ORDER BY sort_order, id');
-  res.json(r.rows);
+  try {
+    const r = await pool.query('SELECT * FROM member_tiers WHERE active=true ORDER BY sort_order, id');
+    res.json(r.rows);
+  } catch(e) { res.json([]); }
 });
 
 app.post('/api/member-tiers', auth, role('owner','admin'), async (req, res) => {
