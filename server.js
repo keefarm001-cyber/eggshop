@@ -1,2681 +1,4398 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { Pool } = require('pg');
-const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Egg Station v2.1</title>
+<style>
+:root{--bg:#f4f6f9;--surface:#fff;--surface2:#f0f2f5;--surface3:#e8eaed;--border:#d1d5db;--accent:#e67e00;--accent2:#d97706;--accent-dim:#fff3e0;--text:#1f2937;--text-muted:#6b7280;--error:#dc2626;--error-dim:#fef2f2;--success:#16a34a;--success-dim:#f0fdf4;--info:#2563eb;--info-dim:#eff6ff;--warning:#d97706;--warning-dim:#fffbeb;--shadow:0 1px 3px rgba(0,0,0,.1)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);font-size:15px;overflow:hidden}
+#loginPage{display:flex;height:100vh;align-items:center;justify-content:center;background:linear-gradient(135deg,#fff7ed 0%,#f4f6f9 100%)}
+.login-wrap{background:#fff;border-radius:16px;padding:36px;width:380px;box-shadow:0 8px 40px rgba(0,0,0,.12)}
+.brand{text-align:center;margin-bottom:28px}
+.brand-icon{font-size:52px;display:block;margin-bottom:8px}
+.brand h1{font-size:26px;font-weight:700;color:var(--accent)}
+.brand p{font-size:13px;color:var(--text-muted);margin-top:4px}
+.ctrl{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:14px;font-family:'Sarabun',sans-serif;outline:none;color:var(--text);background:#fff;transition:border-color .2s}
+.ctrl:focus{border-color:var(--accent)}
+.lbl{font-size:12px;font-weight:600;color:var(--text-muted)}
+.btn-login{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px}
+.btn-login:disabled{opacity:.6;cursor:not-allowed}
+.login-err{color:var(--error);font-size:13px;margin-top:8px;display:none;padding:8px 12px;background:var(--error-dim);border-radius:6px}
+.login-err.show{display:block}
+#appPage{display:none;position:fixed;inset:0;overflow:hidden}
+#appPage.active{display:flex;flex-direction:row}
+#sidebar{width:220px;min-width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.main-content{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.page{display:none;flex-direction:column;flex:1;overflow:hidden}
+.page.active{display:flex}
+.ph{padding:14px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface)}
+.pt{font-size:17px;font-weight:700}
+.pb{flex:1;padding:18px 22px;overflow-y:auto;min-height:0}
+.nav-brand{padding:14px 16px;font-size:17px;font-weight:700;color:var(--accent);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.nav-branch{padding:5px 14px 8px;font-size:11px;color:var(--text-muted);background:var(--surface2);border-bottom:1px solid var(--border)}
+.nav-section{padding:8px 14px 3px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+.nav-link{display:flex;align-items:center;gap:9px;padding:9px 14px;font-size:13px;color:var(--text-muted);cursor:pointer;border-left:3px solid transparent}
+.nav-link:hover{background:var(--surface2);color:var(--text)}
+.nav-link.active{background:var(--accent-dim);color:var(--accent);border-left-color:var(--accent);font-weight:600}
+.nav-user{margin-top:auto;padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0}
+.nav-user-name{font-size:13px;font-weight:600;color:var(--text)}
+.nav-user-role{font-size:11px;color:var(--text-muted);margin-top:2px}
+.btn-logout{background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;color:var(--text-muted);margin-top:8px;font-family:'Sarabun',sans-serif;display:block;width:100%}
+.btn-logout:hover{background:var(--error-dim);color:var(--error);border-color:var(--error)}
+.card{background:var(--surface);border-radius:10px;padding:16px;border:1px solid var(--border);margin-bottom:12px}
+.ct{font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border:none;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#fff}.btn-secondary{background:var(--surface2);color:var(--text)}
+.btn-success{background:var(--success-dim);color:var(--success)}.btn-danger{background:var(--error-dim);color:var(--error)}
+.btn-info{background:var(--info-dim);color:var(--info)}.btn-sm{padding:5px 9px;font-size:12px;border-radius:5px}
+table{width:100%;border-collapse:collapse}
+th{padding:8px 12px;text-align:left;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border);background:var(--surface2);font-weight:600}
+td{padding:8px 12px;font-size:13px;border-bottom:1px solid var(--border)}
+tr:hover td{background:#fafafa}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.bs{background:#e8faf0;color:#16a34a}.be{background:#fef2f2;color:#dc2626}
+.bw{background:#fffbeb;color:#d97706}.bg{background:var(--surface2);color:var(--text-muted)}.bi{background:var(--info-dim);color:var(--info)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--surface);border-radius:14px;padding:22px;width:100%;max-width:500px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.mh{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.mt{font-size:16px;font-weight:700}
+.mc{background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);line-height:1}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.sc{background:var(--surface);border-radius:10px;padding:14px;border:1px solid var(--border)}
+.sl{font-size:11px;color:var(--text-muted);margin-bottom:4px}
+.sv{font-size:22px;font-weight:700;color:var(--accent)}
+.es{display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--text-muted)}
+.ei{font-size:40px;margin-bottom:8px}
+.pos-layout{display:grid;grid-template-columns:1fr 340px;flex:1;overflow:hidden}
+.pos-left{overflow-y:auto;padding:14px}
+.pos-right{border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
+.pos-prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.pos-prod{background:var(--surface);border:1.5px solid var(--border);border-radius:9px;padding:10px;cursor:pointer;text-align:center;transition:all .15s;user-select:none}
+.pos-prod:hover,.pos-prod.selected{border-color:var(--accent);background:var(--accent-dim)}
+.pos-prod-name{font-size:12px;font-weight:600;margin-bottom:4px}
+.pos-prod-price{font-size:13px;color:var(--accent);font-weight:700}
+.pos-prod-stock{font-size:10px;color:var(--text-muted)}
+.cart-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px}
+.cart-item-name{flex:1;min-width:0;font-size:12px}
+.qty-btn{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border);background:none;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center}
+.qty-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pos-total{padding:12px 14px;border-top:2px solid var(--border);font-size:20px;font-weight:700;color:var(--accent);display:flex;justify-content:space-between}
+@media(max-width:768px){.pos-layout{grid-template-columns:1fr}.pos-right{display:none}.g2,.g3,.g4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+<div id="loginPage">
+  <div class="login-wrap">
+    <div class="brand">
+      <span class="brand-icon">🥚</span>
+      <h1>Egg Station</h1>
+      <p>ระบบจัดการร้านไข่</p>
+    </div>
+    <div style="display:grid;gap:10px">
+      <div>
+        <label class="lbl">Username</label>
+        <input class="ctrl" type="text" id="loginUser" placeholder="username" style="margin-top:4px" autocomplete="username">
+      </div>
+      <div>
+        <label class="lbl">Password</label>
+        <input class="ctrl" type="password" id="loginPass" placeholder="password" style="margin-top:4px" autocomplete="current-password">
+      </div>
+    </div>
+    <button class="btn-login" id="loginBtn" onclick="doLogin()" style="margin-top:16px">เข้าสู่ระบบ</button>
+    <div class="login-err" id="loginError"></div>
+  </div>
+</div>
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('railway') ? { rejectUnauthorized: false } : false
-});
+<div id="appPage">
+  <div id="sidebar">
+    <div class="nav-brand">🥚 <span>Egg Station</span></div>
+    <div class="nav-branch" id="navBranch"></div>
+    <div id="navLinks"></div>
+    <div class="nav-user">
+      <div class="nav-user-name" id="navUserName"></div>
+      <div class="nav-user-role" id="navUserRole"></div>
+      <button class="btn-logout" onclick="logout()">ออกจากระบบ</button>
+    </div>
+  </div>
+  <div class="main-content" id="mainContent">
 
-// ============================================================
-// SCHEMA INIT
-// ============================================================
-async function initSchema() {
-  try {
-    await pool.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+    <!-- DASHBOARD -->
+    <div class="page" id="page-dashboard">
+      <div class="ph"><div><div class="pt">📊 ภาพรวม</div><div style="font-size:12px;color:var(--text-muted)" id="dashDate"></div></div></div>
+      <div class="pb">
+        <div class="g4" id="dashStats" style="margin-bottom:14px"></div>
+        <div class="g2">
+          <div class="card"><div class="ct">ยอดขายแยกสาขา</div><table><thead><tr><th>สาขา</th><th>บิล</th><th>ยอดขาย</th></tr></thead><tbody id="dashBranch"></tbody></table></div>
+          <div class="card"><div class="ct">กะปัจจุบัน</div><div id="dashShift"><div class="es"><div class="ei">⏰</div><p>ยังไม่มีกะที่เปิด</p></div></div></div>
+        </div>
+      </div>
+    </div>
 
-    // branches
-    await pool.query(`CREATE TABLE IF NOT EXISTS branches (id SERIAL PRIMARY KEY, code VARCHAR(10) UNIQUE NOT NULL, name VARCHAR(100) NOT NULL, address TEXT, phone VARCHAR(20), active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW())`);
-    await pool.query(`INSERT INTO branches (code,name) VALUES ('TB','สาขาตลาดสดธนบุรี'),('OM','สาขาทิวลิปแสควร์ อ้อมน้อย'),('16KA','สาขาเดอะมอลล์ บางแค') ON CONFLICT (code) DO NOTHING`);
+    <!-- POS -->
+    <div class="page" id="page-pos">
+      <div class="ph">
+        <div><div class="pt">🛒 ขายหน้าร้าน</div><div id="posShiftStatus" style="font-size:12px;color:var(--text-muted)"></div></div>
+        <div style="display:flex;gap:7px;align-items:center">
+          <select class="ctrl" id="posCh" style="width:130px" onchange="loadPosProds()"><option value="retail">ปลีก</option><option value="restaurant">ร้านข้าว</option><option value="wholesale">ส่ง</option></select>
+          <button class="btn btn-secondary" onclick="showQuickMemberModal()">⭐ สมัครสมาชิก</button>
+          <button class="btn btn-secondary" onclick="showShiftModal()">⏰ กะ</button>
+          <button class="btn btn-primary" onclick="checkoutCart()" id="posCheckoutBtn">💳 ชำระเงิน</button>
+        </div>
+      </div>
+      <div class="pos-layout">
+        <div class="pos-left">
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <input type="text" class="ctrl" id="posSearch" placeholder="ค้นหาสินค้า..." oninput="filterPosProds()" style="flex:1">
+            <select class="ctrl" id="posMemberSel" style="width:200px" onchange="selPosMember()"><option value="">— ไม่มีสมาชิก —</option></select>
+          </div>
+          <div class="pos-prod-grid" id="posProdGrid"></div>
+        </div>
+        <div class="pos-right">
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600">รายการ</div>
+          <div style="flex:1;overflow-y:auto" id="cartItems"><div class="es"><div class="ei">🛒</div><p>ยังไม่มีรายการ</p></div></div>
+          <div style="padding:10px 14px;border-top:1px solid var(--border)">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:6px">
+              <span>ส่วนลดสมาชิก</span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span id="posMemDisc" style="color:var(--success)">฿0.00</span>
+                <button id="posRedeemBtn" onclick="showRedeemModal()" style="display:none;padding:2px 8px;background:var(--accent);color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer;font-family:'Sarabun',sans-serif">แลกฟอง</button>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px">
+              <span>ส่วนลดเพิ่ม (บาท)</span>
+              <input type="number" id="posExtraDisc" value="0" min="0" style="width:80px;text-align:right;padding:3px 7px;border:1.5px solid var(--border);border-radius:5px;font-family:'Sarabun',sans-serif;font-size:13px" oninput="updateCartTotal()">
+            </div>
+            <div class="pos-total"><span>รวม</span><span id="posTotal">฿0.00</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    // roles
-    await pool.query(`CREATE TABLE IF NOT EXISTS roles (id SERIAL PRIMARY KEY, name VARCHAR(50) UNIQUE NOT NULL, description TEXT)`);
-    await pool.query(`INSERT INTO roles (name,description) VALUES ('owner','เจ้าของ'),('admin','แอดมิน'),('manager','ผู้จัดการ'),('cashier','แคชเชียร์'),('stock','สต๊อก'),('viewer','ผู้ชม') ON CONFLICT (name) DO NOTHING`);
+    <!-- SHIFTS -->
+    <div class="page" id="page-shifts">
+      <div class="ph"><div class="pt">⏰ กะการขาย</div><button class="btn btn-primary" onclick="showShiftModal()">เปิด/ปิดกะ</button></div>
+      <div class="pb"><div class="card"><table><thead><tr><th>สาขา</th><th>เปิดกะ</th><th>ปิดกะ</th><th>เงินเริ่มกะ</th><th>ยอดขาย</th><th>สถานะ</th></tr></thead><tbody id="shiftsT"></tbody></table></div></div>
+    </div>
 
-    // users
-    await pool.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL, password_hash TEXT NOT NULL, full_name VARCHAR(100) NOT NULL, role_id INTEGER REFERENCES roles(id), branch_id INTEGER REFERENCES branches(id), phone VARCHAR(20), active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW(), last_login TIMESTAMPTZ)`);
+    <!-- SALES HISTORY -->
+    <div class="page" id="page-sales">
+      <div class="ph"><div class="pt">📑 ประวัติการขาย</div></div>
+      <div class="pb">
+        <div class="card" style="margin-bottom:12px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div><label class="lbl">จากวันที่</label><input type="date" class="ctrl" id="sFrom" style="margin-top:3px;width:150px"></div>
+            <div><label class="lbl">ถึงวันที่</label><input type="date" class="ctrl" id="sTo" style="margin-top:3px;width:150px"></div>
+            <div><label class="lbl">สาขา</label><select class="ctrl" id="sBranch" style="margin-top:3px;width:150px"><option value="">ทุกสาขา</option></select></div>
+            <div><label class="lbl">ช่องทาง</label><select class="ctrl" id="sCh" style="margin-top:3px;width:130px"><option value="">ทั้งหมด</option><option value="retail">ปลีก</option><option value="restaurant">ร้านข้าว</option><option value="wholesale">ส่ง</option></select></div>
+            <div style="align-self:flex-end"><button class="btn btn-primary" onclick="loadSales()">ค้นหา</button></div>
+          </div>
+        </div>
+        <div class="g3" id="salesStats" style="margin-bottom:12px"></div>
+        <div class="card"><table><thead><tr><th>เลขที่บิล</th><th>วันที่</th><th>สาขา</th><th>ช่องทาง</th><th>ยอด</th><th>ส่วนลด</th><th>สุทธิ</th><th>ชำระ</th><th>สมาชิก</th></tr></thead><tbody id="salesT"></tbody></table></div>
+      </div>
+    </div>
 
-    // doc_sequences - สำหรับเลขที่เอกสาร
-    await pool.query(`CREATE TABLE IF NOT EXISTS doc_sequences (id SERIAL PRIMARY KEY, doc_type VARCHAR(30) UNIQUE NOT NULL, prefix VARCHAR(20) NOT NULL, last_seq INTEGER DEFAULT 0, year_month VARCHAR(10))`);
-    await pool.query(`INSERT INTO doc_sequences (doc_type, prefix) VALUES ('invoice','INV'),('receipt','RCP'),('receipt_pre','PRE'),('receipt_final','GR'),('quotation','QT'),('debit_note','DN'),('credit_note','CN') ON CONFLICT (doc_type) DO NOTHING`);
+    <!-- DAILY CLOSE -->
+    <div class="page" id="page-daily-close">
+      <div class="ph">
+        <div><div class="pt">📋 ปิดยอดประจำวัน</div><div style="font-size:12px;color:var(--text-muted)" id="dcDateLabel"></div></div>
+        <div style="display:flex;gap:7px;align-items:center">
+          <input type="date" class="ctrl" id="dcDate" style="width:155px" onchange="loadDailyClose()">
+          <select class="ctrl" id="dcBranch" style="width:180px" onchange="loadDailyClose()"><option value="">เลือกสาขา</option></select>
+          <button class="btn btn-secondary" onclick="loadDCHistory()">📜 ประวัติ</button>
+          <button class="btn btn-secondary" onclick="showDamagedEggModal(document.getElementById('dcBranch').value,document.getElementById('dcDate').value)">🥚 ไข่บุบ</button>
+          <button class="btn btn-secondary" onclick="showAttachmentPanel(document.getElementById('dcBranch').value,document.getElementById('dcDate').value)">📎 เอกสาร</button>
+          <button class="btn btn-primary" onclick="saveDailyClose()">💾 บันทึก</button>
+        </div>
+      </div>
+      <div class="pb" id="dcContent"><div class="es"><div class="ei">📋</div><p>เลือกสาขาและวันที่เพื่อเริ่มปิดยอด</p></div></div>
+    </div>
 
-    // member_settings
-    await pool.query(`CREATE TABLE IF NOT EXISTS member_settings (id SERIAL PRIMARY KEY, eggs_required INTEGER NOT NULL DEFAULT 100, discount_amount NUMERIC(10,2) NOT NULL DEFAULT 5, updated_at TIMESTAMPTZ DEFAULT NOW())`);
-    const ms = await pool.query(`SELECT id FROM member_settings`);
-    if (ms.rows.length === 0) await pool.query(`INSERT INTO member_settings (eggs_required,discount_amount) VALUES (100,5)`);
+    <!-- QUOTATIONS -->
+    <div class="page" id="page-quotations">
+      <div class="ph"><div class="pt">📝 ใบเสนอราคา</div><button class="btn btn-primary" onclick="showQtModal()">+ สร้างใบเสนอราคา</button></div>
+      <div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>วันที่</th><th>สาขา</th><th>ลูกค้า</th><th>ยอด</th><th>สถานะ</th><th></th></tr></thead><tbody id="qtT"></tbody></table></div></div>
+    </div>
 
-    // members
-    await pool.query(`CREATE TABLE IF NOT EXISTS members (id SERIAL PRIMARY KEY, code VARCHAR(20) UNIQUE, name VARCHAR(100) NOT NULL, phone VARCHAR(20), branch_id INTEGER REFERENCES branches(id), total_eggs INTEGER DEFAULT 0, redeemable_discount NUMERIC(10,2) DEFAULT 0, total_redeemed NUMERIC(10,2) DEFAULT 0, active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW())`);
+    <!-- INVOICES -->
+    <div class="page" id="page-invoices">
+      <div class="ph"><div class="pt">📄 ใบแจ้งหนี้</div><button class="btn btn-primary" onclick="showCreateInvoiceModal()">+ สร้างใบแจ้งหนี้</button></div>
+      <div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>ลูกค้า</th><th>สาขา</th><th>วันที่ออก</th><th>ครบกำหนด</th><th>ยอด</th><th>ชำระแล้ว</th><th>สถานะ</th><th></th></tr></thead><tbody id="invT"></tbody></table></div></div>
+    </div>
 
-    // product_categories
-    await pool.query(`CREATE TABLE IF NOT EXISTS product_categories (id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL, type VARCHAR(20) DEFAULT 'stock', active BOOLEAN DEFAULT true)`);
-    // ลบกลุ่มสินค้าซ้ำ + เพิ่ม unique constraint
-    try {
-      await pool.query(`DELETE FROM product_categories WHERE id NOT IN (SELECT MIN(id) FROM product_categories GROUP BY name)`);
-      await pool.query(`ALTER TABLE product_categories ADD CONSTRAINT product_categories_name_unique UNIQUE (name)`);
-    } catch(e) { /* constraint อาจมีอยู่แล้ว */ }
+    <!-- CREDITS -->
+    <div class="page" id="page-credits">
+      <div class="ph"><div class="pt">💳 ลูกค้าเชื่อ</div></div>
+      <div class="pb"><div class="card"><table><thead><tr><th>ชื่อ</th><th>สาขา</th><th>วันที่</th><th>ยอดค้าง</th><th>ชำระแล้ว</th><th></th></tr></thead><tbody id="credT"></tbody></table></div></div>
+    </div>
 
-    // seed กลุ่มสินค้า
-    const defaultCats = [
-      ['ไข่ไก่','stock'],['ของชำ','stock'],['บรรจุภัณฑ์','stock'],
-      ['บริการ','service'],['อื่นๆ ไม่นับสต๊อก','nostock'],
-      ['ไข่เสริม','stock'],['บรรจุภัณฑ์ไข่','stock'],
-    ];
-    for (const [name, type] of defaultCats) {
-      await pool.query(`INSERT INTO product_categories (name,type) VALUES ($1,$2) ON CONFLICT (name) DO NOTHING`, [name, type]);
-    }
+    <!-- RECEIPTS -->
+    <div class="page" id="page-receipts">
+      <div class="ph">
+        <div><div class="pt">📦 ใบรับสินค้า</div><div style="font-size:12px;color:var(--text-muted)">Pre = พนักงานกรอกจำนวน → เจ้าของกด "ใส่ราคา" → ตัดสต๊อก</div></div>
+        <button class="btn btn-primary" onclick="showRecvModal()">+ สร้างใบรับสินค้า</button>
+      </div>
+      <div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>วันที่</th><th>สาขา</th><th>ผู้จำหน่าย</th><th>สถานะ</th><th>มูลค่า</th><th>รูป</th><th></th></tr></thead><tbody id="recvT"></tbody></table></div></div>
+    </div>
 
-    // products
-    await pool.query(`CREATE TABLE IF NOT EXISTS products (id SERIAL PRIMARY KEY, category_id INTEGER REFERENCES product_categories(id), code VARCHAR(30) UNIQUE NOT NULL, name VARCHAR(100) NOT NULL, unit VARCHAR(20) DEFAULT 'ฟอง', is_egg BOOLEAN DEFAULT false, track_stock BOOLEAN DEFAULT true, active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW())`);
-    // add track_stock column if not exists
-    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS track_stock BOOLEAN DEFAULT true`);
+    <!-- STOCK -->
+    <div class="page" id="page-stock">
+      <div class="ph">
+        <div><div class="pt">🥚 สต๊อกสินค้า</div></div>
+        <div style="display:flex;gap:7px">
+          <select class="ctrl" id="stBranch" onchange="loadStock()" style="width:180px"><option value="">ทุกสาขา</option></select>
+          <input type="text" class="ctrl" id="stSearch" placeholder="ค้นหา..." oninput="loadStock()" style="width:200px">
+          <button class="btn btn-primary" onclick="showRecvModal()">+ รับสินค้า</button>
+          <button class="btn btn-secondary" onclick="showTrModal()">🔄 โอนย้าย</button>
+          <button class="btn btn-warning" onclick="showPendingTransfers()" style="background:var(--warning-dim);color:var(--warning)">📬 รอรับสินค้า</button>
+        </div>
+      </div>
+      <div class="pb"><div class="card"><table><thead><tr><th>สาขา</th><th>รหัส</th><th>ชื่อสินค้า</th><th style="text-align:right">ฟอง</th><th style="text-align:right">แผง (30ฟ.)</th><th style="text-align:right">ลัง (300ฟ.)</th></tr></thead><tbody id="stockT"></tbody></table></div></div>
+    </div>
 
-    const eggCat = await pool.query(`SELECT id FROM product_categories WHERE name='ไข่ไก่'`);
-    const catId = eggCat.rows[0].id;
-    const eggProducts = [['EGG-0','ไข่ไก่เบอร์ 0'],['EGG-1','ไข่ไก่เบอร์ 1'],['EGG-2','ไข่ไก่เบอร์ 2'],['EGG-3','ไข่ไก่เบอร์ 3'],['EGG-4','ไข่ไก่เบอร์ 4'],['EGG-5','ไข่ไก่เบอร์ 5'],['EGG-6','ไข่ไก่เบอร์ 6'],['EGG-BANG-L','ไข่บางใหญ่'],['EGG-BANG-M','ไข่บางกลาง'],['EGG-BANG-S','ไข่บางเล็ก']];
-    for (const [code,name] of eggProducts) await pool.query(`INSERT INTO products (category_id,code,name,unit,is_egg,track_stock) VALUES ($1,$2,$3,'ฟอง',true,true) ON CONFLICT (code) DO NOTHING`, [catId, code, name]);
+    <!-- STOCK MOVEMENTS -->
+    <div class="page" id="page-smv">
+      <div class="ph"><div class="pt">📜 ประวัติสต๊อก</div></div>
+      <div class="pb">
+        <div class="card" style="margin-bottom:12px">
+          <div style="display:flex;gap:8px">
+            <select class="ctrl" id="mvBranch" onchange="loadMv()" style="width:180px"><option value="">ทุกสาขา</option></select>
+            <input type="date" class="ctrl" id="mvFrom" style="width:150px">
+            <input type="date" class="ctrl" id="mvTo" style="width:150px">
+            <button class="btn btn-primary" onclick="loadMv()">ค้นหา</button>
+          </div>
+        </div>
+        <div class="card"><table><thead><tr><th>วันที่</th><th>สาขา</th><th>สินค้า</th><th>ประเภท</th><th style="text-align:right">จำนวน (ฟอง)</th><th>อ้างอิง</th></tr></thead><tbody id="mvT"></tbody></table></div>
+      </div>
+    </div>
 
-    // product_prices
-    await pool.query(`CREATE TABLE IF NOT EXISTS product_prices (id SERIAL PRIMARY KEY, product_id INTEGER REFERENCES products(id), branch_id INTEGER REFERENCES branches(id), customer_type VARCHAR(20) NOT NULL, qty INTEGER NOT NULL, price NUMERIC(10,2) NOT NULL, active BOOLEAN DEFAULT true, UNIQUE(product_id,branch_id,customer_type,qty))`);
+    <!-- MEMBERS -->
+    <div class="page" id="page-members">
+      <div class="ph"><div class="pt">⭐ สมาชิก</div><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="showTierModal()">🏅 ระดับสมาชิก</button><button class="btn btn-primary" onclick="showMemModal()">+ เพิ่มสมาชิก</button></div></div>
+      <div class="pb">
+        <div class="g3" id="memStats" style="margin-bottom:12px"></div>
+        <div class="card"><table><thead><tr><th>ชื่อ</th><th>เบอร์โทร</th><th>ระดับ</th><th>สาขา</th><th>สะสม (ฟอง)</th><th>สถานะ</th><th></th></tr></thead><tbody id="memT"></tbody></table></div>
+      </div>
+    </div>
 
-    // stock
-    await pool.query(`CREATE TABLE IF NOT EXISTS stock (id SERIAL PRIMARY KEY, product_id INTEGER REFERENCES products(id), branch_id INTEGER REFERENCES branches(id), qty_unit INTEGER NOT NULL DEFAULT 0, updated_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(product_id,branch_id))`);
+    <!-- CONTACTS -->
+    <div class="page" id="page-contacts">
+      <div class="ph"><div class="pt">👥 ผู้ติดต่อ</div><button class="btn btn-primary" onclick="showContactModal()">+ เพิ่มผู้ติดต่อ</button></div>
+      <div class="pb">
+        <div class="card" style="margin-bottom:12px">
+          <div style="display:flex;gap:8px">
+            <input type="text" class="ctrl" id="contactSearch" placeholder="ค้นหาชื่อกิจการ / ผู้ติดต่อ / เลขภาษี..." oninput="loadContacts()" style="flex:1">
+            <select class="ctrl" id="contactType" style="width:150px" onchange="loadContacts()">
+              <option value="">ทั้งหมด</option>
+              <option value="customer">ลูกค้า</option>
+              <option value="supplier">ผู้จำหน่าย</option>
+            </select>
+          </div>
+        </div>
+        <div class="card"><table><thead><tr><th>ชื่อกิจการ</th><th>ผู้ติดต่อ</th><th>เบอร์โทร</th><th>เลขภาษี</th><th>ประเภท</th><th>เครดิต (วัน)</th><th></th></tr></thead><tbody id="contactT"></tbody></table></div>
+      </div>
+    </div>
 
-    // stock_movements
-    await pool.query(`CREATE TABLE IF NOT EXISTS stock_movements (id SERIAL PRIMARY KEY, product_id INTEGER REFERENCES products(id), branch_id INTEGER REFERENCES branches(id), movement_type VARCHAR(30) NOT NULL, qty_change INTEGER NOT NULL, qty_before INTEGER, qty_after INTEGER, ref_type VARCHAR(30), ref_id INTEGER, note TEXT, created_by INTEGER REFERENCES users(id), created_at TIMESTAMPTZ DEFAULT NOW())`);
+    <!-- PRODUCTS -->
+    <div class="page" id="page-products">
+      <div class="ph">
+        <div class="pt">🥚 สินค้า</div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <button class="btn btn-secondary" onclick="showCategoryModal()">🗂️ กลุ่มสินค้า</button>
+          <button class="btn btn-secondary" onclick="showBundleModal()">📦 ชุดสินค้า</button>
+          <button class="btn btn-secondary" onclick="exportPrices()">📥 Export ราคา</button>
+          <button class="btn btn-secondary" onclick="showImportPricesModal()">📤 Import ราคา</button>
+          <button class="btn btn-primary" onclick="showProductModal()">+ เพิ่มสินค้า</button>
+        </div>
+      </div>
+      <div class="pb">
+        <div class="card" style="margin-bottom:12px">
+          <div style="display:flex;gap:8px">
+            <select class="ctrl" id="prodCatFilter" onchange="loadProds()" style="width:200px"><option value="">ทุกกลุ่มสินค้า</option></select>
+            <select class="ctrl" id="prodBranchFilter" style="width:160px" onchange="loadProds()">
+              <option value="">ทุกสาขา</option>
+            </select>
+            <input type="text" class="ctrl" id="prodSearch" placeholder="ค้นหาชื่อ/รหัส..." oninput="loadProds()" style="max-width:240px">
+          </div>
+        </div>
+        <div class="card"><table><thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>กลุ่ม</th><th>หน่วย</th><th>ไข่</th><th>นับสต๊อก</th><th>จัดการ</th></tr></thead><tbody id="prodT"></tbody></table></div>
+      </div>
+    </div>
 
-    // stock_receipts (Pre = ผู้จัดการสร้าง, ไม่เห็นราคา)
-    await pool.query(`CREATE TABLE IF NOT EXISTS stock_receipts (id SERIAL PRIMARY KEY, doc_no VARCHAR(30), branch_id INTEGER REFERENCES branches(id), receipt_date DATE NOT NULL DEFAULT CURRENT_DATE, supplier_id INTEGER, supplier_name TEXT, note TEXT, photo_url TEXT, status VARCHAR(20) DEFAULT 'pre', total_cost NUMERIC(10,2), created_by INTEGER REFERENCES users(id), priced_by INTEGER REFERENCES users(id), priced_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW())`);
-    await pool.query(`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS doc_no VARCHAR(30)`);
-    await pool.query(`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS supplier_id INTEGER`);
-    await pool.query(`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS supplier_name TEXT`);
-    await pool.query(`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS total_cost NUMERIC(10,2)`);
-    await pool.query(`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS priced_at TIMESTAMPTZ`);
+    <!-- REPORTS -->
+    <div class="page" id="page-reports">
+      <div class="ph">
+    <div class="pt">📈 รายงาน</div>
+    <button class="btn btn-secondary" onclick="printDailySummary()">🖨️ ใบสรุปยอดขาย</button>
+  </div>
+      <div class="pb">
+        <div class="card" style="margin-bottom:12px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="date" class="ctrl" id="rptDate" style="width:160px">
+            <button class="btn btn-primary" onclick="loadReport()">ดูรายงาน</button>
+          </div>
+        </div>
+        <div class="g3" id="rptStats" style="margin-bottom:12px"></div>
+        <div class="card"><div class="ct">ยอดขายแยกสาขา</div><table><thead><tr><th>สาขา</th><th>บิล</th><th>ยอดขาย</th><th>ส่วนลด</th></tr></thead><tbody id="rptT"></tbody></table></div>
+      </div>
+    </div>
 
-    await pool.query(`CREATE TABLE IF NOT EXISTS stock_receipt_items (id SERIAL PRIMARY KEY, receipt_id INTEGER REFERENCES stock_receipts(id), product_id INTEGER REFERENCES products(id), qty_unit INTEGER NOT NULL, qty_tray INTEGER, cost_per_unit NUMERIC(10,4), total_cost NUMERIC(10,2))`);
+    <!-- USERS -->
+    <div class="page" id="page-users">
+      <div class="ph"><div class="pt">⚙️ ผู้ใช้งาน</div><button class="btn btn-primary" onclick="showUserModal()">+ เพิ่มผู้ใช้งาน</button></div>
+      <div class="pb"><div class="card"><table><thead><tr><th>ชื่อ</th><th>Username</th><th>Role</th><th>สาขา</th><th>สิทธิ์สาขา</th><th>สถานะ</th><th></th></tr></thead><tbody id="userT"></tbody></table></div></div>
+    </div>
 
-    // stock_transfers
-    await pool.query(`CREATE TABLE IF NOT EXISTS stock_transfers (id SERIAL PRIMARY KEY, from_branch_id INTEGER REFERENCES branches(id), to_branch_id INTEGER REFERENCES branches(id), transfer_date DATE NOT NULL DEFAULT CURRENT_DATE, status VARCHAR(20) DEFAULT 'pending', note TEXT, created_by INTEGER REFERENCES users(id), approved_by INTEGER REFERENCES users(id), approved_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW())`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS stock_transfer_items (id SERIAL PRIMARY KEY, transfer_id INTEGER REFERENCES stock_transfers(id), product_id INTEGER REFERENCES products(id), qty_sent INTEGER NOT NULL, qty_received INTEGER)`);
+    <!-- PERMISSIONS -->
+    <div class="page" id="page-permissions">
+      <div class="ph">
+        <div><div class="pt">🔐 ตั้งค่าสิทธิ์</div><div style="font-size:12px;color:var(--text-muted)">กำหนดสิทธิ์ตาม Role</div></div>
+        <button class="btn btn-primary" onclick="savePermissions()">💾 บันทึกสิทธิ์</button>
+      </div>
+      <div class="pb">
+        <div class="card" style="margin-bottom:12px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">เลือก Role ที่ต้องการตั้งค่า:</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('manager',this)">👨‍💼 ผู้จัดการ</button>
+            <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('cashier',this)">💁 แคชเชียร์</button>
+            <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('stock',this)">📦 สต๊อก</button>
+            <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('viewer',this)">👁️ ผู้ชม</button>
+            <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('accountant',this)">📊 บัญชี</button>
+            <button class="btn btn-secondary perm-role-btn" onclick="selectPermRole('sales_pc',this)">🛍️ พนักงานขาย (PC)</button>
+          </div>
+        </div>
+        <div id="permContainer"><div class="es"><div class="ei">🔐</div><p>กดเลือก Role เพื่อตั้งค่าสิทธิ์</p></div></div>
+      </div>
+    </div>
 
-    // contacts (ลูกค้า + ซัพพลายเออร์)
-    await pool.query(`CREATE TABLE IF NOT EXISTS contacts (id SERIAL PRIMARY KEY, entity_type VARCHAR(20) NOT NULL DEFAULT 'individual', is_customer BOOLEAN DEFAULT true, is_supplier BOOLEAN DEFAULT false, business_name VARCHAR(150), tax_id VARCHAR(20), branch_office VARCHAR(100), address TEXT, postal_code VARCHAR(10), office_phone VARCHAR(20), contact_name VARCHAR(100), email VARCHAR(150), mobile VARCHAR(20), credit_days INTEGER DEFAULT 0, note TEXT, active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW())`);
+    <!-- COMPANY SETTINGS -->
+    <div class="page" id="page-company">
+      <div class="ph"><div><div class="pt">🏢 ตั้งค่าบริษัท</div></div><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="showCreateBranchModal()">🏪 เพิ่มสาขา</button><button class="btn btn-primary" onclick="saveCompanySettings()">💾 บันทึก</button></div></div>
+      <div class="pb">
+        <div class="g2">
+          <div class="card" style="margin:0">
+            <div class="ct">ข้อมูลบริษัท</div>
+            <div style="display:grid;gap:10px">
+              <div><label class="lbl">ชื่อบริษัท (ไทย)</label><input type="text" class="ctrl" id="csName" style="margin-top:4px"></div>
+              <div><label class="lbl">ชื่อบริษัท (English)</label><input type="text" class="ctrl" id="csNameEn" style="margin-top:4px"></div>
+              <div><label class="lbl">เลขผู้เสียภาษี</label><input type="text" class="ctrl" id="csTaxId" style="margin-top:4px"></div>
+              <div><label class="lbl">ที่อยู่</label><textarea class="ctrl" id="csAddress" rows="3" style="margin-top:4px;resize:vertical"></textarea></div>
+              <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="csPhone" style="margin-top:4px"></div>
+              <div><label class="lbl">อีเมล</label><input type="text" class="ctrl" id="csEmail" style="margin-top:4px"></div>
+            </div>
+          </div>
+          <div style="display:grid;gap:14px;align-content:start">
+            <div class="card" style="margin:0">
+              <div class="ct">โลโก้</div>
+              <div id="csLogoPreview" style="text-align:center;margin-bottom:10px"><div style="width:80px;height:80px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto">🏢</div></div>
+              <input type="file" id="csLogoFile" accept="image/*" class="ctrl" style="padding:5px;margin-bottom:7px">
+              <button class="btn btn-secondary" onclick="uploadCompanyLogo()" style="width:100%">อัพโหลดโลโก้</button>
+            </div>
+            <div class="card" style="margin:0">
+              <div class="ct">ธนาคาร (แสดงในใบแจ้งหนี้)</div>
+              <div style="display:grid;gap:8px">
+                <div><label class="lbl">ธนาคาร</label><input type="text" class="ctrl" id="csBankName" style="margin-top:4px"></div>
+                <div><label class="lbl">ชื่อบัญชี</label><input type="text" class="ctrl" id="csBankAccName" style="margin-top:4px"></div>
+                <div><label class="lbl">เลขบัญชี</label><input type="text" class="ctrl" id="csBankAcc" style="margin-top:4px"></div>
+              </div>
+            </div>
+            <div class="card" style="margin:0">
+              <div class="ct">หมายเหตุในเอกสาร</div>
+              <textarea class="ctrl" id="csInvNote" rows="2" style="resize:none"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    // shifts
-    await pool.query(`CREATE TABLE IF NOT EXISTS shifts (id SERIAL PRIMARY KEY, branch_id INTEGER REFERENCES branches(id), cashier_id INTEGER REFERENCES users(id), open_time TIMESTAMPTZ DEFAULT NOW(), close_time TIMESTAMPTZ, opening_cash NUMERIC(10,2) DEFAULT 0, closing_cash NUMERIC(10,2), expected_cash NUMERIC(10,2), cash_difference NUMERIC(10,2), status VARCHAR(20) DEFAULT 'open', note TEXT)`);
+    <!-- EMPLOYEES -->
+    <div class="page" id="page-employees">
+      <div class="ph">
+        <div><div class="pt">👔 พนักงาน</div></div>
+        <div style="display:flex;gap:7px">
+          <button class="btn btn-secondary" onclick="showPage('users')">⚙️ สิทธิ์ระบบ</button>
+          <button class="btn btn-primary" onclick="showEmployeeModal()">+ เพิ่มพนักงาน</button>
+        </div>
+      </div>
+      <div class="pb"><div class="card"><table><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>สาขา</th><th>เบอร์โทร</th><th>เริ่มงาน</th><th>ผ่านโปร</th><th></th></tr></thead><tbody id="empT"></tbody></table></div></div>
+    </div>
 
-    // sales
-    await pool.query(`ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_methods JSONB DEFAULT '[]'`).catch(()=>{});
-    await pool.query(`CREATE TABLE IF NOT EXISTS sales (id SERIAL PRIMARY KEY, sale_no VARCHAR(30) UNIQUE NOT NULL, branch_id INTEGER REFERENCES branches(id), shift_id INTEGER REFERENCES shifts(id), contact_id INTEGER REFERENCES contacts(id), member_id INTEGER REFERENCES members(id), sale_channel VARCHAR(20) DEFAULT 'retail', cashier_id INTEGER REFERENCES users(id), sale_date DATE NOT NULL DEFAULT CURRENT_DATE, subtotal NUMERIC(10,2) NOT NULL DEFAULT 0, member_discount NUMERIC(10,2) DEFAULT 0, discount NUMERIC(10,2) DEFAULT 0, total NUMERIC(10,2) NOT NULL DEFAULT 0, payment_methods JSONB DEFAULT '[]', status VARCHAR(20) DEFAULT 'completed', void_reason TEXT, voided_by INTEGER REFERENCES users(id), note TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS sale_items (id SERIAL PRIMARY KEY, sale_id INTEGER REFERENCES sales(id) ON DELETE CASCADE, product_id INTEGER REFERENCES products(id), qty_set INTEGER NOT NULL, unit_size INTEGER NOT NULL, qty_unit INTEGER NOT NULL, price_per_set NUMERIC(10,2) NOT NULL, subtotal NUMERIC(10,2) NOT NULL)`);
+    <!-- EXPENSES -->
+    <div class="page" id="page-expenses">
+      <div class="ph"><div class="pt">💰 ค่าใช้จ่าย</div><button class="btn btn-primary" onclick="showExpenseModal()">+ เพิ่มค่าใช้จ่าย</button></div>
+      <div class="pb">
+        <div class="card" style="margin-bottom:12px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div><label class="lbl">จากวันที่</label><input type="date" class="ctrl" id="expFrom" style="margin-top:3px;width:150px"></div>
+            <div><label class="lbl">ถึงวันที่</label><input type="date" class="ctrl" id="expTo" style="margin-top:3px;width:150px"></div>
+            <div><label class="lbl">สาขา</label><select class="ctrl" id="expBranch" style="margin-top:3px;width:160px"><option value="">ทุกสาขา</option></select></div>
+            <div style="align-self:flex-end"><button class="btn btn-primary" onclick="loadExpenses()">ค้นหา</button></div>
+          </div>
+        </div>
+        <div class="g3" style="margin-bottom:12px"><div class="sc"><div class="sl">ค่าใช้จ่ายรวม</div><div class="sv" id="expTotal">฿0.00</div></div><div class="sc"><div class="sl">หัก ณ ที่จ่าย</div><div class="sv" id="expWHT">฿0.00</div></div><div class="sc"><div class="sl">จ่ายจริง</div><div class="sv" id="expNet">฿0.00</div></div></div>
+        <div class="card"><table><thead><tr><th>วันที่</th><th>สาขา</th><th>หมวด</th><th>จำนวน</th><th>หัก ณ ที่จ่าย</th><th>หมายเหตุ</th><th>โดย</th><th></th></tr></thead><tbody id="expT"></tbody></table></div>
+      </div>
+    </div>
 
-    // credit_sales
-    await pool.query(`CREATE TABLE IF NOT EXISTS credit_sales (id SERIAL PRIMARY KEY, sale_id INTEGER REFERENCES sales(id), contact_id INTEGER REFERENCES contacts(id), member_id INTEGER REFERENCES members(id), branch_id INTEGER REFERENCES branches(id), amount NUMERIC(10,2) NOT NULL, paid_amount NUMERIC(10,2) DEFAULT 0, status VARCHAR(20) DEFAULT 'unpaid', due_note TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS credit_payments (id SERIAL PRIMARY KEY, credit_sale_id INTEGER REFERENCES credit_sales(id), amount NUMERIC(10,2) NOT NULL, method VARCHAR(20), paid_at TIMESTAMPTZ DEFAULT NOW(), created_by INTEGER REFERENCES users(id))`);
+    <!-- PROMOTIONS -->
+    <div class="page" id="page-promotions">
+      <div class="ph"><div class="pt">🎁 โปรโมชั่น</div><button class="btn btn-primary" onclick="showPromoModal()">+ เพิ่มโปรโมชั่น</button></div>
+      <div class="pb"><div class="card"><table><thead><tr><th>ชื่อ</th><th>สาขา</th><th>ประเภท</th><th>สินค้า</th><th>เงื่อนไข</th><th>เริ่ม</th><th>สิ้นสุด</th><th>สถานะ</th><th></th></tr></thead><tbody id="promoT"></tbody></table></div></div>
+    </div>
 
-    // invoices
-    await pool.query(`CREATE TABLE IF NOT EXISTS invoices (id SERIAL PRIMARY KEY, invoice_no VARCHAR(30) UNIQUE NOT NULL, sale_id INTEGER REFERENCES sales(id), contact_id INTEGER REFERENCES contacts(id), branch_id INTEGER REFERENCES branches(id), issue_date DATE NOT NULL DEFAULT CURRENT_DATE, due_date DATE, total NUMERIC(10,2) NOT NULL, paid_amount NUMERIC(10,2) DEFAULT 0, status VARCHAR(20) DEFAULT 'unpaid', note TEXT, created_by INTEGER REFERENCES users(id), created_at TIMESTAMPTZ DEFAULT NOW())`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS invoice_payments (id SERIAL PRIMARY KEY, invoice_id INTEGER REFERENCES invoices(id), paid_date DATE NOT NULL DEFAULT CURRENT_DATE, amount NUMERIC(10,2) NOT NULL, method VARCHAR(20), note TEXT, created_by INTEGER REFERENCES users(id), created_at TIMESTAMPTZ DEFAULT NOW())`);
+    <!-- DEBT NOTES -->
+    <div class="page" id="page-debt-notes">
+      <div class="ph"><div class="pt">📋 ใบลดหนี้/ใบเพิ่มหนี้</div><button class="btn btn-primary" onclick="showDebtNoteModal()">+ สร้างเอกสาร</button></div>
+      <div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>ประเภท</th><th>วันที่</th><th>ลูกค้า</th><th>อ้างอิงใบแจ้งหนี้</th><th>จำนวน</th><th>เหตุผล</th></tr></thead><tbody id="debtT"></tbody></table></div></div>
+    </div>
 
-    // quotations (ใบเสนอราคา)
-    await pool.query(`CREATE TABLE IF NOT EXISTS quotations (id SERIAL PRIMARY KEY, doc_no VARCHAR(30) UNIQUE NOT NULL, branch_id INTEGER REFERENCES branches(id), contact_id INTEGER REFERENCES contacts(id), issue_date DATE NOT NULL DEFAULT CURRENT_DATE, valid_until DATE, subtotal NUMERIC(10,2) DEFAULT 0, discount NUMERIC(10,2) DEFAULT 0, total NUMERIC(10,2) DEFAULT 0, status VARCHAR(20) DEFAULT 'draft', note TEXT, created_by INTEGER REFERENCES users(id), created_at TIMESTAMPTZ DEFAULT NOW())`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS quotation_items (id SERIAL PRIMARY KEY, quotation_id INTEGER REFERENCES quotations(id) ON DELETE CASCADE, product_id INTEGER REFERENCES products(id), description TEXT, qty NUMERIC(10,2) NOT NULL, unit VARCHAR(20), price NUMERIC(10,2) NOT NULL, subtotal NUMERIC(10,2) NOT NULL)`);
+    <!-- EXPENSE DOCS -->
+    <div class="page" id="page-expense-docs">
+      <div class="ph"><div><div class="pt">🧾 ค่าใช้จ่าย (เอกสาร)</div></div><button class="btn btn-primary" onclick="showExpenseDocForm()">+ สร้างเอกสาร</button></div>
+      <div class="pb"><div class="card"><table><thead><tr><th>เลขที่</th><th>วันที่</th><th>สาขา</th><th>ผู้จำหน่าย</th><th>ยอดรวม</th><th>ภาษี</th><th>หัก ณ ที่จ่าย</th><th>สุทธิ</th><th></th></tr></thead><tbody id="expDocT"></tbody></table></div></div>
+    </div>
 
-    // debit/credit notes
-    await pool.query(`CREATE TABLE IF NOT EXISTS debt_notes (id SERIAL PRIMARY KEY, doc_no VARCHAR(30) UNIQUE NOT NULL, note_type VARCHAR(10) NOT NULL, branch_id INTEGER REFERENCES branches(id), contact_id INTEGER REFERENCES contacts(id), ref_invoice_id INTEGER REFERENCES invoices(id), issue_date DATE NOT NULL DEFAULT CURRENT_DATE, amount NUMERIC(10,2) NOT NULL, reason TEXT, status VARCHAR(20) DEFAULT 'active', created_by INTEGER REFERENCES users(id), created_at TIMESTAMPTZ DEFAULT NOW())`);
-
-    // promotions
-    await pool.query(`CREATE TABLE IF NOT EXISTS promotions (id SERIAL PRIMARY KEY, name VARCHAR(150) NOT NULL, branch_id INTEGER REFERENCES branches(id), promo_type VARCHAR(20) NOT NULL, product_id INTEGER REFERENCES products(id), min_qty INTEGER DEFAULT 1, discount_value NUMERIC(10,2), free_product_id INTEGER REFERENCES products(id), free_qty INTEGER, start_date DATE NOT NULL, end_date DATE NOT NULL, active BOOLEAN DEFAULT true, created_by INTEGER REFERENCES users(id), created_at TIMESTAMPTZ DEFAULT NOW())`);
-
-    // expenses
-    await pool.query(`CREATE TABLE IF NOT EXISTS expense_categories (id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL)`);
-    const expCheck = await pool.query(`SELECT id FROM expense_categories WHERE name='ค่าแรงพนักงาน'`);
-    if (expCheck.rows.length === 0) await pool.query(`INSERT INTO expense_categories (name) VALUES ('ค่าแรงพนักงาน'),('ค่าน้ำมัน'),('ค่าเช่าร้าน'),('ค่าบรรจุภัณฑ์'),('ค่าสาธารณูปโภค'),('อื่นๆ')`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, branch_id INTEGER REFERENCES branches(id), category_id INTEGER REFERENCES expense_categories(id), amount NUMERIC(10,2) NOT NULL, expense_date DATE NOT NULL DEFAULT CURRENT_DATE, note TEXT, created_by INTEGER REFERENCES users(id), created_at TIMESTAMPTZ DEFAULT NOW())`);
-
-    // damage_photos
-    await pool.query(`CREATE TABLE IF NOT EXISTS damage_photos (id SERIAL PRIMARY KEY, branch_id INTEGER REFERENCES branches(id), product_id INTEGER REFERENCES products(id), photo_url TEXT NOT NULL, photo_date DATE NOT NULL DEFAULT CURRENT_DATE, note TEXT, uploaded_by INTEGER REFERENCES users(id), created_at TIMESTAMPTZ DEFAULT NOW())`);
-
-    // role_permissions — สิทธิ์ตาม role
-    await pool.query(`CREATE TABLE IF NOT EXISTS product_categories (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      type VARCHAR(20) DEFAULT 'stock',
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`).catch(()=>{});
-
-    await pool.query(`CREATE TABLE IF NOT EXISTS member_tiers (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      description TEXT,
-      customer_type VARCHAR(20) DEFAULT 'retail',
-      discount_percent NUMERIC(5,2) DEFAULT 0,
-      discount_amount NUMERIC(10,2) DEFAULT 0,
-      min_eggs_required INTEGER DEFAULT 0,
-      sort_order INTEGER DEFAULT 0,
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`).catch(()=>{});
-
-    // seed default tiers ถ้ายังไม่มี
-    await pool.query(`INSERT INTO member_tiers (name, description, customer_type, sort_order)
-      SELECT * FROM (VALUES
-        ('ระดับ 1 (ทั่วไป)', 'ลูกค้าทั่วไป', 'retail', 1),
-        ('ระดับ 2 (ร้านข้าว)', 'ร้านอาหาร/ร้านข้าว', 'restaurant', 2),
-        ('ระดับ 3 (ส่ง/ลูกค้าประจำ)', 'ลูกค้าส่งหรือประจำ', 'wholesale', 3)
-      ) AS v(name, description, customer_type, sort_order)
-      WHERE NOT EXISTS (SELECT 1 FROM member_tiers LIMIT 1)
-    `).catch(()=>{});
-
-    await pool.query(`CREATE TABLE IF NOT EXISTS role_permissions (
-      id SERIAL PRIMARY KEY,
-      role_name VARCHAR(50) NOT NULL,
-      permission VARCHAR(100) NOT NULL,
-      granted BOOLEAN DEFAULT true,
-      UNIQUE(role_name, permission)
-    )`);
-
-    // seed default permissions สำหรับแต่ละ role
-    const defaultPerms = {
-      owner: ['*'],
-      admin: ['*'],
-      owner_biz: ['*'],
-      manager: ['pos','shifts','sales_view','sales_void','quotations','invoices','credits','receipts','receipts_approve','stock_view','stock_receive','stock_transfer','members','contacts','products_view','products_edit','reports','expenses_view','expenses_edit','promotions','debt_notes','employees_view'],
-      cashier: ['pos','shifts','sales_view','credits','members','stock_view'],
-      stock: ['stock_view','stock_receive','stock_transfer','receipts'],
-      viewer: ['sales_view','stock_view','reports'],
-      accountant: ['invoices','credits','debt_notes','expense_docs','expenses_view','expenses_edit','payroll','reports','sales_view','quotations'],
-      sales_pc: ['pos','shifts','sales_view','members','credits','stock_view','promotions'],
-    };
-    for (const [role, perms] of Object.entries(defaultPerms)) {
-      for (const perm of perms) {
-        await pool.query('INSERT INTO role_permissions (role_name,permission,granted) VALUES ($1,$2,true) ON CONFLICT (role_name,permission) DO NOTHING', [role, perm]);
-      }
-    }
-
-    // user_branch_access — สิทธิ์สาขาของแต่ละ user
-    await pool.query(`CREATE TABLE IF NOT EXISTS user_branch_access (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
-      UNIQUE(user_id, branch_id)
-    )`);
-
-    // promotions table already exists, add expenses table
-    await pool.query(`CREATE TABLE IF NOT EXISTS expenses (
-      id SERIAL PRIMARY KEY,
-      branch_id INTEGER REFERENCES branches(id),
-      category_id INTEGER REFERENCES expense_categories(id),
-      amount NUMERIC(10,2) NOT NULL,
-      expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
-      note TEXT,
-      withholding_tax NUMERIC(10,2) DEFAULT 0,
-      created_by INTEGER REFERENCES users(id),
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`);
-    await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS withholding_tax NUMERIC(10,2) DEFAULT 0`);
-
-    // employees
-    await pool.query(`CREATE TABLE IF NOT EXISTS employees (
-      id SERIAL PRIMARY KEY,
-      code VARCHAR(20) UNIQUE,
-      full_name VARCHAR(100) NOT NULL,
-      nickname VARCHAR(50),
-      national_id VARCHAR(20),
-      phone VARCHAR(20),
-      email VARCHAR(150),
-      address TEXT,
-      branch_id INTEGER REFERENCES branches(id),
-      position VARCHAR(100),
-      start_date DATE,
-      probation_end_date DATE,
-      salary NUMERIC(10,2),
-      salary_base NUMERIC(10,2),
-      bank_name VARCHAR(100),
-      bank_account VARCHAR(50),
-      education TEXT,
-      work_history TEXT,
-      emergency_contact TEXT,
-      photo_url TEXT,
-      doc_url TEXT,
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`);
-    // เพิ่ม columns ใหม่ถ้ายังไม่มี
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS national_id VARCHAR(20)`);
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS email VARCHAR(150)`);
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS address TEXT`);
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS probation_end_date DATE`);
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS salary_base NUMERIC(10,2)`);
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)`);
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_account VARCHAR(50)`);
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS education TEXT`);
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS work_history TEXT`);
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS emergency_contact TEXT`);
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_url TEXT`);
-    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS doc_url TEXT`);
-
-    // debt_notes already in schema
-    // add doc_sequence for debit/credit note
-    await pool.query(`INSERT INTO doc_sequences (doc_type, prefix) VALUES ('debit_note','DN'),('credit_note','CN') ON CONFLICT (doc_type) DO NOTHING`);
-
-    // PAYROLL TABLES
-    await pool.query(`CREATE TABLE IF NOT EXISTS payroll_periods (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      period_from DATE NOT NULL,
-      period_to DATE NOT NULL,
-      payment_date DATE,
-      status VARCHAR(20) DEFAULT 'draft',
-      created_by INTEGER REFERENCES users(id),
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`);
-
-    await pool.query(`CREATE TABLE IF NOT EXISTS payroll_items (
-      id SERIAL PRIMARY KEY,
-      period_id INTEGER REFERENCES payroll_periods(id) ON DELETE CASCADE,
-      employee_id INTEGER REFERENCES employees(id),
-      base_salary NUMERIC(10,2) DEFAULT 0,
-      overtime NUMERIC(10,2) DEFAULT 0,
-      bonus NUMERIC(10,2) DEFAULT 0,
-      commission NUMERIC(10,2) DEFAULT 0,
-      allowance NUMERIC(10,2) DEFAULT 0,
-      other_income NUMERIC(10,2) DEFAULT 0,
-      social_security NUMERIC(10,2) DEFAULT 0,
-      withholding_tax NUMERIC(10,2) DEFAULT 0,
-      student_loan NUMERIC(10,2) DEFAULT 0,
-      absent_deduct NUMERIC(10,2) DEFAULT 0,
-      other_deduct NUMERIC(10,2) DEFAULT 0,
-      deposit NUMERIC(10,2) DEFAULT 0,
-      total_income NUMERIC(10,2) DEFAULT 0,
-      total_deduct NUMERIC(10,2) DEFAULT 0,
-      net_pay NUMERIC(10,2) DEFAULT 0,
-      note TEXT,
-      status VARCHAR(20) DEFAULT 'pending'
-    )`);
-
-    // EXPENSE DOCUMENTS (ค่าใช้จ่ายแบบ document)
-    await pool.query(`CREATE TABLE IF NOT EXISTS expense_docs (
-      id SERIAL PRIMARY KEY,
-      doc_no VARCHAR(30) UNIQUE NOT NULL,
-      branch_id INTEGER REFERENCES branches(id),
-      contact_id INTEGER REFERENCES contacts(id),
-      contact_name TEXT,
-      contact_address TEXT,
-      contact_tax_id VARCHAR(20),
-      doc_date DATE NOT NULL DEFAULT CURRENT_DATE,
-      due_date DATE,
-      credit_days INTEGER DEFAULT 0,
-      subtotal NUMERIC(10,2) DEFAULT 0,
-      discount_pct NUMERIC(5,2) DEFAULT 0,
-      discount_amt NUMERIC(10,2) DEFAULT 0,
-      after_discount NUMERIC(10,2) DEFAULT 0,
-      vat_pct NUMERIC(5,2) DEFAULT 0,
-      vat_amt NUMERIC(10,2) DEFAULT 0,
-      withholding_tax NUMERIC(10,2) DEFAULT 0,
-      total NUMERIC(10,2) DEFAULT 0,
-      ref_no TEXT,
-      note TEXT,
-      internal_note TEXT,
-      attachment_url TEXT,
-      status VARCHAR(20) DEFAULT 'draft',
-      created_by INTEGER REFERENCES users(id),
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS contact_name TEXT`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS contact_address TEXT`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS contact_tax_id VARCHAR(20)`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS credit_days INTEGER DEFAULT 0`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS due_date DATE`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS discount_pct NUMERIC(5,2) DEFAULT 0`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS after_discount NUMERIC(10,2) DEFAULT 0`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS vat_pct NUMERIC(5,2) DEFAULT 0`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS vat_amt NUMERIC(10,2) DEFAULT 0`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS ref_no TEXT`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS internal_note TEXT`);
-    await pool.query(`ALTER TABLE expense_docs ADD COLUMN IF NOT EXISTS attachment_url TEXT`);
-
-    await pool.query(`CREATE TABLE IF NOT EXISTS expense_doc_items (
-      id SERIAL PRIMARY KEY,
-      doc_id INTEGER REFERENCES expense_docs(id) ON DELETE CASCADE,
-      item_no INTEGER DEFAULT 1,
-      description TEXT NOT NULL,
-      product_id INTEGER REFERENCES products(id),
-      qty NUMERIC(10,4) DEFAULT 1,
-      unit VARCHAR(50),
-      unit_price NUMERIC(10,4) DEFAULT 0,
-      subtotal NUMERIC(10,2) DEFAULT 0
-    )`);
-
-    // doc sequence for expense
-    await pool.query(`INSERT INTO doc_sequences (doc_type,prefix) VALUES ('expense_doc','EXP') ON CONFLICT (doc_type) DO NOTHING`);
-    await pool.query(`INSERT INTO doc_sequences (doc_type,prefix) VALUES ('payroll','PAY') ON CONFLICT (doc_type) DO NOTHING`);
-
-    // product_bundles (สินค้าเป็นชุด เช่น ไข่ 10 ฟอง/ชุด)
-    await pool.query(`CREATE TABLE IF NOT EXISTS product_bundles (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(150) NOT NULL,
-      branch_id INTEGER REFERENCES branches(id),
-      product_id INTEGER REFERENCES products(id),
-      qty_per_bundle INTEGER NOT NULL DEFAULT 10,
-      price NUMERIC(10,2) NOT NULL DEFAULT 0,
-      customer_type VARCHAR(20) DEFAULT 'retail',
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`);
-
-    // เพิ่ม columns ที่อาจหายไป
-    await pool.query(`CREATE TABLE IF NOT EXISTS product_categories (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      type VARCHAR(20) DEFAULT 'stock',
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`).catch(()=>{});
-
-    await pool.query(`CREATE TABLE IF NOT EXISTS member_tiers (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      description TEXT,
-      customer_type VARCHAR(20) DEFAULT 'retail',
-      discount_percent NUMERIC(5,2) DEFAULT 0,
-      discount_amount NUMERIC(10,2) DEFAULT 0,
-      min_eggs_required INTEGER DEFAULT 0,
-      sort_order INTEGER DEFAULT 0,
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`).catch(()=>{});
-
-    // seed default tiers ถ้ายังไม่มี
-    await pool.query(`INSERT INTO member_tiers (name, description, customer_type, sort_order)
-      SELECT * FROM (VALUES
-        ('ระดับ 1 (ทั่วไป)', 'ลูกค้าทั่วไป', 'retail', 1),
-        ('ระดับ 2 (ร้านข้าว)', 'ร้านอาหาร/ร้านข้าว', 'restaurant', 2),
-        ('ระดับ 3 (ส่ง/ลูกค้าประจำ)', 'ลูกค้าส่งหรือประจำ', 'wholesale', 3)
-      ) AS v(name, description, customer_type, sort_order)
-      WHERE NOT EXISTS (SELECT 1 FROM member_tiers LIMIT 1)
-    `).catch(()=>{});
-
-    await pool.query(`CREATE TABLE IF NOT EXISTS role_permissions (
-      id SERIAL PRIMARY KEY,
-      role_name VARCHAR(50) NOT NULL,
-      permission VARCHAR(100) NOT NULL,
-      granted BOOLEAN DEFAULT true,
-      UNIQUE(role_name, permission)
-    )`).catch(()=>{});
-    await pool.query('ALTER TABLE role_permissions ADD COLUMN IF NOT EXISTS granted BOOLEAN DEFAULT true').catch(()=>{});
-    await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(10,4) DEFAULT 0`).catch(()=>{});
-    await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER').catch(()=>{});
-    await pool.query(`CREATE TABLE IF NOT EXISTS member_points_log (
-      id SERIAL PRIMARY KEY,
-      member_id INTEGER REFERENCES members(id),
-      change_eggs INTEGER NOT NULL,
-      reason VARCHAR(100),
-      sale_id INTEGER,
-      created_by INTEGER,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`).catch(()=>{});
-    await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS total_eggs INTEGER DEFAULT 0').catch(()=>{});
-    await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS redeemed_eggs INTEGER DEFAULT 0').catch(()=>{});
-    await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS line_id TEXT').catch(()=>{});
-    await pool.query('ALTER TABLE contacts ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true').catch(()=>{});
-    await pool.query('UPDATE contacts SET active=true WHERE active IS NULL').catch(()=>{});
-    await pool.query('ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tax_id VARCHAR(30)').catch(()=>{});
-    await pool.query(`ALTER TABLE stock ADD CONSTRAINT IF NOT EXISTS stock_unique UNIQUE (product_id, branch_id)`).catch(()=>{});
-    await pool.query(`ALTER TABLE product_prices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`).catch(()=>{});
-    await pool.query(`ALTER TABLE product_prices ADD CONSTRAINT IF NOT EXISTS pp_unique UNIQUE (product_id,branch_id,customer_type,qty)`).catch(()=>{});
-    await pool.query(`ALTER TABLE stock_transfers ADD COLUMN IF NOT EXISTS doc_no VARCHAR(50)`).catch(()=>{});
-    await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_mult INTEGER DEFAULT 1`).catch(()=>{});
-
+    <!-- PAYROLL -->
     
-    
-    // member_tiers — ระดับสมาชิก
-    await pool.query(`CREATE TABLE IF NOT EXISTS member_tiers (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      description TEXT,
-      customer_type VARCHAR(20) DEFAULT 'retail',
-      discount_percent NUMERIC(5,2) DEFAULT 0,
-      discount_amount NUMERIC(10,2) DEFAULT 0,
-      min_eggs_required INTEGER DEFAULT 0,
-      sort_order INTEGER DEFAULT 0,
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`).catch(()=>{});
+      <!-- PRODUCT DETAIL PAGE -->
+      <div class="page" id="page-product-detail">
+        <div class="ph">
+          <div>
+            <button class="btn btn-secondary btn-sm" onclick="showPage('products')" style="margin-bottom:6px">← กลับ</button>
+            <div class="pt" id="pdTitle">รายละเอียดสินค้า</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <select class="ctrl" id="pdBranchFilter" style="width:160px" onchange="loadProductMovements()">
+              <option value="">ทุกสาขา</option>
+            </select>
+            <button class="btn btn-warning" onclick="showAdjustModal()" style="background:var(--warning-dim);color:#b45309">📦 ปรับยอดคงคลัง</button>
+            <button class="btn btn-primary" onclick="showPriceEditorModal()">💰 แก้ไขราคา</button>
+          </div>
+        </div>
+        <div class="pb">
+          <!-- Info cards row -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+            <div class="sc"><div class="sl">สต๊อกรวมทั้งหมด</div><div class="sv" id="pdTotalStock">—</div></div>
+            <div class="sc"><div class="sl">ราคาขาย (ปลีก/ฟอง)</div><div class="sv" id="pdSalePrice">—</div></div>
+            <div class="sc"><div class="sl">ราคาซื้อ</div><div class="sv" id="pdCostPrice">—</div></div>
+            <div class="sc"><div class="sl">กลุ่มสินค้า</div><div class="sv" id="pdCategory">—</div></div>
+          </div>
 
-    // เพิ่ม column tier_id ในตาราง members ถ้ายังไม่มี
-    await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER REFERENCES member_tiers(id)').catch(()=>{});
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+            <!-- ข้อมูลสินค้า -->
+            <div class="card">
+              <div class="ct">📋 ข้อมูลสินค้า</div>
+              <table style="width:100%">
+                <tbody id="pdInfoTable">
+                  <tr><td colspan="2" style="text-align:center;color:var(--text-muted)">กำลังโหลด...</td></tr>
+                </tbody>
+              </table>
+            </div>
 
-    // สร้าง tier เริ่มต้น
-    await pool.query(`INSERT INTO member_tiers (name, description, customer_type, sort_order) VALUES
-      ('ระดับ 1 (ทั่วไป)', 'ลูกค้าทั่วไป', 'retail', 1),
-      ('ระดับ 2 (ร้านข้าว)', 'ร้านอาหาร/ร้านข้าว', 'restaurant', 2),
-      ('ระดับ 3 (ส่ง/ลูกค้าประจำ)', 'ลูกค้าส่งหรือประจำ', 'wholesale', 3)
-      ON CONFLICT DO NOTHING`).catch(()=>{});
-    // daily_close table
-    await pool.query(`CREATE TABLE IF NOT EXISTS daily_closes (
-      id SERIAL PRIMARY KEY,
-      date DATE NOT NULL,
-      branch_id INTEGER REFERENCES branches(id),
-      sales_total NUMERIC(12,2) DEFAULT 0,
-      cash_amount NUMERIC(12,2) DEFAULT 0,
-      transfer_amount NUMERIC(12,2) DEFAULT 0,
-      broken_eggs INTEGER DEFAULT 0,
-      broken_price NUMERIC(8,2) DEFAULT 4.5,
-      note TEXT,
-      sales_snapshot JSONB DEFAULT '[]',
-      stock_snapshot JSONB DEFAULT '[]',
-      created_by INTEGER,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(date, branch_id)
-    )`).catch(()=>{});
-    // damaged_eggs — บันทึกไข่บุบรายวัน
-    await pool.query(`CREATE TABLE IF NOT EXISTS damaged_eggs (
-      id SERIAL PRIMARY KEY,
-      branch_id INTEGER REFERENCES branches(id),
-      damage_date DATE NOT NULL DEFAULT CURRENT_DATE,
-      product_id INTEGER REFERENCES products(id),
-      product_name TEXT,
-      qty INTEGER NOT NULL DEFAULT 0,
-      note TEXT,
-      photo_url TEXT,
-      created_by INTEGER REFERENCES users(id),
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`);
+            <!-- สต๊อกแยกสาขา -->
+            <div class="card">
+              <div class="ct">🏪 สต๊อกแยกสาขา</div>
+              <table>
+                <thead><tr>
+                  <th>สาขา</th>
+                  <th style="text-align:right">ฟอง</th>
+                  <th style="text-align:right">แผง</th>
+                  <th style="text-align:right">ลัง</th>
+                </tr></thead>
+                <tbody id="pdStockTable">
+                  <tr><td colspan="4" style="text-align:center;color:var(--text-muted)">กำลังโหลด...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-    // daily_attachments — เอกสารแนบรายวัน (บิล, ใบส่งของ ฯลฯ)
-    await pool.query(`CREATE TABLE IF NOT EXISTS daily_attachments (
-      id SERIAL PRIMARY KEY,
-      branch_id INTEGER REFERENCES branches(id),
-      attach_date DATE NOT NULL DEFAULT CURRENT_DATE,
-      file_url TEXT NOT NULL,
-      file_type VARCHAR(20) DEFAULT 'image',
-      doc_type VARCHAR(50) DEFAULT 'other',
-      note TEXT,
-      uploaded_by INTEGER REFERENCES users(id),
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`);
+          <!-- ราคาแยกสาขา + tier -->
+          <div class="card" style="margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <div class="ct" style="margin:0">💰 ราคาแยกสาขา/ระดับลูกค้า</div>
+              <button class="btn btn-primary btn-sm" onclick="showAddPriceRow()">+ เพิ่มราคา</button>
+            </div>
+            <table>
+              <thead><tr>
+                <th>สาขา</th>
+                <th>ระดับลูกค้า</th>
+                <th style="text-align:right">จำนวน (ฟอง)</th>
+                <th style="text-align:right">ราคา/หน่วย</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="pdPriceTable">
+                <tr><td colspan="5" style="text-align:center;color:var(--text-muted)">ยังไม่มีราคา</td></tr>
+              </tbody>
+            </table>
+          </div>
 
-    // daily_close — ปิดยอดประจำวัน
-    await pool.query(`CREATE TABLE IF NOT EXISTS daily_closes (
-      id SERIAL PRIMARY KEY,
-      branch_id INTEGER REFERENCES branches(id),
-      close_date DATE NOT NULL DEFAULT CURRENT_DATE,
-      -- ยอดเงิน
-      cash_system NUMERIC(10,2) DEFAULT 0,
-      cash_actual NUMERIC(10,2) DEFAULT 0,
-      cash_diff NUMERIC(10,2) DEFAULT 0,
-      transfer_system NUMERIC(10,2) DEFAULT 0,
-      transfer_actual NUMERIC(10,2) DEFAULT 0,
-      transfer_diff NUMERIC(10,2) DEFAULT 0,
-      other_income NUMERIC(10,2) DEFAULT 0,
-      total_system NUMERIC(10,2) DEFAULT 0,
-      total_actual NUMERIC(10,2) DEFAULT 0,
-      total_diff NUMERIC(10,2) DEFAULT 0,
-      -- สรุปไข่
-      egg_sold_total INTEGER DEFAULT 0,
-      egg_variance INTEGER DEFAULT 0,
-      egg_variance_value NUMERIC(10,2) DEFAULT 0,
-      -- หมายเหตุ
-      note TEXT,
-      items JSONB DEFAULT '[]',
-      created_by INTEGER REFERENCES users(id),
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(branch_id, close_date)
-    )`);
-    await pool.query(`ALTER TABLE daily_closes ADD COLUMN IF NOT EXISTS other_income NUMERIC(10,2) DEFAULT 0`);
+          <!-- ประวัติการเคลื่อนไหว -->
+          <div class="card">
+            <div class="ct">📊 ประวัติการเคลื่อนไหวสต๊อก</div>
+            <table>
+              <thead><tr>
+                <th>วันที่</th>
+                <th>ประเภท</th>
+                <th>สาขา</th>
+                <th>เอกสาร</th>
+                <th>หมายเหตุ</th>
+                <th style="text-align:right">จำนวน</th>
+                <th style="text-align:right">คงเหลือ</th>
+              </tr></thead>
+              <tbody id="pdMovTable">
+                <tr><td colspan="7" style="text-align:center;color:var(--text-muted)">กำลังโหลด...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
-    // company_settings
-    await pool.query(`CREATE TABLE IF NOT EXISTS company_settings (
-      id SERIAL PRIMARY KEY,
-      company_name VARCHAR(200) DEFAULT 'Egg Station',
-      company_name_en VARCHAR(200) DEFAULT 'Egg Station',
-      tax_id VARCHAR(20),
-      address TEXT,
-      phone VARCHAR(50),
-      email VARCHAR(150),
-      website VARCHAR(150),
-      logo_url TEXT,
-      bank_name VARCHAR(100),
-      bank_account VARCHAR(50),
-      bank_account_name VARCHAR(100),
-      invoice_note TEXT DEFAULT 'ขอบคุณที่ใช้บริการ',
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )`);
-    const cs = await pool.query('SELECT id FROM company_settings');
-    if (cs.rows.length === 0) {
-      await pool.query(`INSERT INTO company_settings
-        (company_name, company_name_en, tax_id, address, phone, invoice_note)
-        VALUES ($1,$2,$3,$4,$5,$6)`,
-        [
-          'บริษัท เจ เอ็น คอมพาเนียน กรุ๊ป จำกัด (สำนักงานใหญ่)',
-          'J.N. Companion Group Co., Ltd. (Head Office)',
-          '0745567000735',
-          '219/791 หมู่ที่ 12 ต.อ้อมน้อย อ.กระทุ่มแบน จ.สมุทรสาคร 74130',
-          '064-949-0589',
-          'ขอบคุณที่ใช้บริการ กรุณาชำระเงินภายในกำหนด'
-        ]);
-    }
+      <div class="page" id="page-payroll">
+      <div class="ph"><div><div class="pt">💵 เงินเดือน / Payroll</div><div style="font-size:12px;color:var(--text-muted)">กด "จัดการ" → กด "🖨️ สลิป" เพื่อพิมพ์สลิปรายบุคคล</div></div><button class="btn btn-primary" onclick="showCreatePayroll()">+ สร้าง Payroll</button></div>
+      <div class="pb"><div class="card"><table><thead><tr><th>งวด</th><th>ช่วงวันที่</th><th>วันที่จ่าย</th><th>พนักงาน</th><th>ยอดรวม</th><th>สถานะ</th><th></th></tr></thead><tbody id="payrollT"></tbody></table></div></div>
+    </div>
 
-    // admin user
-    const userCheck = await pool.query(`SELECT id FROM users WHERE username='admin'`);
-    if (userCheck.rows.length === 0) {
-      const hash = await bcrypt.hash('password', 10);
-      await pool.query(`INSERT INTO users (username,password_hash,full_name,role_id,branch_id) VALUES ('admin',$1,'เจ้าของร้าน',1,NULL)`, [hash]);
-    }
-    console.log('✅ Schema พร้อม');
-  } catch (err) { console.error('❌ Schema error:', err.message); }
+  </div>
+</div>
+<div id="MC"></div>
+
+<script>
+window.onerror = function(msg, src, line, col, err) {
+  console.error('JS Error:', msg, 'at', line+':'+col, err);
+};
+let _recvProds=[], _recvRowCount=0;
+let _trProds=[], _trRowCount=0;
+let _curPermRole='manager', _curPerms=new Set(), _permSchema=[];
+
+
+'use strict';
+let CU=null, cart=[], allMembers=[], allContacts=[], branches=[], roles=[], curShift=null, selMember=null;
+let _companySettings={};
+var _invProducts=[], _invN=0;
+const mSet={eggs_required:100,discount_amount:5};
+
+const api={
+  tok:()=>localStorage.getItem('es_token'),
+  async r(method,path,body){
+    const opts={method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.tok()}};
+    if(body) opts.body=JSON.stringify(body);
+    const res=await fetch('/api'+path,opts);
+    if(res.status===401){logout();return null;}
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'เกิดข้อผิดพลาด');
+    return data;
+  },
+  get:(p)=>api.r('GET',p),
+  post:(p,b)=>api.r('POST',p,b),
+  put:(p,b)=>api.r('PUT',p,b),
+  del:(p)=>api.r('DELETE',p),
+};
+
+const fmt={
+  b:(n)=>'฿'+(parseFloat(n)||0).toLocaleString('th-TH',{minimumFractionDigits:2}),
+  n:(n)=>(parseInt(n)||0).toLocaleString('th-TH'),
+  d:(s)=>s?new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}):'-',
+  dn:(s)=>s||'-',
+  role:(r)=>({owner:'เจ้าของ',admin:'ผู้ดูแล',manager:'ผู้จัดการ',cashier:'แคชเชียร์',stock:'สต๊อก',viewer:'ผู้ชม',accountant:'บัญชี',sales_pc:'พนักงานขาย(PC)',owner_biz:'เจ้าของกิจการ'}[r]||r),
+  badge:(s)=>{const m={paid:'<span class="badge bs">ชำระแล้ว</span>',unpaid:'<span class="badge be">ค้างชำระ</span>',partial:'<span class="badge bw">ชำระบางส่วน</span>',draft:'<span class="badge bg">ร่าง</span>',approved:'<span class="badge bs">อนุมัติ</span>',pre:'<span class="badge bw">รอใส่ราคา</span>',open:'<span class="badge bs">เปิด</span>',closed:'<span class="badge bg">ปิด</span>'};return m[s]||('<span class="badge bg">'+s+'</span>');}
+};
+
+function CM(){document.getElementById('MC').innerHTML='';}
+function toast(msg,type='success'){
+  const t=document.createElement('div');
+  t.style.cssText='position:fixed;bottom:20px;right:20px;padding:12px 18px;border-radius:8px;font-family:"Sarabun",sans-serif;font-size:14px;z-index:9999;color:#fff;background:'+(type==='error'?'#dc2626':type==='info'?'#2563eb':type==='warning'?'#d97706':'#16a34a')+';box-shadow:0 4px 12px rgba(0,0,0,.15);max-width:320px';
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),3000);
 }
 
 // ============================================================
-// MIDDLEWARE
+// NAV + PAGE
 // ============================================================
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use((req, res, next) => {
-  if (req.path === '/' || req.path.endsWith('.html')) {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-  }
-  next();
-});
-app.use((req, res, next) => {
-  if (req.path === '/' || req.path.endsWith('.html')) {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-  }
-  next();
-});
-app.use(express.static(__dirname));
-const uploadDir = './uploads';
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-const storage = multer.diskStorage({ destination: uploadDir, filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname) });
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
-app.use('/uploads', express.static(uploadDir));
+const NAV=[
+  {sec:'การขาย'},
+  {id:'pos',l:'ขายหน้าร้าน',i:'🛒',r:['owner','admin','manager','cashier']},
+  {id:'shifts',l:'กะการขาย',i:'⏰',r:['owner','admin','manager','cashier']},
+  {id:'sales',l:'ประวัติการขาย',i:'📑',r:['owner','admin','manager']},
+  {id:'daily-close',l:'ปิดยอดประจำวัน',i:'📋',r:['owner','admin','manager','cashier']},
+  {sec:'เอกสาร'},
+  {id:'quotations',l:'ใบเสนอราคา',i:'📝',r:['owner','admin','manager']},
+  {id:'invoices',l:'ใบแจ้งหนี้',i:'📄',r:['owner','admin','manager']},
+  {id:'credits',l:'ลูกค้าเชื่อ',i:'💳',r:['owner','admin','manager']},
+  {id:'receipts',l:'ใบรับสินค้า',i:'📦',r:['owner','admin','manager','stock']},
+  {sec:'สต๊อก'},
+  {id:'stock',l:'สต๊อกสินค้า',i:'🥚',r:['owner','admin','manager','stock']},
+  {id:'smv',l:'ประวัติสต๊อก',i:'📜',r:['owner','admin','manager']},
+  {sec:'CRM'},
+  {id:'members',l:'สมาชิก',i:'⭐',r:['owner','admin','manager','cashier']},
+  {id:'contacts',l:'ผู้ติดต่อ',i:'👥',r:['owner','admin','manager']},
+  {sec:'จัดการ'},
+  {id:'products',l:'สินค้า',i:'🥚',r:['owner','admin','manager']},
+  {id:'reports',l:'รายงาน',i:'📈',r:['owner','admin','manager']},
+  {id:'users',l:'ผู้ใช้งาน',i:'⚙️',r:['owner','admin']},
+  {id:'permissions',l:'ตั้งค่าสิทธิ์',i:'🔐',r:['owner','admin']},
+  {id:'company',l:'ตั้งค่าบริษัท',i:'🏢',r:['owner','admin']},
+  {sec:'HR'},
+  {id:'employees',l:'พนักงาน',i:'👔',r:['owner','admin']},
+  {sec:'การเงิน'},
+  {id:'expenses',l:'ค่าใช้จ่าย',i:'💰',r:['owner','admin','manager']},
+  {id:'promotions',l:'โปรโมชั่น',i:'🎁',r:['owner','admin','manager']},
+  {id:'debt-notes',l:'ใบลดหนี้/เพิ่มหนี้',i:'📋',r:['owner','admin','manager']},
+  {id:'expense-docs',l:'ค่าใช้จ่าย (เอกสาร)',i:'🧾',r:['owner','admin','manager']},
+  {id:'payroll',l:'เงินเดือน/Payroll',i:'💵',r:['owner','admin']},
+];
 
-function auth(req, res, next) {
-  const token = (req.headers['authorization'] || '').split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบ' });
-  try { req.user = jwt.verify(token, process.env.JWT_SECRET); next(); }
-  catch { res.status(401).json({ error: 'Token หมดอายุ' }); }
+function buildNav(){
+  const nl=document.getElementById('navLinks');
+  nl.innerHTML='';
+  NAV.forEach(item=>{
+    if(item.sec){
+      const s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nl.appendChild(s);
+    } else if(!item.r||item.r.includes(CU.role)){
+      const a=document.createElement('div');
+      a.className='nav-link';a.id='nav-'+item.id;
+      a.innerHTML='<span style="width:18px;text-align:center">'+item.i+'</span><span>'+item.l+'</span>';
+      a.onclick=()=>showPage(item.id);
+      nl.appendChild(a);
+    }
+  });
 }
-function role(...roles) { return (req, res, next) => { if (!roles.includes(req.user.role)) return res.status(403).json({ error: 'ไม่มีสิทธิ์' }); next(); }; }
 
-// ============================================================
-// DOC NUMBER GENERATOR
-// ============================================================
-// docTypes ที่ไม่ต้องมีรหัสสาขา
-const NO_BRANCH_DOCS = ['invoice','receipt','quotation','debit_note','credit_note'];
+var PAGE_LOADERS={
+  dashboard:loadDash,
+  pos:()=>{loadShiftSt();loadPosProds();loadPosMem();},
+  shifts:loadShifts,
+  sales:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('sFrom').value=t;document.getElementById('sTo').value=t;loadSales();},
+  'daily-close':initDailyClose,
+  quotations:loadQt,
+  invoices:loadInv,
+  credits:loadCredits,
+  receipts:loadRecv,
+  stock:loadStock,
+  smv:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('mvFrom').value=t;document.getElementById('mvTo').value=t;loadMv();},
+  members:loadMembers,
+  contacts:loadContacts,
+  products:()=>{loadProdCats();loadProds();},
+  reports:()=>{document.getElementById('rptDate').value=new Date().toISOString().slice(0,10);loadReport();},
+  users:loadUsers,
+  permissions:()=>{const fb=document.querySelector('#page-permissions .perm-role-btn');selectPermRole('manager',fb);},
+  company:loadCompanySettings,
+  employees:loadEmployees,
+  expenses:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('expFrom').value=t;document.getElementById('expTo').value=t;loadExpenses();},
+  promotions:loadPromos,
+  'debt-notes':loadDebtNotes,
+  'expense-docs':loadExpenseDocs,
+  payroll:loadPayroll,
+};
 
-async function genDocNo(docType, branchCode) {
-  const now = new Date();
-  const ym = `${now.getFullYear().toString().slice(2)}${String(now.getMonth()+1).padStart(2,'0')}`;
-  const result = await pool.query(`SELECT * FROM doc_sequences WHERE doc_type=$1`, [docType]);
-  let seq = result.rows[0];
-  let newSeq;
-  if (!seq) { await pool.query(`INSERT INTO doc_sequences (doc_type,prefix,last_seq,year_month) VALUES ($1,$2,1,$3)`, [docType, docType.toUpperCase(), ym]); newSeq = 1; }
-  else {
-    newSeq = (seq.year_month === ym) ? seq.last_seq + 1 : 1;
-    await pool.query(`UPDATE doc_sequences SET last_seq=$1,year_month=$2 WHERE doc_type=$3`, [newSeq, ym, docType]);
-  }
-  const prefix = seq ? seq.prefix : docType.toUpperCase();
-  // ใบเสนอราคา, ใบแจ้งหนี้, ใบเสร็จ, ใบลดหนี้, ใบเพิ่มหนี้ = ไม่มีรหัสสาขา
-  const useBranch = !NO_BRANCH_DOCS.includes(docType) && branchCode;
-  return `${prefix}-${useBranch ? branchCode+'-' : ''}${ym}-${String(newSeq).padStart(4,'0')}`;
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
+  const page=document.getElementById('page-'+id);
+  if(page) page.classList.add('active');
+  const nl=document.getElementById('nav-'+id);
+  if(nl) nl.classList.add('active');
+  if(PAGE_LOADERS[id]) try{PAGE_LOADERS[id]();}catch(e){console.error('loader:',id,e);}
 }
 
 // ============================================================
 // AUTH
 // ============================================================
-app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-  try {
-    const r = await pool.query(`SELECT u.*,ro.name AS role,b.code AS branch_code,b.name AS branch_name FROM users u JOIN roles ro ON u.role_id=ro.id LEFT JOIN branches b ON u.branch_id=b.id WHERE u.username=$1 AND u.active=true`, [username]);
-    const u = r.rows[0];
-    if (!u || !await bcrypt.compare(password, u.password_hash)) return res.status(401).json({ error: 'username หรือ password ไม่ถูกต้อง' });
-    await pool.query('UPDATE users SET last_login=NOW() WHERE id=$1', [u.id]);
-    // ดึงสาขาที่ user มีสิทธิ์
-    const branchAccess = await pool.query(`
-      SELECT b.id, b.code, b.name FROM user_branch_access uba
-      JOIN branches b ON uba.branch_id = b.id
-      WHERE uba.user_id = $1 AND b.active = true ORDER BY b.id
-    `, [u.id]);
-    const accessBranches = branchAccess.rows;
-    // owner/admin เข้าได้ทุกสาขา
-    const isOwner = ['owner','admin'].includes(u.role);
-    const allBranches = isOwner ? (await pool.query('SELECT id,code,name FROM branches WHERE active=true ORDER BY id')).rows : accessBranches;
-
-    const token = jwt.sign({ id:u.id, username:u.username, full_name:u.full_name, role:u.role, branch_id:u.branch_id, branch_code:u.branch_code }, process.env.JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id:u.id, username:u.username, full_name:u.full_name, role:u.role, branch_id:u.branch_id, branch_code:u.branch_code, branch_name:u.branch_name, access_branches: allBranches } });
-  } catch(e) { console.error(e); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
-});
-app.get('/api/auth/me', auth, async (req, res) => {
-  try {
-    res.json({ id: req.user.id, username: req.user.username, role: req.user.role, branch_id: req.user.branch_id });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// BRANCHES
-app.get('/api/branches', auth, async (req, res) => { const r = await pool.query('SELECT * FROM branches WHERE active=true ORDER BY id'); res.json(r.rows); });
-app.post('/api/branches', auth, role('owner','admin'), async (req, res) => {
-  const { name, code, address, phone } = req.body;
-  if (!name || !code) return res.status(400).json({ error: 'กรุณากรอกชื่อและรหัสสาขา' });
-  try {
-    const r = await pool.query('INSERT INTO branches (name,code,address,phone) VALUES ($1,$2,$3,$4) RETURNING *',
-      [name, code.toUpperCase(), address||null, phone||null]);
-    res.status(201).json({ message: 'สร้างสาขาเรียบร้อย', branch: r.rows[0] });
-  } catch(e) {
-    if (e.code==='23505') return res.status(409).json({ error: 'รหัสสาขานี้มีอยู่แล้ว' });
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// USERS
-app.get('/api/users', auth, role('owner','admin'), async (req, res) => {
-  const r = await pool.query(`SELECT u.id,u.username,u.full_name,u.phone,u.active,u.branch_id,b.code AS branch_code,b.name AS branch_name,ro.id AS role_id,ro.name AS role,u.last_login FROM users u JOIN roles ro ON u.role_id=ro.id LEFT JOIN branches b ON u.branch_id=b.id ORDER BY u.id`);
-  res.json(r.rows);
-});
-app.post('/api/users', auth, role('owner','admin'), async (req, res) => {
-  const { username, password, full_name, role_id, branch_id, phone } = req.body;
-  try { const hash = await bcrypt.hash(password, 10); const r = await pool.query('INSERT INTO users (username,password_hash,full_name,role_id,branch_id,phone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,username,full_name', [username, hash, full_name, role_id, branch_id||null, phone||null]); res.status(201).json({ message: 'สร้างเรียบร้อย', user: r.rows[0] }); }
-  catch(e) { if (e.code==='23505') return res.status(409).json({ error: 'username นี้มีอยู่แล้ว' }); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
-});
-app.put('/api/users/:id', auth, role('owner','admin'), async (req, res) => {
-  const { full_name, role_id, phone, active, password } = req.body;
-  try {
-    if (password) {
-      const hash = await bcrypt.hash(password, 10);
-      await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, req.params.id]);
+async function doLogin(){
+  const user=document.getElementById('loginUser').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  const btn=document.getElementById('loginBtn');
+  const err=document.getElementById('loginError');
+  err.classList.remove('show');
+  if(!user||!pass){err.textContent='กรุณากรอก username และ password';err.classList.add('show');return;}
+  btn.disabled=true;btn.textContent='กำลังเข้าสู่ระบบ...';
+  try{
+    const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'เข้าสู่ระบบไม่ได้');
+    localStorage.setItem('es_token',data.token);
+    localStorage.setItem('es_user',JSON.stringify(data.user));
+    CU=data.user;
+    await initApp();
+    if(data.user.access_branches&&data.user.access_branches.length>1&&!['owner','admin'].includes(CU.role)){
+      showBranchSelector(data.user.access_branches);
     }
-    const fields = []; const vals = [];
-    if (full_name !== undefined) { fields.push(`full_name=$${fields.length+1}`); vals.push(full_name); }
-    if (role_id !== undefined) { fields.push(`role_id=$${fields.length+1}`); vals.push(role_id); }
-    if (phone !== undefined) { fields.push(`phone=$${fields.length+1}`); vals.push(phone); }
-    if (active !== undefined) { fields.push(`active=$${fields.length+1}`); vals.push(active); }
-    if (fields.length > 0) { vals.push(req.params.id); await pool.query(`UPDATE users SET ${fields.join(',')} WHERE id=$${vals.length}`, vals); }
-    res.json({ message: 'อัพเดทเรียบร้อย' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-app.get('/api/roles', auth, async (req, res) => { const r = await pool.query('SELECT * FROM roles ORDER BY id'); res.json(r.rows); });
+  }catch(e){
+    err.textContent=e.message;err.classList.add('show');
+    btn.disabled=false;btn.textContent='เข้าสู่ระบบ';
+  }
+}
+
+
+
+async function initApp(){
+  document.getElementById('loginPage').style.display='none';
+  document.getElementById('appPage').classList.add('active');
+  document.getElementById('navUserName').textContent=CU.full_name||CU.username;
+  document.getElementById('navUserRole').textContent=fmt.role(CU.role);
+  document.getElementById('navBranch').textContent=CU.branch_name||(CU.branch_code?'สาขา '+CU.branch_code:'ทุกสาขา');
+  buildNav();
+  try{branches=await api.get('/branches');populateBranchSelects();}catch(e){}
+  try{roles=await api.get('/roles');}catch(e){}
+  try{mSet.eggs_required=(await api.get('/member-settings')).eggs_required||100;mSet.discount_amount=(await api.get('/member-settings')).discount_amount||5;}catch(e){}
+  initCompanySettings();
+  const def={owner:'dashboard',admin:'dashboard',manager:'dashboard',cashier:'pos',stock:'stock',viewer:'reports'}[CU.role]||'dashboard';
+  showPage(def);
+}
+
+
+
+
+
+
+
+document.addEventListener('keydown',e=>{if(e.key==='Enter'){const lp=document.getElementById('loginPage');if(lp.style.display!=='none')doLogin();}});
 
 // ============================================================
-// ROLE PERMISSIONS API
+// DASHBOARD
 // ============================================================
-// list ของ permissions ทั้งหมดในระบบ
-const ALL_PERMISSIONS = [
-  { group:'การขาย', items:[
-    { key:'pos', label:'ขายหน้าร้าน' },
-    { key:'shifts', label:'เปิด/ปิดกะ' },
-    { key:'sales_view', label:'ดูประวัติการขาย' },
-    { key:'sales_void', label:'ยกเลิกบิล' },
-  ]},
-  { group:'เอกสาร', items:[
-    { key:'quotations', label:'ใบเสนอราคา' },
-    { key:'invoices', label:'ใบแจ้งหนี้' },
-    { key:'credits', label:'ลูกค้าเชื่อหน้าร้าน' },
-    { key:'receipts', label:'ดูใบรับสินค้า (Pre)' },
-    { key:'receipts_approve', label:'อนุมัติใบรับสินค้า (ใส่ราคา)' },
-    { key:'debt_notes', label:'ใบลดหนี้/ใบเพิ่มหนี้' },
-  ]},
-  { group:'สต๊อก', items:[
-    { key:'stock_view', label:'ดูสต๊อกสินค้า' },
-    { key:'stock_receive', label:'รับสินค้าเข้า' },
-    { key:'stock_transfer', label:'โอนย้ายสินค้า' },
-  ]},
-  { group:'CRM', items:[
-    { key:'members', label:'สมาชิก' },
-    { key:'contacts', label:'รายชื่อผู้ติดต่อ' },
-  ]},
-  { group:'การเงิน', items:[
-    { key:'expenses_view', label:'ดูค่าใช้จ่าย' },
-    { key:'expenses_edit', label:'เพิ่ม/แก้ไขค่าใช้จ่าย' },
-    { key:'expense_docs', label:'เอกสารค่าใช้จ่าย' },
-    { key:'promotions', label:'โปรโมชั่น' },
-    { key:'payroll', label:'Payroll/เงินเดือน' },
-  ]},
-  { group:'จัดการ', items:[
-    { key:'products_view', label:'ดูสินค้า' },
-    { key:'products_edit', label:'แก้ไขสินค้า' },
-    { key:'reports', label:'ดูรายงาน' },
-    { key:'employees_view', label:'ดูรายชื่อพนักงาน' },
-    { key:'users_manage', label:'จัดการผู้ใช้งาน' },
-  ]},
+
+
+// ============================================================
+// POS
+// ============================================================
+let posProds=[];
+
+
+async function loadPosProds(){
+  const ch=document.getElementById('posCh').value;
+  if(!CU.branch_id) return;
+  try{
+    posProds=await api.get('/pos/products?branch_id='+CU.branch_id+'&customer_type='+ch);
+    renderPosProds(posProds);
+  }catch(e){toast('โหลดสินค้าไม่ได้','error');}
+}
+
+function renderPosProds(prods){
+  const search=(document.getElementById('posSearch')?.value||'').toLowerCase();
+  const filtered=prods.filter(p=>p.name.toLowerCase().includes(search)||p.code.toLowerCase().includes(search));
+  const grid=document.getElementById('posProdGrid');
+  grid.innerHTML=filtered.map(p=>{
+    const price=p.prices&&p.prices.length?p.prices[0].price:0;
+    return `<div class="pos-prod" onclick="addToCart(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+      <div class="pos-prod-name">${p.name}</div>
+      <div class="pos-prod-price">${fmt.b(price)}</div>
+      <div class="pos-prod-stock">คงเหลือ: ${fmt.n(p.stock_qty)} ฟ.</div>
+    </div>`;
+  }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">ไม่มีสินค้า</div>';
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function showShiftModal(){
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">⏰ กะการขาย</div><button class="mc" onclick="CM()">✕</button></div>
+  ${curShift?`<div class="card" style="background:var(--success-dim);border-color:var(--success)"><div style="font-weight:600;color:var(--success)">กะเปิดอยู่</div><div style="font-size:12px;margin-top:4px">เปิดเมื่อ: ${fmt.d(curShift.open_time)}</div></div>
+  <button class="btn btn-danger" onclick="closeShift(${curShift.id})" style="width:100%">ปิดกะ</button>`
+  :`<div><label class="lbl">เงินเริ่มกะ (บาท)</label><input type="number" id="openCash" value="0" class="ctrl" style="margin-top:4px"></div>
+  <button class="btn btn-primary" onclick="openShift()" style="width:100%;margin-top:12px">เปิดกะ</button>`}
+  </div></div>`;
+}
+
+
+
+
+
+
+
+// ============================================================
+// SALES
+// ============================================================
+
+
+// ============================================================
+// STOCK
+// ============================================================
+async function loadStock(){
+  const bid=document.getElementById('stBranch').value;
+  const search=(document.getElementById('stSearch').value||'').toLowerCase();
+  try{
+    const data=await api.get('/stock'+(bid?'?branch_id='+bid:''));
+    const filtered=data.filter(s=>!search||s.product_name.toLowerCase().includes(search)||s.product_code.toLowerCase().includes(search));
+    document.getElementById('stockT').innerHTML=filtered.length?filtered.map(s=>`<tr>
+      <td>${s.branch_code}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${s.product_code}</td>
+      <td><strong>${s.product_name}</strong></td>
+      <td style="text-align:right;font-weight:600;color:${s.qty_unit<100?'var(--error)':'inherit'}">${fmt.n(s.qty_unit)}</td>
+      <td style="text-align:right;color:var(--text-muted)">${Math.floor(s.qty_unit/30)}</td>
+      <td style="text-align:right;color:var(--text-muted)">${Math.floor(s.qty_unit/300)}</td>
+    </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ไม่มีข้อมูล</td></tr>';
+  }catch(e){}
+}
+
+
+
+async function showRecvModal(isOwner=false) {
+  try {
+    const [brs, prods, contacts] = await Promise.all([
+      api.get('/branches'),
+      api.get('/products'),
+      api.get('/contacts?type=supplier').catch(()=>[]),
+    ]);
+    const eggProds = prods.filter(p=>p.is_egg||p.track_stock);
+    _recvProds = eggProds; // set global
+    _recvRowCount = 0; // reset counter
+    const isO = ['owner','admin'].includes(CU.role) || isOwner;
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:560px">
+      <div class="mh">
+        <div>
+          <div class="mt">${isO?'📦 รับสินค้า (บันทึกราคาได้)':'📦 สร้างใบรับสินค้า (Pre)'}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${isO?'เจ้าของ/ผู้จัดการ — ตัดสต๊อกทันที':'พนักงาน — เจ้าของจะใส่ราคาภายหลัง'}</div>
+        </div>
+        <button class="mc" onclick="CM()">✕</button>
+      </div>
+      <div style="display:grid;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><label class="lbl">สาขา *</label>
+            <select class="ctrl" id="recvBr" style="margin-top:4px">
+              ${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}
+            </select>
+          </div>
+          <div><label class="lbl">วันที่รับ</label>
+            <input type="date" class="ctrl" id="recvDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px">
+          </div>
+        </div>
+        <div><label class="lbl">ผู้จำหน่าย / ซัพพลายเออร์</label>
+          <select class="ctrl" id="recvSupplier" style="margin-top:4px">
+            <option value="">— เลือกผู้จำหน่าย —</option>
+            ${contacts.map(c=>`<option value="${c.business_name||c.contact_name}">${c.business_name||c.contact_name}</option>`).join('')}
+            <option value="__custom__">+ พิมพ์เองด้านล่าง</option>
+          </select>
+          <input type="text" class="ctrl" id="recvSupplierText" placeholder="หรือพิมพ์ชื่อผู้จำหน่าย" style="margin-top:6px">
+        </div>
+        <div id="recvItems">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">รายการสินค้าที่รับเข้า</div>
+          <div id="recvItemsList">
+            ${recvItemRow(0, eggProds)}
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="addRecvItemRow()" style="margin-top:8px">+ เพิ่มสินค้า</button>
+        </div>
+        ${isO ? `
+        <div style="border-top:1px solid var(--border);padding-top:10px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 ราคาสินค้า (เฉพาะเจ้าของ)</div>
+          <div id="recvPrices"></div>
+        </div>` : ''}
+        <div><label class="lbl">หมายเหตุ</label>
+          <input type="text" class="ctrl" id="recvNote" style="margin-top:4px" placeholder="หมายเหตุ (ถ้ามี)">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:${isO?'1fr 1fr':'1fr'};gap:8px;margin-top:14px">
+        ${isO?`<button class="btn btn-secondary" onclick="submitRecv(false)">📋 บันทึกเป็น Pre</button>`:''}
+        <button class="btn btn-primary" onclick="submitRecv(${isO})">✅ ${isO?'บันทึกและตัดสต๊อก':'บันทึก Pre'}</button>
+      </div>
+    </div></div>`;
+  } catch(e) { toast('เกิดข้อผิดพลาด: '+e.message,'error'); }
+}
+
+
+
+function recvItemRow(n, prods) {
+  return `<div id="recvRow_${n}" style="display:grid;grid-template-columns:1fr 100px 90px 24px;gap:6px;margin-bottom:6px;align-items:center">
+    <select class="ctrl" id="recvProd_${n}" style="font-size:13px">
+      <option value="">เลือกสินค้า</option>
+      ${prods.map(p=>`<option value="${p.id}" data-name="${p.name}">${p.name}</option>`).join('')}
+    </select>
+    <input type="number" class="ctrl" id="recvQty_${n}" value="1" min="1" style="text-align:right;font-size:13px">
+    <select class="ctrl" id="recvUnit_${n}" style="font-size:13px">
+      <option value="1">ฟอง (x1)</option>
+      <option value="30">แผง (x30)</option>
+      <option value="300">ลัง (x300)</option>
+    </select>
+    ${n>0?`<button onclick="document.getElementById('recvRow_${n}').remove()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:16px">✕</button>`:'<span></span>'}
+  </div>`;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+async function loadRecv(){
+  try{
+    const data=await api.get('/stock/receipts');
+    const isO=['owner','admin'].includes(CU.role);
+    document.getElementById('recvT').innerHTML=data.length?data.map(r=>`<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${r.doc_no||'PRE-'+r.id}</td>
+      <td>${fmt.d(r.receipt_date)}</td><td>${r.branch_code}</td><td>${r.supplier_name||'-'}</td>
+      <td>${r.status==='pre'?'<span class="badge bw">⏳ รอใส่ราคา</span>':'<span class="badge bs">✅ อนุมัติ</span>'}</td>
+      <td>${isO&&r.total_cost?fmt.b(r.total_cost):isO?'-':'***'}</td>
+      <td>${r.photo_url?`<a href="${r.photo_url}" target="_blank" class="btn btn-info btn-sm">ดูรูป</a>`:'-'}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-secondary btn-sm" onclick="showRecvDetail(${r.id})">ดู</button>
+        ${r.status==='pre'&&isO?`<button class="btn btn-primary btn-sm" onclick="showApprove(${r.id})">💰 ใส่ราคา</button>`:''}
+      </td>
+    </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">ยังไม่มีใบรับสินค้า</td></tr>';
+  }catch(e){}
+}
+
+
+
+
+
+
+
+async function showTrModal() {
+  try {
+    const [brs, prods] = await Promise.all([api.get('/branches'), api.get('/products')]);
+    const trackProds = prods.filter(p=>p.track_stock);
+    _trProds = trackProds;
+    _trRowCount = 0;
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:600px">
+      <div class="mh"><div class="mt">🔄 โอนย้ายสต๊อก</div><button class="mc" onclick="CM()">✕</button></div>
+      <div style="display:grid;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><label class="lbl">จากสาขา *</label>
+            <select class="ctrl" id="trFrom" style="margin-top:4px">
+              ${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}
+            </select>
+          </div>
+          <div><label class="lbl">ไปสาขา *</label>
+            <select class="ctrl" id="trTo" style="margin-top:4px">
+              ${brs.filter(b=>b.id!==CU.branch_id).map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}
+              ${brs.length<=1?brs.map(b=>`<option value="${b.id}">${b.name}</option>`).join(''):''}
+            </select>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">รายการที่จะโอนย้าย</div>
+          <div style="background:var(--surface2);border-radius:7px;padding:8px 10px;margin-bottom:6px;display:grid;grid-template-columns:1fr 90px 90px;gap:6px;font-size:11px;color:var(--text-muted);font-weight:600">
+            <span>สินค้า</span><span style="text-align:right">จำนวน</span><span>หน่วย</span>
+          </div>
+          <div id="trItemsList">${trItemRow(0, trackProds)}</div>
+          <button class="btn btn-secondary btn-sm" onclick="addTrItemRow()" style="margin-top:8px">+ เพิ่มรายการ</button>
+        </div>
+        <div><label class="lbl">หมายเหตุ</label>
+          <input type="text" class="ctrl" id="trNote" style="margin-top:4px" placeholder="หมายเหตุ (ถ้ามี)">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="submitTr()" style="width:100%;margin-top:14px">✅ โอนย้ายสต๊อก</button>
+    </div></div>`;
+  } catch(e) { toast('เกิดข้อผิดพลาด: '+e.message,'error'); }
+}
+
+
+function trItemRow(n, prods) {
+  return `<div id="trRow_${n}" style="display:grid;grid-template-columns:1fr 90px 90px 24px;gap:6px;margin-bottom:6px;align-items:center">
+    <select class="ctrl" id="trProd_${n}" style="font-size:13px">
+      <option value="">เลือกสินค้า</option>
+      ${prods.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+    </select>
+    <input type="number" class="ctrl" id="trQty_${n}" value="1" min="1" style="text-align:right;font-size:13px">
+    <select class="ctrl" id="trUnit_${n}" style="font-size:13px">
+      <option value="1">ฟอง</option>
+      <option value="30">แผง (x30)</option>
+      <option value="300">ลัง (x300)</option>
+    </select>
+    ${n>0?`<button onclick="document.getElementById('trRow_${n}').remove()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:16px">✕</button>`:'<span></span>'}
+  </div>`;
+}
+
+function addTrItemRow() {
+  _trRowCount++;
+  const n = _trRowCount;
+  const div = document.createElement('div');
+  div.innerHTML = trItemRow(n, _trProds);
+  document.getElementById('trItemsList').appendChild(div.firstElementChild);
+}
+
+
+
+
+
+
+// ============================================================
+// PRODUCTS
+// ============================================================
+async function loadProdCats(){
+  try{
+    const cats=await api.get('/product-categories').catch(()=>[]);
+    // populate branch filter
+    const brSel = document.getElementById('prodBranchFilter');
+    if (brSel && brSel.options.length <= 1 && branches.length) {
+      branches.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.id; opt.textContent = b.name;
+        brSel.appendChild(opt);
+      });
+    }
+    const sel=document.getElementById('prodCatFilter');
+    if(!sel) return;
+    const cur=sel.value;
+    sel.innerHTML='<option value="">ทุกกลุ่มสินค้า</option>';
+    cats.forEach(c=>sel.innerHTML+=`<option value="${c.id}" ${c.id==cur?'selected':''}>${c.name}</option>`);
+  }catch(e){}
+}
+
+async function loadProds() {
+  const catId = document.getElementById('prodCatFilter')?.value||'';
+  const search = document.getElementById('prodSearch')?.value||'';
+  const branchId = document.getElementById('prodBranchFilter')?.value||'';
+  let q = '/products';
+  const params = [];
+  if (catId) params.push('category_id='+catId);
+  if (search) params.push('search='+encodeURIComponent(search));
+  if (branchId) params.push('branch_id='+branchId);
+  if (params.length) q += '?'+params.join('&');
+  try {
+    const data = await api.get(q);
+    const el = document.getElementById('prodT');
+    if (!el) return;
+    el.innerHTML = data.length ? data.map(p=>`<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${p.code}</td>
+      <td>
+        <div style="font-weight:600">${p.name}</div>
+        ${p.is_egg?'<span style="font-size:10px;color:var(--accent)">🥚 ไข่</span>':''}
+      </td>
+      <td><span class="badge bg" style="font-size:11px">${p.category_name||'-'}</span></td>
+      <td style="font-size:12px">${p.unit||'-'}</td>
+      <td style="text-align:center">${p.is_egg?'<span class="badge bs">✓</span>':''}</td>
+      <td style="text-align:right;font-weight:600">${fmt.n(p.total_stock||0)}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-secondary btn-sm" onclick="openProductDetail(${p.id})">📋 รายละเอียด</button>
+        <button class="btn btn-secondary btn-sm" onclick='showProductModal(${JSON.stringify(p).replace(/'/g,"&#39;")})'>แก้ไข</button>
+        <button class="btn btn-info btn-sm" onclick="showPriceM(${p.id},'${p.name.replace(/'/g,'')}')">💰 ราคา</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelProd(${p.id},'${p.name.replace(/'/g,'')}')">🗑️</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">ไม่มีสินค้า<br><small>กด "+ เพิ่มสินค้า" เพื่อเริ่มต้น</small></td></tr>';
+  } catch(e) {
+    console.error('loadProds error:', e);
+    const el2 = document.getElementById('prodT');
+    if (el2) el2.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--error)">โหลดสินค้าไม่ได้: '+e.message+'</td></tr>';
+  }
+}
+
+
+
+
+async function saveProd(id){
+  const g = eid => { const el=document.getElementById(eid); return el ? el.value : ''; };
+  const body = {
+    name: g('pName'),
+    unit: g('pUnit'),
+    category_id: parseInt(g('pCat'))||null,
+    is_egg: document.getElementById('pIsEgg')?.checked||false,
+    track_stock: document.getElementById('pTrack')?.checked!==false,
+  };
+  if (id) body.active = document.getElementById('pActive')?.checked !== false;
+  if (!body.name) { toast('กรุณากรอกชื่อสินค้า','error'); return; }
+
+  try {
+    let prodId = id;
+    if (id) {
+      await api.put('/products/'+id, body);
+    } else {
+      const code = g('pCode');
+      if (!code) { toast('กรุณากรอกรหัสสินค้า','error'); return; }
+      const res = await api.post('/products', {...body, code});
+      prodId = res.id;
+    }
+
+    // บันทึกราคา (ถ้ากรอกมา) - branch แรกของ user
+    if (prodId) {
+      const branchId = CU.branch_id || branches[0]?.id;
+      const priceFields = [
+        {qty:1,  field:'pr1'},  {qty:5,  field:'pr5'},  {qty:10, field:'pr10'},
+        {qty:15, field:'pr15'}, {qty:20, field:'pr20'}, {qty:30, field:'pr30'},
+        {qty:30, field:'pw30', type:'wholesale'}, {qty:60, field:'pw60', type:'wholesale'},
+        {qty:300,field:'pw300',type:'wholesale'},
+      ];
+      for (const {qty, field, type} of priceFields) {
+        const val = parseFloat(g(field));
+        if (!isNaN(val) && val > 0 && branchId) {
+          await api.post('/products/'+prodId+'/prices', {
+            branch_id: branchId,
+            customer_type: type||'retail',
+            qty, price: val,
+          }).catch(()=>{});
+        }
+      }
+    }
+
+    toast('บันทึกเรียบร้อย ✅','success');
+    CM(); loadProds();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+
+
+
+async function savePrice(pid,pname){
+  const body={branch_id:parseInt(document.getElementById('prBr').value),customer_type:document.getElementById('prTy').value,qty:parseInt(document.getElementById('prQty').value),price:parseFloat(document.getElementById('prPr').value)};
+  if(!body.price){toast('กรุณากรอกราคา','error');return;}
+  try{await api.post('/products/'+pid+'/prices',body);toast('ตั้งราคาเรียบร้อย','success');showPriceM(pid,pname);}catch(e){toast(e.message,'error');}
+}
+
+async function showCategoryModal(){
+  try{
+    const cats=await api.get('/product-categories').catch(()=>[]);
+    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">🗂️ จัดการกลุ่มสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="border:1px solid var(--border);border-radius:7px;max-height:240px;overflow-y:auto;margin-bottom:14px">
+      ${cats.map(c=>`<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;display:flex;align-items:center;gap:8px">
+        <div style="flex:1;font-weight:600">${c.name}</div>
+        <span class="badge bg" style="font-size:11px">${c.type==='stock'?'นับสต๊อก':c.type==='service'?'บริการ':'ไม่นับ'}</span>
+        <button class="btn btn-secondary btn-sm" onclick="editCat(${c.id},'${c.name}','${c.type}')">แก้ไข</button>
+        <button class="btn btn-danger btn-sm" onclick="delCat(${c.id})">ลบ</button>
+      </div>`).join('')}
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px" id="catFormTitle">+ เพิ่มกลุ่มใหม่</div>
+      <input type="hidden" id="editCatId" value="">
+      <div style="display:grid;grid-template-columns:1fr 120px auto;gap:8px;align-items:end">
+        <div><label class="lbl">ชื่อกลุ่ม</label><input type="text" class="ctrl" id="newCatName" style="margin-top:4px"></div>
+        <div><label class="lbl">ประเภท</label><select class="ctrl" id="newCatType" style="margin-top:4px"><option value="stock">นับสต๊อก</option><option value="nostock">ไม่นับ</option><option value="service">บริการ</option></select></div>
+        <button class="btn btn-primary" onclick="saveCat()" style="height:38px" id="catSaveBtn">เพิ่ม</button>
+      </div>
+    </div></div></div>`;
+  }catch(e){toast(e.message,'error');}
+}
+
+async function addCat(){
+  const name=document.getElementById('newCatName').value.trim();
+  const type=document.getElementById('newCatType').value;
+  if(!name){toast('กรุณากรอกชื่อ','error');return;}
+  try{await api.post('/product-categories',{name,type});toast('เพิ่มเรียบร้อย','success');showCategoryModal();}catch(e){toast(e.message,'error');}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// MEMBERS
+// ============================================================
+async function loadMembers(){
+  try{
+    const [data,settings]=await Promise.all([
+      api.get('/members').catch(()=>[]),
+      api.get('/member-settings').catch(()=>({eggs_required:100,discount_amount:5}))
+    ]);
+    Object.assign(mSet,settings);
+    const total=data.length;
+    const ready=data.filter(m=>(m.egg_count||0)>=mSet.eggs_required).length;
+    document.getElementById('memStats').innerHTML=`
+      <div class="sc"><div class="sl">สมาชิกทั้งหมด</div><div class="sv">${total}</div></div>
+      <div class="sc"><div class="sl">รับส่วนลดได้</div><div class="sv" style="color:var(--success)">${ready}</div></div>
+      <div class="sc"><div class="sl">สะสม ${mSet.eggs_required} ฟอง = ส่วนลด ${mSet.discount_amount} บาท</div><div class="sv" style="font-size:14px">⚙️ <button class="btn btn-secondary btn-sm" onclick="showMemSettings()">ตั้งค่า</button></div></div>`;
+    document.getElementById('memT').innerHTML=data.map(m=>`<tr>
+      <td><strong>${m.name}</strong></td><td>${m.phone||'-'}</td>
+      <td><span class="badge ${m.tier_name?'bi':'bg'}" style="font-size:11px">${m.tier_name||'ไม่ระบุ'}</span></td>
+      <td>${m.branch_code||'-'}</td>
+      <td style="font-weight:600">
+        ${fmt.n(m.total_eggs||m.egg_count||0)} ฟ.
+        <button class="btn btn-info btn-sm" onclick="showMemberPoints(${m.id},'${m.name.replace(/'/g,'')}')" style="margin-left:4px;font-size:10px">ประวัติ</button>
+      </td>
+      <td>${m.active?'<span class="badge bs">ใช้งาน</span>':'<span class="badge be">ปิด</span>'}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick='showMemModal(${JSON.stringify(m).replace(/'/g,"&#39;")})'>แก้ไข</button></td>
+    </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ยังไม่มีสมาชิก</td></tr>';
+  }catch(e){}
+}
+
+
+
+
+
+
+
+
+// ============================================================
+// CONTACTS
+// ============================================================
+async function loadContacts(){
+  try{
+    const data=await api.get('/contacts').catch(()=>[]);
+    allContacts=data;
+    const search = (document.getElementById('contactSearch')?.value||'').toLowerCase();
+    const typeFilter = document.getElementById('contactType')?.value||'';
+    const filtered = data.filter(c => {
+      const matchSearch = !search ||
+        (c.business_name||'').toLowerCase().includes(search) ||
+        (c.contact_name||'').toLowerCase().includes(search) ||
+        (c.tax_id||'').includes(search) ||
+        (c.phone||'').includes(search);
+      const matchType = !typeFilter ||
+        (typeFilter==='customer' && c.is_customer) ||
+        (typeFilter==='supplier' && c.is_supplier);
+      return matchSearch && matchType;
+    });
+    document.getElementById('contactT').innerHTML=filtered.length?filtered.map(c=>`<tr>
+      <td><strong>${c.business_name||'-'}</strong></td><td>${c.contact_name||'-'}</td><td>${c.phone||'-'}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${c.tax_id||'-'}</td>
+      <td><span class="badge ${c.is_customer?'bi':'bw'}">${c.is_customer?'ลูกค้า':''}${c.is_supplier?' ผู้จำหน่าย':''}</span></td>
+      <td>${c.credit_days||0} วัน</td>
+      <td><button class="btn btn-secondary btn-sm" onclick='showContactModal(${JSON.stringify(c).replace(/'/g,"&#39;")})'>แก้ไข</button></td>
+    </tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ไม่พบผู้ติดต่อ</td></tr>';
+  }catch(e){}
+}
+
+
+
+
+// ============================================================
+// QUOTATIONS
+// ============================================================
+
+
+
+
+
+
+
+
+// ============================================================
+// INVOICES
+// ============================================================
+
+
+
+
+
+
+
+var _invN=0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// CREDITS
+// ============================================================
+
+
+
+
+
+
+// ============================================================
+// SAVE EXPENSE
+// ============================================================
+
+
+
+// ============================================================
+// SAVE PROMO
+// ============================================================
+
+
+
+// ============================================================
+// SAVE DEBT NOTE
+// ============================================================
+
+
+
+
+// ============================================================
+// PAYROLL DETAIL + PRINT SLIP
+// ============================================================
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// SAVE EMPLOYEE
+// ============================================================
+
+
+// ============================================================
+// SAVE PERMISSIONS
+// ============================================================
+async function savePermissions() {
+  if (!_curPermRole) { toast('กรุณาเลือก Role ก่อน','error'); return; }
+  try {
+    const perms = [..._curPerms];
+    await api.put('/permissions/'+_curPermRole, { permissions: perms });
+    toast('💾 บันทึกสิทธิ์ "'+_curPermRole+'" เรียบร้อย ('+perms.length+' สิทธิ์)','success');
+    // reload เพื่อยืนยัน — fetch จาก DB จริง
+    const token = localStorage.getItem('es_token') || '';
+    const resp = await fetch('/api/permissions/'+_curPermRole, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (resp.ok) {
+      const saved = await resp.json();
+      _curPerms = new Set(saved.map(p => p.permission || p));
+      renderPermissions();
+      console.log('[PERM] saved & reloaded:', _curPerms.size, 'perms');
+    }
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// BUILD INVOICE HTML (for print)
+// ============================================================
+
+
+// ============================================================
+// ADD PRODUCT CATEGORY
+// ============================================================
+
+
+// ============================================================
+// PAGE LOADERS REGISTRATION
+// ============================================================
+
+// Register all page loaders
+
+
+// Auto login check
+
+// ============================================================
+// USERS (Account Management)
+// ============================================================
+
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// EMPLOYEES (เพิ่ม/แก้ไขพนักงาน + สร้าง Account)
+// ============================================================
+
+
+
+
+
+
+// ============================================================
+// DAILY SUMMARY PRINT (ใบสรุปยอดขาย)
+// ============================================================
+
+
+
+// ============================================================
+// QUICK MEMBER MODAL (จาก POS)
+// ============================================================
+
+
+
+
+// ============================================================
+// CREATE BRANCH MODAL
+// ============================================================
+
+
+
+
+
+
+
+
+
+
+
+function logout(){
+  localStorage.removeItem('es_token');localStorage.removeItem('es_user');CU=null;
+  document.getElementById('loginPage').style.display='flex';
+  document.getElementById('appPage').classList.remove('active');
+}
+
+
+
+function populateBranchSelects(){
+  ['stBranch','mvBranch','sBranch','expBranch','dcBranch'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.innerHTML='<option value="">ทุกสาขา</option>';branches.forEach(b=>{el.innerHTML+=`<option value="${b.id}">${b.name}</option>`;});}
+  });
+}
+
+function showBranchSelector(list){
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay"><div class="modal"><div class="mh"><div class="mt">🏪 เลือกสาขาที่ทำงานวันนี้</div></div>
+  <div style="display:grid;gap:8px">${list.map(b=>`<button class="btn btn-secondary" style="padding:14px;font-size:14px;justify-content:center" onclick="switchBranch(${b.id},'${b.code}','${b.name}')">${b.name}</button>`).join('')}</div>
+  </div></div>`;
+}
+
+async function switchBranch(bid,bcode,bname){
+  try{
+    const res=await api.post('/auth/switch-branch',{branch_id:bid});
+    localStorage.setItem('es_token',res.token);
+    CU={...CU,branch_id:res.branch_id,branch_code:res.branch_code,branch_name:res.branch_name};
+    localStorage.setItem('es_user',JSON.stringify(CU));
+    document.getElementById('navBranch').textContent=bname;
+    CM();showPage('dashboard');toast('เปลี่ยนสาขา: '+bname);
+  }catch(e){toast(e.message,'error');}
+}
+
+document.addEventListener('keydown',e=>{if(e.key==='Enter'){const lp=document.getElementById('loginPage');if(lp.style.display!=='none')doLogin();}});
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+async function loadDash(){
+  try{
+    const today=new Date().toISOString().slice(0,10);
+    document.getElementById('dashDate').textContent=new Date().toLocaleDateString('th-TH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    const d=await api.get('/reports/daily?date='+today);
+    const total=d.branches.reduce((s,b)=>s+parseFloat(b.total_revenue||0),0);
+    const bills=d.branches.reduce((s,b)=>s+parseInt(b.total_bills||0),0);
+    document.getElementById('dashStats').innerHTML=`
+      <div class="sc"><div class="sl">ยอดขายวันนี้</div><div class="sv">${fmt.b(total)}</div></div>
+      <div class="sc"><div class="sl">จำนวนบิล</div><div class="sv">${bills}</div></div>
+      <div class="sc"><div class="sl">สาขาที่เปิด</div><div class="sv">${d.branches.filter(b=>b.total_bills>0).length}</div></div>
+      <div class="sc"><div class="sl">สาขาทั้งหมด</div><div class="sv">${branches.length}</div></div>`;
+    document.getElementById('dashBranch').innerHTML=d.branches.map(b=>`<tr><td>${b.branch_code}</td><td>${b.total_bills||0}</td><td>${fmt.b(b.total_revenue)}</td></tr>`).join('');
+  }catch(e){console.error(e);}
+  loadShiftSt();
+}
+
+// ============================================================
+// POS
+// ============================================================
+posProds=[];
+function loadShiftSt(){
+  api.get('/shifts/current').then(s=>{
+    curShift=s;
+    document.getElementById('posShiftStatus').textContent=s?('กะเปิด: '+fmt.d(s.open_time)):'ยังไม่ได้เปิดกะ';
+    const el=document.getElementById('dashShift');
+    if(el) el.innerHTML=s?`<div style="display:grid;gap:6px"><div><span class="lbl">เปิดกะ</span><div>${fmt.d(s.open_time)}</div></div><div><span class="lbl">เงินเริ่มกะ</span><div style="font-weight:700">${fmt.b(s.opening_cash)}</div></div><div><button class="btn btn-danger btn-sm" onclick="closeShift(${s.id})">ปิดกะ</button></div></div>`:`<div class="es"><div class="ei">⏰</div><p>ยังไม่มีกะที่เปิด</p><button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="showShiftModal()">เปิดกะ</button></div>`;
+  }).catch(()=>{});
+}
+
+
+
+
+
+function filterPosProds(){renderPosProds(posProds);}
+
+async function loadPosMem(){
+  try{
+    const data=await api.get('/members');
+    allMembers=data;
+    const sel=document.getElementById('posMemberSel');
+    sel.innerHTML='<option value="">— ไม่มีสมาชิก —</option>'+data.map(m=>`<option value="${m.id}">${m.name} (${m.phone||'-'}) ${m.egg_count}ฟ.</option>`).join('');
+  }catch(e){}
+}
+
+async function selPosMember(){
+  const id=parseInt(document.getElementById('posMemberSel').value);
+  selMember=id?allMembers.find(m=>m.id===id):null;
+  updateCartTotal();
+  if (selMember && selMember.tier_id) {
+    // โหลดราคาตาม tier ของสมาชิก
+    try {
+      const res = await api.get('/pos/products-for-member/'+selMember.id+'?branch_id='+CU.branch_id);
+      if (res.products && res.products.length) {
+        posProds = res.products;
+        renderPosProds(posProds);
+        // แสดง tier label
+        const tierLabel = {retail:'ปลีก', restaurant:'ร้านข้าว', wholesale:'ส่ง'}[res.customer_type] || res.customer_type;
+        toast('💫 โหลดราคา'+tierLabel+'สำหรับ '+selMember.name, 'info');
+      }
+    } catch(e) {}
+  } else if (!selMember) {
+    // กลับราคาปกติ
+    loadPosProds();
+  }
+}
+
+function addToCart(prod){
+  const price=prod.prices&&prod.prices.length?prod.prices[0].price:0;
+  const qty=prod.prices&&prod.prices.length?prod.prices[0].qty:1;
+  const existing=cart.find(c=>c.product_id===prod.product_id&&c.unit_size===qty);
+  if(existing) existing.qty_set++;
+  else cart.push({product_id:prod.product_id,name:prod.name,price_per_set:price,unit_size:qty,qty_set:1,is_egg:prod.is_egg,stock_qty:prod.stock_qty});
+  renderCart();
+}
+
+function renderCart(){
+  const cartEl=document.getElementById('cartItems');
+  if(!cart.length){cartEl.innerHTML='<div class="es"><div class="ei">🛒</div><p>ยังไม่มีรายการ</p></div>';updateCartTotal();return;}
+  cartEl.innerHTML=cart.map((it,i)=>`<div class="cart-item">
+    <div class="cart-item-name"><div style="font-weight:600">${it.name}</div><div style="font-size:11px;color:var(--text-muted)">${fmt.b(it.price_per_set)} × ${it.unit_size}ฟ.</div></div>
+    <div class="cart-qty">
+      <button class="qty-btn" onclick="chQty(${i},-1)">−</button>
+      <span style="font-size:13px;min-width:20px;text-align:center">${it.qty_set}</span>
+      <button class="qty-btn" onclick="chQty(${i},1)">+</button>
+    </div>
+    <div style="font-weight:700;font-size:13px;min-width:65px;text-align:right">${fmt.b(it.qty_set*it.price_per_set)}</div>
+    <button onclick="cart.splice(${i},1);renderCart()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:16px">✕</button>
+  </div>`).join('');
+  updateCartTotal();
+}
+
+function chQty(i,d){cart[i].qty_set=Math.max(1,cart[i].qty_set+d);renderCart();}
+
+function updateCartTotal(){
+  const sub=cart.reduce((s,it)=>s+it.qty_set*it.price_per_set,0);
+  const eggs=cart.filter(it=>it.is_egg).reduce((s,it)=>s+it.qty_set*it.unit_size,0);
+  var memDisc=0;
+  if(selMember&&eggs>0&&(selMember.egg_count||0)>=mSet.eggs_required) memDisc=mSet.discount_amount;
+  document.getElementById('posMemDisc').textContent=memDisc?'-'+fmt.b(memDisc):'฿0.00';
+  const redeemBtn = document.getElementById('posRedeemBtn');
+  if (redeemBtn) {
+    redeemBtn.style.display = (selMember && selMember.id) ? 'inline-block' : 'none';
+    if (selMember) {
+      const avail = (selMember.total_eggs||0) - (selMember.redeemed_eggs||0);
+      redeemBtn.textContent = `แลก (${fmt.n(avail)}ฟ.)`;
+    }
+  }
+  const extra=parseFloat(document.getElementById('posExtraDisc').value)||0;
+  document.getElementById('posTotal').textContent=fmt.b(Math.max(0,sub-memDisc-extra));
+}
+
+async function checkoutCart(){
+  if(!cart.length){toast('กรุณาเลือกสินค้า','error');return;}
+  if(!curShift){toast('กรุณาเปิดกะก่อน','error');return;}
+  const sub=cart.reduce((s,it)=>s+it.qty_set*it.price_per_set,0);
+  const eggs=cart.filter(it=>it.is_egg).reduce((s,it)=>s+it.qty_set*it.unit_size,0);
+  var memDisc=0;
+  if(selMember&&eggs>0&&(selMember.egg_count||0)>=mSet.eggs_required) memDisc=mSet.discount_amount;
+  const extra=parseFloat(document.getElementById('posExtraDisc').value)||0;
+  const total=Math.max(0,sub-memDisc-extra);
+  const ch=document.getElementById('posCh').value;
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">💳 ชำระเงิน</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="font-size:24px;font-weight:700;color:var(--accent);text-align:center;margin-bottom:16px">${fmt.b(total)}</div>
+  <div style="display:grid;gap:8px">
+    <div><label class="lbl">เงินสด (บาท)</label><input type="number" id="payCash" value="${total.toFixed(2)}" min="0" class="ctrl" style="margin-top:4px;font-size:18px;text-align:center" oninput="calcChange()"></div>
+    <div style="display:flex;justify-content:space-between;font-size:14px;padding:8px 0;border-top:1px solid var(--border)"><span>ทอน</span><span id="payChange" style="font-weight:700;color:var(--success)">${fmt.b(0)}</span></div>
+  </div>
+  <button class="btn btn-primary" onclick="completeSale(${total},${sub},${memDisc},${extra},'${ch}')" style="width:100%;margin-top:14px;padding:12px">✅ ยืนยันการชำระ</button>
+  </div></div>`;
+  calcChange();
+}
+
+function calcChange(){
+  const cash=parseFloat(document.getElementById('payCash')?.value||0);
+  const total=parseFloat(document.getElementById('posTotal')?.textContent.replace(/[฿,]/g,'')||0);
+  const el=document.getElementById('payChange');
+  if(el) el.textContent=fmt.b(Math.max(0,cash-total));
+}
+
+async function completeSale(total,sub,memDisc,extraDisc,ch){
+  const cash=parseFloat(document.getElementById('payCash').value)||0;
+  const body={
+    branch_id:CU.branch_id,branch_code:CU.branch_code,
+    member_id:selMember?.id||null,
+    sale_channel:ch,
+    items:cart.map(it=>({product_id:it.product_id,qty_set:it.qty_set,unit_size:it.unit_size,price_per_set:it.price_per_set,is_egg:it.is_egg})),
+    discount:extraDisc,member_discount:memDisc,total,
+    payment_methods:[{method:'cash',amount:cash}],
+    shift_id:curShift?.id
+  };
+  try{
+    await api.post('/sales',body);
+    toast('บันทึกการขายเรียบร้อย ✓','success');
+    cart=[];selMember=null;
+    document.getElementById('posMemberSel').value='';
+    document.getElementById('posExtraDisc').value='0';
+    CM();renderCart();loadPosProds();
+  }catch(e){toast(e.message,'error');}
+}
+
+
+
+async function openShift(){
+  const cash=parseFloat(document.getElementById('openCash').value)||0;
+  try{await api.post('/shifts/open',{branch_id:CU.branch_id,opening_cash:cash});toast('เปิดกะเรียบร้อย','success');CM();loadShiftSt();}catch(e){toast(e.message,'error');}
+}
+
+async function closeShift(id){
+  if(!confirm('ต้องการปิดกะ?')) return;
+  try{await api.post('/shifts/'+id+'/close',{});toast('ปิดกะเรียบร้อย','success');CM();loadShiftSt();loadDash();}catch(e){toast(e.message,'error');}
+}
+
+async function loadShifts(){
+  try{
+    const data=await api.get('/shifts');
+    document.getElementById('shiftsT').innerHTML=data.length?data.map(s=>`<tr>
+      <td>${s.branch_code}</td><td>${fmt.d(s.open_time)}</td><td>${fmt.d(s.close_time)}</td>
+      <td>${fmt.b(s.opening_cash)}</td><td>${fmt.b(s.total_sales)}</td><td>${fmt.badge(s.status)}</td>
+    </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ไม่มีข้อมูล</td></tr>';
+  }catch(e){}
+}
+
+// ============================================================
+// SALES
+// ============================================================
+async function loadSales(){
+  const df=document.getElementById('sFrom').value,dt=document.getElementById('sTo').value;
+  const ch=document.getElementById('sCh').value,bid=document.getElementById('sBranch').value;
+  var q='/sales?';
+  if(df) q+=`date_from=${df}&`;if(dt) q+=`date_to=${dt}&`;
+  if(ch) q+=`channel=${ch}&`;if(bid) q+=`branch_id=${bid}`;
+  try{
+    const data=await api.get(q);
+    const total=data.reduce((s,d)=>s+parseFloat(d.total||0),0);
+    const disc=data.reduce((s,d)=>s+parseFloat(d.discount||0)+parseFloat(d.member_discount||0),0);
+    document.getElementById('salesStats').innerHTML=`
+      <div class="sc"><div class="sl">ยอดขายรวม</div><div class="sv">${fmt.b(total)}</div></div>
+      <div class="sc"><div class="sl">จำนวนบิล</div><div class="sv">${data.length}</div></div>
+      <div class="sc"><div class="sl">ส่วนลดรวม</div><div class="sv" style="color:var(--error)">${fmt.b(disc)}</div></div>`;
+    document.getElementById('salesT').innerHTML=data.length?data.map(d=>`<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${d.sale_no}</td>
+      <td>${fmt.d(d.sale_date)}</td><td>${d.branch_code}</td>
+      <td><span class="badge bi">${d.sale_channel}</span></td>
+      <td>${fmt.b(d.subtotal)}</td><td style="color:var(--error)">${fmt.b(parseFloat(d.discount||0)+parseFloat(d.member_discount||0))}</td>
+      <td style="font-weight:700">${fmt.b(d.total)}</td>
+      <td>${(d.payment_methods||[]).map(p=>p.method).join('/')}</td>
+      <td>${d.member_name||'-'}</td>
+    </tr>`).join(''):'<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">ไม่มีข้อมูล</td></tr>';
+  }catch(e){console.error(e);}
+}
+
+// ============================================================
+// STOCK
+// ============================================================
+
+
+async function loadMv(){
+  const bid=document.getElementById('mvBranch').value;
+  const df=document.getElementById('mvFrom').value,dt=document.getElementById('mvTo').value;
+  var q='/stock/movements?';
+  if(bid) q+=`branch_id=${bid}&`;if(df) q+=`date_from=${df}&`;if(dt) q+=`date_to=${dt}`;
+  try{
+    const data=await api.get(q);
+    document.getElementById('mvT').innerHTML=data.length?data.map(m=>`<tr>
+      <td>${fmt.d(m.created_at)}</td><td>${m.branch_code}</td><td>${m.product_name}</td>
+      <td><span class="badge ${m.movement_type==='in'?'bs':'be'}">${m.movement_type==='in'?'รับเข้า':'จ่ายออก'}</span></td>
+      <td style="text-align:right;font-weight:600">${fmt.n(m.qty_unit)}</td>
+      <td style="font-size:11px;color:var(--text-muted)">${m.ref_doc||'-'}</td>
+    </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ไม่มีข้อมูล</td></tr>';
+  }catch(e){}
+}
+
+
+
+function addRecvItemRow() {
+  _recvRowCount++;
+  const n = _recvRowCount;
+  const div = document.createElement('div');
+  div.id = 'recvRow_' + n;
+  div.style.cssText = 'display:grid;grid-template-columns:1fr 100px 90px 24px;gap:6px;margin-bottom:6px;align-items:center';
+  div.innerHTML = `
+    <select class="ctrl" id="recvProd_${n}" style="font-size:13px">
+      <option value="">เลือกสินค้า</option>
+      ${_recvProds.map(p=>`<option value="${p.id}" data-name="${p.name}">${p.name}</option>`).join('')}
+    </select>
+    <input type="number" class="ctrl" id="recvQty_${n}" value="1" min="1" style="text-align:right;font-size:13px">
+    <select class="ctrl" id="recvUnit_${n}" style="font-size:13px">
+      <option value="1">ฟอง (x1)</option>
+      <option value="30">แผง (x30)</option>
+      <option value="300">ลัง (x300)</option>
+    </select>
+    <button onclick="document.getElementById('recvRow_${n}').remove()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:16px">✕</button>
+  `;
+  document.getElementById('recvItemsList').appendChild(div);
+}
+
+
+
+function addRecvItem(prods) {
+  _recvRowCount++;
+  const div = document.createElement('div');
+  div.innerHTML = recvItemRow(_recvRowCount, prods);
+  document.getElementById('recvItemsList').appendChild(div.firstElementChild);
+}
+
+async function submitRecv(approve=false) {
+  const branch_id = document.getElementById('recvBr').value;
+  const receipt_date = document.getElementById('recvDate').value;
+  const supplierSel = document.getElementById('recvSupplier').value;
+  const supplier_name = supplierSel && supplierSel !== '__custom__'
+    ? supplierSel
+    : document.getElementById('recvSupplierText').value;
+  const note = document.getElementById('recvNote').value;
+
+  const items = [];
+  document.querySelectorAll('[id^="recvRow_"]').forEach(row => {
+    const n = row.id.replace('recvRow_','');
+    const prodSel = document.getElementById('recvProd_'+n);
+    const product_id = prodSel?.value;
+    const qty = parseInt(document.getElementById('recvQty_'+n)?.value||0);
+    const unitMult = parseInt(document.getElementById('recvUnit_'+n)?.value||1);
+    if (product_id && qty > 0) {
+      const product_name = prodSel.options[prodSel.selectedIndex]?.dataset?.name||'';
+      items.push({ product_id: parseInt(product_id), product_name, qty_unit: qty * unitMult, qty_display: qty, unit_mult: unitMult });
+    }
+  });
+
+  if (!branch_id) { toast('กรุณาเลือกสาขา','error'); return; }
+  if (!items.length) { toast('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ','error'); return; }
+
+  try {
+    const res = await api.post('/stock/receipts', {
+      branch_id: parseInt(branch_id),
+      receipt_date, supplier_name, items, note,
+      status: approve ? 'approved' : 'pre',
+    });
+    toast(approve ? '✅ รับสินค้าและตัดสต๊อกเรียบร้อย' : '📋 บันทึก Pre เรียบร้อย', 'success');
+    CM(); loadRecv();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+async function loadRvProds(){
+  try{
+    const prods=await api.get('/products');
+    document.querySelectorAll('.rv-prod').forEach(sel=>{
+      sel.innerHTML='<option value="">เลือกสินค้า</option>'+prods.filter(p=>p.track_stock).map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    });
+  }catch(e){}
+}
+
+function addRvRow(){
+  const container=document.getElementById('rvItems').firstElementChild;
+  const row=document.createElement('div');
+  row.style.cssText='display:grid;grid-template-columns:1fr 100px auto;gap:6px;align-items:center';
+  row.innerHTML='<select class="ctrl rv-prod"><option value="">เลือกสินค้า</option></select><input type="number" class="ctrl rv-qty" value="300" min="1"><button onclick="this.closest(\'div\').remove()" class="btn btn-danger btn-sm">✕</button>';
+  container.appendChild(row);
+  loadRvProds();
+}
+
+async function saveRecv(){
+  const items=[];
+  document.querySelectorAll('.rv-prod').forEach((sel,i)=>{
+    const qty=parseInt(document.querySelectorAll('.rv-qty')[i]?.value||0);
+    if(sel.value&&qty>0) items.push({product_id:parseInt(sel.value),qty_unit:qty});
+  });
+  if(!items.length){toast('กรุณาเลือกสินค้าอย่างน้อย 1 รายการ','error');return;}
+  try{
+    await api.post('/stock/receive',{branch_id:parseInt(document.getElementById('rvBr').value),supplier_name:document.getElementById('rvSupp').value,receipt_date:document.getElementById('rvDate').value,note:document.getElementById('rvNote').value,items});
+    toast('สร้างใบรับสินค้าเรียบร้อย','success');CM();loadRecv();
+  }catch(e){toast(e.message,'error');}
+}
+
+
+
+async function showRecvDetail(id){
+  try{
+    const items=await api.get('/stock/receipts/'+id+'/items');
+    const isO=['owner','admin'].includes(CU.role);
+    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">📦 รายการใบรับสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
+    <table><thead><tr><th>สินค้า</th><th style="text-align:right">จำนวน (ฟอง)</th>${isO?'<th style="text-align:right">ราคา/หน่วย</th><th style="text-align:right">รวม</th>':''}</tr></thead>
+    <tbody>${items.map(it=>`<tr><td>${it.product_name}</td><td style="text-align:right">${fmt.n(it.qty_unit)}</td>${isO?`<td style="text-align:right">${it.unit_cost?fmt.b(it.unit_cost):'-'}</td><td style="text-align:right;font-weight:600">${it.total_cost?fmt.b(it.total_cost):'-'}</td>`:''}</tr>`).join('')}</tbody>
+    </table></div></div>`;
+  }catch(e){toast(e.message,'error');}
+}
+
+async function showApprove(id){
+  try{
+    const items=await api.get('/stock/receipts/'+id+'/items');
+    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:560px"><div class="mh"><div class="mt">💰 ใส่ราคาและอนุมัติ</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:8px">
+      ${items.map((it,i)=>`<div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center">
+        <div style="font-size:13px">${it.product_name} <span style="color:var(--text-muted)">(${fmt.n(it.qty_unit)} ฟ.)</span></div>
+        <input type="number" class="ctrl appr-cost" data-id="${it.id}" placeholder="ราคา/ฟอง" step="0.01" min="0" style="text-align:right">
+      </div>`).join('')}
+    </div>
+    <button class="btn btn-primary" onclick="submitApprove(${id})" style="width:100%;margin-top:14px">✅ อนุมัติและตัดสต๊อก</button>
+    </div></div>`;
+  }catch(e){toast(e.message,'error');}
+}
+
+async function submitApprove(recvId){
+  const items=[];
+  document.querySelectorAll('.appr-cost').forEach(el=>{items.push({id:parseInt(el.dataset.id),cost_per_unit:parseFloat(el.value)||0});});
+  try{await api.post('/stock/receipts/'+recvId+'/approve',{items});toast('อนุมัติและตัดสต๊อกเรียบร้อย','success');CM();loadRecv();loadStock();}catch(e){toast(e.message,'error');}
+}
+
+
+
+
+
+
+
+
+
+
+
+async function submitTr(){
+  try{
+    await api.post('/stock/transfer',{from_branch_id:parseInt(document.getElementById('trFrom').value),to_branch_id:parseInt(document.getElementById('trTo').value),product_id:parseInt(document.getElementById('trProd').value),qty_unit:parseInt(document.getElementById('trQty').value),note:document.getElementById('trNote').value});
+    toast('โอนย้ายเรียบร้อย','success');CM();loadStock();
+  }catch(e){toast(e.message,'error');}
+}
+
+// ============================================================
+// PRODUCTS
+// ============================================================
+
+async function showProductModal(p={}) {
+  const cats = await api.get('/product-categories').catch(()=>[]);
+  const contacts = await api.get('/contacts?type=supplier').catch(()=>[]);
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:580px">
+    <div class="mh"><div class="mt">${p.id?'แก้ไข':'เพิ่ม'}สินค้า</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label class="lbl">รหัสสินค้า *</label><input type="text" class="ctrl" id="pCode" value="${p.code||''}" style="margin-top:4px" placeholder="เช่น EGG-0"></div>
+        <div><label class="lbl">ชื่อสินค้า *</label><input type="text" class="ctrl" id="pName" value="${p.name||''}" style="margin-top:4px" placeholder="เช่น ไข่ไก่เบอร์ 0"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label class="lbl">กลุ่มสินค้า</label>
+          <select class="ctrl" id="pCat" style="margin-top:4px">
+            ${cats.map(c=>`<option value="${c.id}" ${c.id===p.category_id?'selected':''}>${c.name}</option>`).join('')}
+          </select>
+        </div>
+        <div><label class="lbl">หน่วยหลัก</label>
+          <select class="ctrl" id="pUnit" style="margin-top:4px">
+            <option value="ฟอง" ${p.unit==='ฟอง'||!p.unit?'selected':''}>ฟอง</option>
+            <option value="แผง" ${p.unit==='แผง'?'selected':''}>แผง (30 ฟอง)</option>
+            <option value="ลัง" ${p.unit==='ลัง'?'selected':''}>ลัง (300 ฟอง)</option>
+            <option value="ชุด" ${p.unit==='ชุด'?'selected':''}>ชุด</option>
+            <option value="อื่นๆ" ${p.unit==='อื่นๆ'?'selected':''}>อื่นๆ</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label style="display:flex;align-items:center;gap:7px;font-size:13px;margin-top:4px">
+          <input type="checkbox" id="pIsEgg" ${p.is_egg?'checked':''} style="accent-color:var(--accent)"> เป็นไข่ (นับสต๊อกเป็นฟอง)
+        </label></div>
+        <div><label style="display:flex;align-items:center;gap:7px;font-size:13px;margin-top:4px">
+          <input type="checkbox" id="pTrack" ${p.track_stock!==false?'checked':''} style="accent-color:var(--accent)"> นับสต๊อก
+        </label></div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 ราคาขายหน้าร้าน (บาท/ฟอง)</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div><label class="lbl">1 ฟอง</label><input type="number" class="ctrl" id="pr1" value="${p.price_1||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">5 ฟอง</label><input type="number" class="ctrl" id="pr5" value="${p.price_5||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">10 ฟอง</label><input type="number" class="ctrl" id="pr10" value="${p.price_10||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">15 ฟอง</label><input type="number" class="ctrl" id="pr15" value="${p.price_15||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">20 ฟอง</label><input type="number" class="ctrl" id="pr20" value="${p.price_20||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">30 ฟอง (แผง)</label><input type="number" class="ctrl" id="pr30" value="${p.price_30||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">🚚 ราคาส่ง (บาท/ฟอง)</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div><label class="lbl">1 แผง (30ฟ.)</label><input type="number" class="ctrl" id="pw30" value="${p.wholesale_30||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">2 แผง+ (60ฟ.)</label><input type="number" class="ctrl" id="pw60" value="${p.wholesale_60||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl">1 ลัง (300ฟ.)</label><input type="number" class="ctrl" id="pw300" value="${p.wholesale_300||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveProd(${p.id||0})" style="width:100%;margin-top:14px">💾 บันทึก</button>
+  </div></div>`;
+}
+
+
+
+
+async function delProd(id){if(!confirm('ต้องการลบสินค้านี้?')) return;try{await api.del('/products/'+id);toast('ลบเรียบร้อย','success');loadProds();}catch(e){toast(e.message,'error');}}
+
+async function showPriceM(pid,pname){
+  try{
+    const prices=await api.get('/products/'+pid+'/prices');
+    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:600px"><div class="mh"><div class="mt">💰 ราคา: ${pname}</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="border:1px solid var(--border);border-radius:7px;overflow:hidden;max-height:200px;overflow-y:auto;margin-bottom:12px">
+      <table><thead><tr><th>สาขา</th><th>กลุ่ม</th><th>ฟอง/แผง</th><th style="text-align:right">ราคา</th></tr></thead>
+      <tbody>${prices.map(p=>`<tr><td>${p.branch_code}</td><td>${p.customer_type}</td><td>${p.qty}</td><td style="text-align:right;font-weight:600">${fmt.b(p.price)}</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">ยังไม่มีราคา</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div><div style="font-size:13px;font-weight:600;margin-bottom:8px">+ เพิ่มราคา</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 70px 90px auto;gap:6px;align-items:end">
+      <div><label class="lbl">สาขา</label><select class="ctrl" id="prBr" style="margin-top:3px">${branches.map(b=>`<option value="${b.id}">${b.code}</option>`).join('')}</select></div>
+      <div><label class="lbl">กลุ่ม</label><select class="ctrl" id="prTy" style="margin-top:3px"><option value="retail">ปลีก</option><option value="restaurant">ร้านข้าว</option><option value="wholesale">ส่ง</option></select></div>
+      <div><label class="lbl">ฟอง</label><input type="number" class="ctrl" id="prQty" value="30" min="1" style="margin-top:3px"></div>
+      <div><label class="lbl">ราคา</label><input type="number" class="ctrl" id="prPr" step="0.01" min="0" style="margin-top:3px"></div>
+      <button class="btn btn-primary btn-sm" onclick="savePrice(${pid},'${pname}')" style="height:38px">บันทึก</button>
+          <button class="btn btn-secondary btn-sm" onclick="savePriceAllBranches(${pid},'${pname}')" style="height:38px" title="ใช้ราคานี้กับทุกสาขา">ทุกสาขา</button>
+    </div></div>
+    </div></div>`;
+  }catch(e){toast('โหลดราคาไม่ได้: '+e.message,'error');}
+}
+
+
+
+
+
+
+async function saveCat() {
+  const id = document.getElementById('editCatId').value;
+  const name = document.getElementById('newCatName').value.trim();
+  const type = document.getElementById('newCatType').value;
+  if (!name) { toast('กรุณากรอกชื่อ','error'); return; }
+  try {
+    if (id) {
+      await api.put('/product-categories/'+id, {name, type});
+      toast('แก้ไขเรียบร้อย','success');
+    } else {
+      await api.post('/product-categories', {name, type});
+      toast('เพิ่มเรียบร้อย','success');
+    }
+    showCategoryModal();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function editCat(id, name, type) {
+  document.getElementById('editCatId').value = id;
+  document.getElementById('newCatName').value = name;
+  document.getElementById('newCatType').value = type;
+  document.getElementById('catFormTitle').textContent = '✏️ แก้ไขกลุ่มสินค้า';
+  document.getElementById('catSaveBtn').textContent = 'บันทึก';
+}
+
+async function delCat(id) {
+  if (!confirm('ลบกลุ่มสินค้านี้? สินค้าในกลุ่มนี้จะไม่มีกลุ่ม')) return;
+  try {
+    await api.del('/product-categories/'+id);
+    toast('ลบเรียบร้อย','success');
+    showCategoryModal();
+    loadProdCats();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showBundleModal(){
+  try{
+    const [bundles,prods,brs]=await Promise.all([api.get('/bundles').catch(()=>[]),api.get('/products'),api.get('/branches')]);
+    const eggProds=prods.filter(p=>p.is_egg);
+    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:580px"><div class="mh"><div class="mt">📦 ชุดสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="background:var(--info-dim);border-radius:7px;padding:10px;margin-bottom:12px;font-size:12px;color:var(--info)">💡 ชุดสินค้า เช่น ไข่ 10 ฟอง/ชุด — ขายออกแล้วตัดสต๊อกตามฟองในชุด</div>
+    <div style="border:1px solid var(--border);border-radius:7px;max-height:180px;overflow-y:auto;margin-bottom:12px">
+      ${bundles.length?`<table><thead style="background:var(--surface2)"><tr><th>ชื่อ</th><th>สาขา</th><th>สินค้า</th><th style="text-align:right">ฟอง/ชุด</th><th style="text-align:right">ราคา</th><th></th></tr></thead><tbody>${bundles.map(b=>`<tr><td>${b.name}</td><td>${b.branch_code||'ทุกสาขา'}</td><td>${b.product_name}</td><td style="text-align:right;font-weight:600">${b.qty_per_bundle}</td><td style="text-align:right">${fmt.b(b.price)}</td><td><button class="btn btn-danger btn-sm" onclick="delBundle(${b.id})">ลบ</button></td></tr>`).join('')}</tbody></table>`:'<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:13px">ยังไม่มีชุดสินค้า</div>'}
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:12px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">+ เพิ่มชุดสินค้า</div>
+    <div style="display:grid;gap:8px">
+      <div><label class="lbl">ชื่อชุด *</label><input type="text" class="ctrl" id="bName" style="margin-top:4px" placeholder="เช่น ไข่เบอร์ 0 ชุด 10 ฟอง"></div>
+      <div class="g2">
+        <div><label class="lbl">สินค้า *</label><select class="ctrl" id="bProd" style="margin-top:4px"><option value="">เลือกสินค้า</option>${eggProds.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
+        <div><label class="lbl">สาขา</label><select class="ctrl" id="bBranch" style="margin-top:4px"><option value="">ทุกสาขา</option>${brs.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}</select></div>
+      </div>
+      <div class="g2">
+        <div><label class="lbl">ฟอง/ชุด *</label><input type="number" class="ctrl" id="bQty" value="10" min="1" style="margin-top:4px"></div>
+        <div><label class="lbl">ราคา/ชุด *</label><input type="number" class="ctrl" id="bPrice" value="0" min="0" step="0.01" style="margin-top:4px"></div>
+      </div>
+      <button class="btn btn-primary" onclick="saveBundle()">+ เพิ่ม</button>
+    </div></div></div></div>`;
+  }catch(e){toast(e.message,'error');}
+}
+
+async function saveBundle(){
+  const body={name:document.getElementById('bName').value,product_id:document.getElementById('bProd').value,branch_id:document.getElementById('bBranch').value||null,qty_per_bundle:parseInt(document.getElementById('bQty').value),price:parseFloat(document.getElementById('bPrice').value)};
+  if(!body.name||!body.product_id){toast('กรุณากรอกข้อมูลให้ครบ','error');return;}
+  try{await api.post('/bundles',body);toast('เพิ่มชุดสินค้าเรียบร้อย','success');showBundleModal();}catch(e){toast(e.message,'error');}
+}
+async function delBundle(id){try{await api.del('/bundles/'+id);toast('ลบเรียบร้อย','success');showBundleModal();}catch(e){toast(e.message,'error');}}
+
+// ============================================================
+// MEMBERS
+// ============================================================
+
+
+function showMemModal(m={}){
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">${m.id?'แก้ไข':'เพิ่ม'}สมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="display:grid;gap:9px">
+    <div><label class="lbl">ชื่อ *</label><input type="text" class="ctrl" id="mName" value="${m.name||''}" style="margin-top:4px"></div>
+    <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="mPhone" value="${m.phone||''}" style="margin-top:4px"></div>
+    <div><label class="lbl">สาขา</label><select class="ctrl" id="mBr" style="margin-top:4px"><option value="">ทุกสาขา</option>${branches.map(b=>`<option value="${b.id}" ${b.id===m.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
+    ${m.id?`<label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="mAct" ${m.active?'checked':''}> เปิดใช้งาน</label>`:''}
+  </div>
+  <button class="btn btn-primary" onclick="saveMem(${m.id||0})" style="width:100%;margin-top:14px">บันทึก</button>
+  </div></div>`;
+}
+
+async function saveMem(id){
+  const tierId = document.getElementById('mTier')?.value;
+  const body={
+    name:document.getElementById('mName').value,
+    phone:document.getElementById('mPhone').value,
+    branch_id:document.getElementById('mBr').value?parseInt(document.getElementById('mBr').value):null,
+    tier_id: tierId ? parseInt(tierId) : null,
+  };
+  if(id) body.active=document.getElementById('mAct').checked;
+  if(!body.name){toast('กรุณากรอกชื่อ','error');return;}
+  try{if(id) await api.put('/members/'+id,body);else await api.post('/members',body);toast('บันทึกเรียบร้อย','success');CM();loadMembers();}catch(e){toast(e.message,'error');}
+}
+
+function showMemSettings(){
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">⚙️ ตั้งค่าสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="display:grid;gap:10px">
+    <div><label class="lbl">สะสมไข่กี่ฟองถึงได้ส่วนลด</label><input type="number" class="ctrl" id="msEgg" value="${mSet.eggs_required}" min="1" style="margin-top:4px"></div>
+    <div><label class="lbl">ส่วนลด (บาท)</label><input type="number" class="ctrl" id="msDisc" value="${mSet.discount_amount}" min="0" style="margin-top:4px"></div>
+  </div>
+  <button class="btn btn-primary" onclick="saveMemSettings()" style="width:100%;margin-top:14px">บันทึก</button>
+  </div></div>`;
+}
+async function saveMemSettings(){
+  try{await api.put('/member-settings',{eggs_required:parseInt(document.getElementById('msEgg').value),discount_amount:parseFloat(document.getElementById('msDisc').value)});toast('บันทึกเรียบร้อย','success');CM();loadMembers();}catch(e){toast(e.message,'error');}
+}
+
+// ============================================================
+// CONTACTS
+// ============================================================
+
+
+function showContactModal(c={}){
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">${c.id?'แก้ไข':'เพิ่ม'}ผู้ติดต่อ</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="display:grid;gap:9px">
+    <div><label class="lbl">ชื่อกิจการ</label><input type="text" class="ctrl" id="cBiz" value="${c.business_name||''}" style="margin-top:4px"></div>
+    <div class="g2">
+      <div><label class="lbl">ผู้ติดต่อ</label><input type="text" class="ctrl" id="cName" value="${c.contact_name||''}" style="margin-top:4px"></div>
+      <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="cPhone" value="${c.phone||''}" style="margin-top:4px"></div>
+    </div>
+    <div><label class="lbl">ที่อยู่</label><input type="text" class="ctrl" id="cAddr" value="${c.address||''}" style="margin-top:4px"></div>
+    <div class="g2">
+      <div><label class="lbl">เลขภาษี</label><input type="text" class="ctrl" id="cTax" value="${c.tax_id||''}" style="margin-top:4px"></div>
+      <div><label class="lbl">เครดิต (วัน)</label><input type="number" class="ctrl" id="cCredit" value="${c.credit_days||0}" min="0" style="margin-top:4px"></div>
+    </div>
+    <div class="g2">
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="cIsCust" ${c.is_customer?'checked':''}> ลูกค้า</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="cIsSupp" ${c.is_supplier?'checked':''}> ผู้จำหน่าย</label>
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="saveContact(${c.id||0})" style="width:100%;margin-top:14px">บันทึก</button>
+  </div></div>`;
+}
+
+async function saveContact(id){
+  const body={business_name:document.getElementById('cBiz').value,contact_name:document.getElementById('cName').value,phone:document.getElementById('cPhone').value,address:document.getElementById('cAddr').value,tax_id:document.getElementById('cTax').value,credit_days:parseInt(document.getElementById('cCredit').value)||0,is_customer:document.getElementById('cIsCust').checked,is_supplier:document.getElementById('cIsSupp').checked};
+  try{if(id) await api.put('/contacts/'+id,body);else await api.post('/contacts',body);toast('บันทึกเรียบร้อย','success');CM();loadContacts();}catch(e){toast(e.message,'error');}
+}
+
+// ============================================================
+// QUOTATIONS
+// ============================================================
+async function loadQt(){
+  try{
+    const data=await api.get('/quotations');
+    document.getElementById('qtT').innerHTML=data.length?data.map(q=>`<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${q.quotation_no}</td>
+      <td>${fmt.d(q.issue_date)}</td><td>${q.branch_code}</td><td>${q.business_name||q.contact_name||'-'}</td>
+      <td style="font-weight:600">${fmt.b(q.total)}</td><td>${fmt.badge(q.status)}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="showQtDetail(${q.id})">ดู</button></td>
+    </tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ยังไม่มีใบเสนอราคา</td></tr>';
+  }catch(e){}
+}
+
+async function showQtModal(){
+  const [contacts,brs]=await Promise.all([api.get('/contacts').catch(()=>[]),api.get('/branches')]);
+  const customers=contacts.filter(c=>c.is_customer);
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:560px"><div class="mh"><div class="mt">📝 สร้างใบเสนอราคา</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="display:grid;gap:10px">
+    <div class="g2">
+      <div><label class="lbl">ลูกค้า</label><select class="ctrl" id="qtCt" style="margin-top:4px"><option value="">— เลือกลูกค้า —</option>${customers.map(c=>`<option value="${c.id}">${c.business_name||c.contact_name}</option>`).join('')}</select></div>
+      <div><label class="lbl">สาขา</label><select class="ctrl" id="qtBr" style="margin-top:4px">${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
+    </div>
+    <div><label class="lbl">วันที่</label><input type="date" class="ctrl" id="qtDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px"></div>
+    <div><label class="lbl">ยอดรวม (บาท) *</label><input type="number" class="ctrl" id="qtTotal" value="0" min="0" step="0.01" style="margin-top:4px"></div>
+    <div><label class="lbl">หมายเหตุ</label><input type="text" class="ctrl" id="qtNote" style="margin-top:4px"></div>
+  </div>
+  <button class="btn btn-primary" onclick="saveQt()" style="width:100%;margin-top:14px">สร้างใบเสนอราคา</button>
+  </div></div>`;
+}
+
+async function saveQt(){
+  const body={contact_id:document.getElementById('qtCt').value?parseInt(document.getElementById('qtCt').value):null,branch_id:parseInt(document.getElementById('qtBr').value),issue_date:document.getElementById('qtDate').value,total:parseFloat(document.getElementById('qtTotal').value)||0,note:document.getElementById('qtNote').value};
+  try{const r=await api.post('/quotations',body);toast('สร้างใบเสนอราคา '+r.quotation_no+' เรียบร้อย','success');CM();loadQt();}catch(e){toast(e.message,'error');}
+}
+
+async function showQtDetail(id){
+  try{
+    const items=await api.get('/quotations/'+id+'/items');
+    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">📝 รายการใบเสนอราคา</div><button class="mc" onclick="CM()">✕</button></div>
+    <table><thead><tr><th>สินค้า</th><th style="text-align:right">จำนวน</th><th style="text-align:right">ราคา</th><th style="text-align:right">รวม</th></tr></thead>
+    <tbody>${items.length?items.map(it=>`<tr><td>${it.description}</td><td style="text-align:right">${it.qty}</td><td style="text-align:right">${fmt.b(it.price)}</td><td style="text-align:right;font-weight:600">${fmt.b(it.subtotal)}</td></tr>`).join(''):'<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">ไม่มีรายการ</td></tr>'}</tbody>
+    </table></div></div>`;
+  }catch(e){toast(e.message,'error');}
+}
+
+// ============================================================
+// INVOICES
+// ============================================================
+async function loadInv(){
+  try{
+    const data=await api.get('/invoices');
+    document.getElementById('invT').innerHTML=data.length?data.map(i=>`<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${i.invoice_no}</td>
+      <td>${i.business_name||i.contact_name||'-'}</td><td>${i.branch_code}</td>
+      <td>${fmt.d(i.issue_date)}</td>
+      <td style="color:${i.due_date&&new Date(i.due_date)<new Date()&&i.status!=='paid'?'var(--error)':'inherit'}">${fmt.d(i.due_date)}</td>
+      <td style="font-weight:600">${fmt.b(i.total)}</td><td>${fmt.b(i.paid_amount)}</td>
+      <td>${fmt.badge(i.status)}</td>
+      <td style="display:flex;gap:4px">
+        ${i.status!=='paid'?`<button class="btn btn-success btn-sm" onclick="showInvPay(${i.id},${i.total-i.paid_amount})">รับชำระ</button>`:''}
+        <button class="btn btn-secondary btn-sm" onclick='printInvoice(${JSON.stringify(i).replace(/'/g,"&#39;")})'>🖨️</button>
+      </td>
+    </tr>`).join(''):'<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">ยังไม่มีใบแจ้งหนี้</td></tr>';
+  }catch(e){}
+}
+
+async function showCreateInvoiceModal(){
+  try{
+    const [contacts,brs]=await Promise.all([api.get('/contacts').catch(()=>[]),api.get('/branches')]);
+    const customers=contacts.filter(c=>c.is_customer);
+    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:660px;padding:0">
+      <div style="background:var(--accent);color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-size:15px;font-weight:700">📄 สร้างใบแจ้งหนี้</div><div style="font-size:12px;opacity:.8">เลขที่จะสร้างอัตโนมัติ เช่น INV-2606-0001</div></div>
+        <button onclick="CM()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:16px">✕</button>
+      </div>
+      <div style="padding:18px">
+        <div class="g2" style="margin-bottom:12px">
+          <div><label class="lbl">ลูกค้า</label><select class="ctrl" id="invCt" style="margin-top:4px" onchange="onInvCtCh(${JSON.stringify(customers).replace(/'/g,'&#39;').replace(/"/g,'&quot;')})"><option value="">— เลือกลูกค้า (ถ้ามี) —</option>${customers.map(c=>`<option value="${c.id}" data-credit="${c.credit_days||7}">${c.business_name||c.contact_name}</option>`).join('')}</select></div>
+          <div><label class="lbl">สาขา *</label><select class="ctrl" id="invBr" style="margin-top:4px">${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
+          <div><label class="lbl">วันที่ออก</label><input type="date" class="ctrl" id="invDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px" onchange="calcInvDue()"></div>
+          <div><label class="lbl">เครดิต (วัน)</label><div style="display:flex;gap:6px;margin-top:4px"><input type="number" class="ctrl" id="invCredit" value="7" min="0" style="width:70px" onchange="calcInvDue()"><input type="date" class="ctrl" id="invDue"></div></div>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px">
+          <div style="background:var(--surface2);padding:7px 12px;font-size:11px;font-weight:700;color:var(--text-muted);display:grid;grid-template-columns:1fr 70px 90px 100px 80px 28px;gap:8px"><span>รายการ</span><span style="text-align:right">จำนวน</span><span>หน่วย</span><span style="text-align:right">ราคา/หน่วย</span><span style="text-align:right">รวม</span><span></span></div>
+          <div id="invBody"></div>
+          <div style="padding:7px 12px;border-top:1px solid var(--border)"><button class="btn btn-secondary btn-sm" onclick="addInvRow()">+ เพิ่มรายการ</button></div>
+        </div>
+        <div class="g2">
+          <div><label class="lbl">หมายเหตุ</label><textarea class="ctrl" id="invNote" rows="2" style="margin-top:4px;resize:none"></textarea></div>
+          <div style="background:var(--surface2);border-radius:8px;padding:12px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span>รวมเงิน</span><span id="invSub" style="font-weight:600">฿0.00</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:13px">
+              <span>ส่วนลด</span>
+              <div style="display:flex;align-items:center;gap:4px">
+                <input type="number" id="invDisc" value="0" min="0" style="width:70px;text-align:right;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="calcInvTot()">
+                <select id="invDiscType" style="padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:12px" onchange="calcInvTot()"><option value="baht">บาท</option><option value="percent">%</option></select>
+              </div>
+            </div>
+            <div style="border-top:2px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:var(--accent)"><span>ยอดสุทธิ</span><span id="invTot">฿0.00</span></div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveManualInv()" style="width:100%;margin-top:14px;padding:12px">✅ สร้างใบแจ้งหนี้</button>
+      </div>
+    </div></div>`;
+    addInvRow();calcInvDue();
+  }catch(e){toast('เกิดข้อผิดพลาด: '+e.message,'error');}
+}
+
+function onInvCtCh(contacts){const sel=document.getElementById('invCt');const opt=sel.options[sel.selectedIndex];if(opt&&opt.dataset.credit){document.getElementById('invCredit').value=opt.dataset.credit||7;calcInvDue();}}
+function calcInvDue(){const d=parseInt(document.getElementById('invCredit')?.value||7);const dt=document.getElementById('invDate')?.value;if(dt){const due=new Date(dt);due.setDate(due.getDate()+d);document.getElementById('invDue').value=due.toISOString().slice(0,10);}}
+
+var _invN=0;
+async function addInvRow(){
+  _invN++;
+  if(!_invProducts.length) try{_invProducts=await api.get('/products');}catch(e){}
+  const n=_invN;
+  const div=document.createElement('div');div.id='invR_'+n;
+  div.style.cssText='display:grid;grid-template-columns:1fr 70px 90px 100px 80px 28px;gap:5px;padding:6px 12px;border-top:1px solid var(--border);align-items:center';
+  div.innerHTML=`<select class="ctrl ir-d" onchange="onInvProdSel(${n})" style="font-size:13px"><option value="">— รายการ/สินค้า —</option>${_invProducts.map(p=>`<option value="${p.id}" data-name="${p.name}" data-unit="${p.unit}">${p.name}</option>`).join('')}</select>
+    <input type="number" class="ctrl ir-q" value="1" min="0" step="0.01" oninput="calcInvRow(${n});calcInvTot()" style="text-align:right;font-size:13px">
+    <select class="ctrl ir-u" onchange="calcInvRow(${n});calcInvTot()" style="font-size:13px"><option value="ฟอง">ฟอง</option><option value="แผง (30ฟ.)">แผง</option><option value="ลัง (300ฟ.)">ลัง</option><option value="ชุด">ชุด</option></select>
+    <input type="number" class="ctrl ir-p" value="0" min="0" step="0.01" oninput="calcInvRow(${n});calcInvTot()" style="text-align:right;font-size:13px">
+    <span id="invRowTotal_${n}" style="font-weight:600;font-size:13px;text-align:right">฿0.00</span>
+    <button onclick="document.getElementById('invR_${n}').remove();calcInvTot()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:14px">✕</button>`;
+  document.getElementById('invBody').appendChild(div);
+}
+
+function onInvProdSel(n){
+  const row=document.getElementById('invR_'+n);
+  const sel=row.querySelector('.ir-d');
+  const opt=sel.options[sel.selectedIndex];
+  if(opt&&opt.dataset.unit){const u=row.querySelector('.ir-u');for(i=0;i<u.options.length;i++){if(u.options[i].value===opt.dataset.unit){u.selectedIndex=i;break;}}}
+  calcInvRow(n);calcInvTot();
+}
+
+function calcInvRow(n){
+  const row=document.getElementById('invR_'+n);if(!row) return;
+  const q=parseFloat(row.querySelector('.ir-q')?.value||0);
+  const p=parseFloat(row.querySelector('.ir-p')?.value||0);
+  const el=document.getElementById('invRowTotal_'+n);
+  if(el) el.textContent=fmt.b(q*p);
+}
+
+function calcInvTot(){
+  var sub=0;
+  document.querySelectorAll('#invBody > div[id]').forEach(r=>{
+    const q=parseFloat(r.querySelector('.ir-q')?.value||0);
+    const p=parseFloat(r.querySelector('.ir-p')?.value||0);
+    sub+=q*p;
+  });
+  const discVal=parseFloat(document.getElementById('invDisc')?.value||0);
+  const discType=document.getElementById('invDiscType')?.value||'baht';
+  const disc=discType==='percent'?sub*discVal/100:discVal;
+  const sEl=document.getElementById('invSub');const tEl=document.getElementById('invTot');
+  if(sEl) sEl.textContent=fmt.b(sub);
+  if(tEl) tEl.textContent=fmt.b(Math.max(0,sub-disc));
+}
+
+async function saveManualInv(){
+  const bid=document.getElementById('invBr').value;
+  const cid=document.getElementById('invCt').value;
+  const due=document.getElementById('invDue').value;
+  const note=document.getElementById('invNote').value;
+  const discVal=parseFloat(document.getElementById('invDisc').value)||0;
+  const discType=document.getElementById('invDiscType')?.value||'baht';
+  const items=[];
+  var sub=0;
+  document.querySelectorAll('#invBody > div[id]').forEach(r=>{
+    const sel=r.querySelector('.ir-d');
+    const opt=sel?.options[sel?.selectedIndex];
+    const d=opt?.dataset?.name||sel?.value||'';
+    const q=parseFloat(r.querySelector('.ir-q')?.value||1);
+    const u=r.querySelector('.ir-u')?.value||'';
+    const p=parseFloat(r.querySelector('.ir-p')?.value||0);
+    if(d){items.push({description:d,product_id:opt?.value?parseInt(opt.value):null,qty:q,unit:u,unit_price:p});sub+=q*p;}
+  });
+  const disc=discType==='percent'?sub*discVal/100:discVal;
+  if(!bid){toast('กรุณาเลือกสาขา','error');return;}
+  if(!items.length){toast('กรุณาเพิ่มรายการ','error');return;}
+  try{
+    const res=await api.post('/invoices/manual',{contact_id:cid?parseInt(cid):null,branch_id:parseInt(bid),items,discount:disc,due_date:due,note});
+    toast('สร้างใบแจ้งหนี้ '+res.invoice_no+' เรียบร้อย','success');CM();loadInv();_invProducts=[];_invN=0;
+  }catch(e){toast(e.message,'error');}
+}
+
+async function showInvPay(id,remaining){
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">💳 รับชำระเงิน</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="font-size:20px;font-weight:700;color:var(--accent);text-align:center;margin-bottom:14px">${fmt.b(remaining)}</div>
+  <div><label class="lbl">จำนวนที่รับ (บาท)</label><input type="number" class="ctrl" id="invPayAmt" value="${remaining.toFixed(2)}" min="0" step="0.01" style="margin-top:4px;font-size:18px;text-align:center"></div>
+  <button class="btn btn-primary" onclick="submitInvPay(${id})" style="width:100%;margin-top:14px">รับชำระ</button>
+  </div></div>`;
+}
+async function submitInvPay(id){
+  try{await api.post('/invoices/'+id+'/pay',{amount:parseFloat(document.getElementById('invPayAmt').value)||0});toast('รับชำระเรียบร้อย','success');CM();loadInv();}catch(e){toast(e.message,'error');}
+}
+
+// ============================================================
+// CREDITS
+// ============================================================
+async function loadCredits(){
+  try{
+    const data=await api.get('/credit-sales');
+    document.getElementById('credT').innerHTML=data.length?data.map(c=>`<tr>
+      <td><strong>${c.member_name||c.contact_name||'-'}</strong></td><td>${c.branch_code}</td>
+      <td>${fmt.d(c.sale_date)}</td>
+      <td style="font-weight:700;color:var(--error)">${fmt.b(c.amount_due)}</td>
+      <td style="color:var(--success)">${fmt.b(c.amount_paid)}</td>
+      <td>${c.status==='unpaid'?`<button class="btn btn-success btn-sm" onclick="showCredPay(${c.id},${c.amount_due})">รับชำระ</button>`:fmt.badge(c.status)}</td>
+    </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ไม่มีรายการเชื่อ</td></tr>';
+  }catch(e){}
+}
+
+async function showCredPay(id,amt){
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">💳 รับชำระเชื่อ</div><button class="mc" onclick="CM()">✕</button></div>
+  <div><label class="lbl">จำนวน (บาท)</label><input type="number" class="ctrl" id="credAmt" value="${amt.toFixed(2)}" style="margin-top:4px;font-size:18px;text-align:center"></div>
+  <button class="btn btn-primary" onclick="submitCredPay(${id})" style="width:100%;margin-top:14px">รับชำระ</button>
+  </div></div>`;
+}
+async function submitCredPay(id){
+  try{await api.post('/credit-sales/'+id+'/pay',{amount:parseFloat(document.getElementById('credAmt').value)||0});toast('รับชำระเรียบร้อย','success');CM();loadCredits();}catch(e){toast(e.message,'error');}
+}
+
+
+// ============================================================
+// SAVE EXPENSE
+// ============================================================
+async function saveExpense() {
+  const body={
+    branch_id:parseInt(document.getElementById('exBr').value),
+    category_id:parseInt(document.getElementById('exCat').value),
+    amount:parseFloat(document.getElementById('exAmt').value),
+    withholding_tax:parseFloat(document.getElementById('exWHT').value)||0,
+    expense_date:document.getElementById('exDate').value,
+    note:document.getElementById('exNote').value
+  };
+  if(!body.amount){toast('กรุณากรอกจำนวนเงิน','error');return;}
+  try{await api.post('/expenses',body);toast('บันทึกเรียบร้อย','success');CM();loadExpenses();}
+  catch(e){toast(e.message,'error');}
+}
+async function delExpense(id){
+  if(!confirm('ต้องการลบ?'))return;
+  try{await api.del('/expenses/'+id);toast('ลบเรียบร้อย','success');loadExpenses();}
+  catch(e){toast(e.message,'error');}
+}
+
+// ============================================================
+// SAVE PROMO
+// ============================================================
+async function savePromo() {
+  const body={
+    name:document.getElementById('pmName').value,
+    branch_id:document.getElementById('pmBr').value?parseInt(document.getElementById('pmBr').value):null,
+    promo_type:document.getElementById('pmType').value,
+    product_id:document.getElementById('pmProd').value?parseInt(document.getElementById('pmProd').value):null,
+    min_qty:parseInt(document.getElementById('pmMinQty').value)||1,
+    discount_value:parseFloat(document.getElementById('pmDiscVal').value)||0,
+    start_date:document.getElementById('pmStart').value,
+    end_date:document.getElementById('pmEnd').value
+  };
+  if(!body.name||!body.start_date||!body.end_date){toast('กรุณากรอกข้อมูลให้ครบ','error');return;}
+  try{await api.post('/promotions',body);toast('สร้างโปรโมชั่นเรียบร้อย','success');CM();loadPromos();}
+  catch(e){toast(e.message,'error');}
+}
+async function togglePromo(id,active){
+  try{await api.put('/promotions/'+id,{active});toast(active?'เปิดแล้ว':'ปิดแล้ว','success');loadPromos();}
+  catch(e){toast(e.message,'error');}
+}
+
+// ============================================================
+// SAVE DEBT NOTE
+// ============================================================
+async function saveDebtNote() {
+  const body={
+    note_type:document.querySelector('input[name="dnType"]:checked')?.value||'credit',
+    branch_id:parseInt(document.getElementById('dnBr').value),
+    contact_id:document.getElementById('dnCt').value?parseInt(document.getElementById('dnCt').value):null,
+    ref_invoice_id:document.getElementById('dnInv').value?parseInt(document.getElementById('dnInv').value):null,
+    amount:parseFloat(document.getElementById('dnAmt').value)||0,
+    reason:document.getElementById('dnReason').value
+  };
+  if(!body.amount){toast('กรุณากรอกจำนวนเงิน','error');return;}
+  try{
+    const res=await api.post('/debt-notes',body);
+    toast('สร้างเอกสาร '+res.doc_no+' เรียบร้อย','success');
+    CM();loadDebtNotes();
+  }catch(e){toast(e.message,'error');}
+}
+function updateDnTypeStyle(){
+  const isCr=document.getElementById('dnTypeCredit')?.checked;
+  const cL=document.getElementById('dnTypeCreditLbl');
+  const dL=document.getElementById('dnTypeDebitLbl');
+  if(cL&&dL){
+    cL.style.borderColor=isCr?'var(--success)':'var(--border)';
+    cL.style.background=isCr?'var(--success-dim)':'';
+    dL.style.borderColor=!isCr?'var(--error)':'var(--border)';
+    dL.style.background=!isCr?'var(--error-dim)':'';
+  }
+}
+function onDnInvChange(invoices){
+  const sel=document.getElementById('dnInv');
+  const invId=parseInt(sel.value);
+  const detail=document.getElementById('dnInvDetail');
+  const hint=document.getElementById('dnAmtHint');
+  if(!invId){if(detail)detail.style.display='none';if(hint)hint.textContent='';return;}
+  const inv=invoices.find(i=>i.id===invId);
+  if(!inv)return;
+  const remaining=parseFloat(inv.total)-parseFloat(inv.paid_amount);
+  if(detail){
+    detail.style.display='block';
+    detail.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div><div style="font-size:11px;color:var(--text-muted)">ยอดในใบ</div><div style="font-weight:700">${fmt.b(inv.total)}</div></div>
+      <div><div style="font-size:11px;color:var(--text-muted)">ชำระแล้ว</div><div style="font-weight:700;color:var(--success)">${fmt.b(inv.paid_amount)}</div></div>
+      <div><div style="font-size:11px;color:var(--text-muted)">ยอดค้าง</div><div style="font-weight:700;color:var(--error)">${fmt.b(remaining)}</div></div>
+    </div>`;
+  }
+  if(hint)hint.innerHTML=`<span style="color:var(--info)">ยอดค้างชำระ: <strong>${fmt.b(remaining)}</strong></span>`;
+  const amtEl=document.getElementById('dnAmt');
+  if(amtEl)amtEl.value=remaining.toFixed(2);
+}
+
+// ============================================================
+// PAYROLL DETAIL + PRINT SLIP
+// ============================================================
+async function showPayrollDetail(periodId, periodName) {
+  try {
+    const items = await api.get('/payroll/'+periodId+'/items');
+    const totalNet = items.reduce((s,i)=>s+parseFloat(i.net_pay||0),0);
+    const totalInc = items.reduce((s,i)=>s+parseFloat(i.total_income||0),0);
+    const totalDed = items.reduce((s,i)=>s+parseFloat(i.total_deduct||0),0);
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:900px;padding:0">
+      <div style="background:var(--accent);color:#fff;padding:14px 20px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-size:15px;font-weight:700">💵 ${periodName}</div><div style="font-size:12px;opacity:.85">${items.length} คน | รวม ${fmt.b(totalNet)}</div></div>
+        <button onclick="CM()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid var(--border)">
+        <div style="padding:12px 16px;border-right:1px solid var(--border)"><div style="font-size:11px;color:var(--text-muted)">รวมรายได้</div><div style="font-size:18px;font-weight:700;color:var(--success)">${fmt.b(totalInc)}</div></div>
+        <div style="padding:12px 16px;border-right:1px solid var(--border)"><div style="font-size:11px;color:var(--text-muted)">รวมหัก</div><div style="font-size:18px;font-weight:700;color:var(--error)">${fmt.b(totalDed)}</div></div>
+        <div style="padding:12px 16px"><div style="font-size:11px;color:var(--text-muted)">รวมสุทธิ</div><div style="font-size:18px;font-weight:700;color:var(--accent)">${fmt.b(totalNet)}</div></div>
+      </div>
+      <div style="overflow-y:auto;max-height:55vh">
+        <table><thead><tr>
+          <th>พนักงาน</th><th style="text-align:right">เงินเดือน</th><th style="text-align:right">OT</th><th style="text-align:right">โบนัส</th>
+          <th style="text-align:right">รวมรายได้</th><th style="text-align:right">ประกันสังคม</th><th style="text-align:right">รวมหัก</th>
+          <th style="text-align:right;color:var(--accent)">สุทธิ</th><th></th>
+        </tr></thead>
+        <tbody>${items.map(it=>`<tr>
+          <td><div style="font-weight:600">${it.full_name}${it.nickname?` (${it.nickname})`:''}</div><div style="font-size:11px;color:var(--text-muted)">${it.emp_code} | ${it.position||'-'}</div></td>
+          <td style="text-align:right">${fmt.b(it.base_salary)}</td>
+          <td style="text-align:right">${it.overtime>0?fmt.b(it.overtime):'-'}</td>
+          <td style="text-align:right">${it.bonus>0?fmt.b(it.bonus):'-'}</td>
+          <td style="text-align:right;font-weight:600;color:var(--success)">${fmt.b(it.total_income)}</td>
+          <td style="text-align:right;color:var(--warning)">${fmt.b(it.social_security)}</td>
+          <td style="text-align:right;color:var(--error)">${fmt.b(it.total_deduct)}</td>
+          <td style="text-align:right;font-weight:700;color:var(--accent)">${fmt.b(it.net_pay)}</td>
+          <td>
+            <button class="btn btn-secondary btn-sm" onclick='showEditPayItem(${JSON.stringify(it).replace(/'/g,"&#39;")},${periodId},"${periodName}")'>แก้ไข</button>
+            <button class="btn btn-info btn-sm" onclick='printPaySlip(${JSON.stringify(it).replace(/'/g,"&#39;")}, "${periodName}")'>🖨️</button>
+          </td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function showEditPayItem(item, periodId, periodName) {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:500px"><div class="mh"><div class="mt">✏️ แก้ไข: ${item.full_name}</div><button class="mc" onclick="showPayrollDetail(${periodId},'${periodName}')">← กลับ</button></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+    <div style="grid-column:1/-1;background:var(--success-dim);border-radius:7px;padding:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">รายได้</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+        <div><label class="lbl">เงินเดือนฐาน</label><input type="number" class="ctrl" id="piBase" value="${item.base_salary}" readonly style="margin-top:3px;background:var(--surface2)"></div>
+        <div><label class="lbl">OT</label><input type="number" class="ctrl" id="piOT" value="${item.overtime||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">โบนัส</label><input type="number" class="ctrl" id="piBonus" value="${item.bonus||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">ค่าเบี้ยเลี้ยง</label><input type="number" class="ctrl" id="piAllow" value="${item.allowance||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+      </div>
+    </div>
+    <div style="grid-column:1/-1;background:var(--error-dim);border-radius:7px;padding:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">รายการหัก</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+        <div><label class="lbl">ประกันสังคม</label><input type="number" class="ctrl" id="piSS" value="${item.social_security||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">ภาษี ณ ที่จ่าย</label><input type="number" class="ctrl" id="piTax" value="${item.withholding_tax||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">หัก ขาด/ลา/มาสาย</label><input type="number" class="ctrl" id="piAbsent" value="${item.absent_deduct||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+        <div><label class="lbl">รายการหักอื่นๆ</label><input type="number" class="ctrl" id="piOtherD" value="${item.other_deduct||0}" min="0" style="margin-top:3px" oninput="calcPayItemTotal()"></div>
+      </div>
+    </div>
+  </div>
+  <div style="background:var(--accent-dim);border-radius:7px;padding:12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:14px;font-weight:600">เงินได้สุทธิ</span>
+    <span id="piNetDisplay" style="font-size:22px;font-weight:700;color:var(--accent)">${fmt.b(item.net_pay)}</span>
+  </div>
+  <div><label class="lbl">หมายเหตุ</label><input type="text" class="ctrl" id="piNote" value="${item.note||''}" style="margin-top:4px"></div>
+  <button class="btn btn-primary" onclick="savePayItem(${item.id},${periodId},'${periodName}')" style="width:100%;margin-top:14px">💾 บันทึก</button>
+  </div></div>`;
+}
+
+function calcPayItemTotal() {
+  const g = id => parseFloat(document.getElementById(id)?.value||0);
+  const base=g('piBase'),income=base+g('piOT')+g('piBonus')+g('piAllow');
+  const deduct=g('piSS')+g('piTax')+g('piAbsent')+g('piOtherD');
+  const net=income-deduct;
+  const el=document.getElementById('piNetDisplay');
+  if(el){el.textContent=fmt.b(net);el.style.color=net<0?'var(--error)':'var(--accent)';}
+}
+
+async function savePayItem(itemId,periodId,periodName) {
+  const g=id=>parseFloat(document.getElementById(id)?.value||0);
+  const body={overtime:g('piOT'),bonus:g('piBonus'),allowance:g('piAllow'),withholding_tax:g('piTax'),absent_deduct:g('piAbsent'),other_deduct:g('piOtherD'),note:document.getElementById('piNote')?.value||''};
+  try{await api.put('/payroll/'+periodId+'/items/'+itemId,body);toast('บันทึกเรียบร้อย','success');showPayrollDetail(periodId,periodName);}
+  catch(e){toast(e.message,'error');}
+}
+
+function printPaySlip(item, periodName) {
+  const html = [
+    '<!DOCTYPE html>',
+    '\x3chtml lang="th">',
+    '\x3chead><meta charset="UTF-8"><title>Pay Slip</title>',
+    '<style>body{font-family:"Sarabun",sans-serif;font-size:13px;margin:0;padding:20px;background:#f4f4f4}',
+    '.slip{max-width:700px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.1)}',
+    '.slip-header{background:#e67e00;color:#fff;padding:16px 20px}',
+    '.slip-header h1{font-size:16px;margin:0}',
+    '.slip-body{padding:16px 20px}',
+    '.emp-info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;padding:12px;background:#f9f9f9;border-radius:6px}',
+    '.lbl{font-size:11px;color:#888} .val{font-weight:600}',
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px}',
+    'th{background:#f0f0f0;padding:7px 10px;text-align:left;font-size:12px;color:#666}',
+    'td{padding:7px 10px;border-bottom:1px solid #eee}',
+    '.net{background:#e67e00;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;font-size:16px;font-weight:700}',
+    '.toolbar{background:#1f2937;padding:10px 20px;display:flex;gap:10px}',
+    '.toolbar button{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:"Sarabun",sans-serif}',
+    '@media print{.toolbar{display:none}}',
+    '<\/style><\/head>',
+    '\x3cbody>',
+    '<div class="toolbar">',
+    '<button onclick="window.print()" style="background:#e67e00;color:#fff">🖨️ พิมพ์สลิป<\/button>',
+    '<button onclick="window.close()" style="background:#374151;color:#fff">✕ ปิด<\/button>',
+    '<\/div>',
+    '<div class="slip">',
+    '<div class="slip-header"><h1>สลิปเงินเดือน / Pay Slip<\/h1><div style="font-size:12px;opacity:.85">' + periodName + '<\/div><\/div>',
+    '<div class="slip-body">',
+    '<div class="emp-info">',
+    '<div><div class="lbl">ชื่อ<\/div><div class="val">' + item.full_name + ' (' + item.emp_code + ')<\/div><\/div>',
+    '<div><div class="lbl">ตำแหน่ง<\/div><div class="val">' + (item.position||'-') + '<\/div><\/div>',
+    '<div><div class="lbl">ธนาคาร<\/div><div class="val">' + (item.bank_name||'-') + ' ' + (item.bank_account||'') + '<\/div><\/div>',
+    '<\/div>',
+    '<table><tr><th>รายได้<\/th><th><\/th><th>รายการหัก<\/th><th><\/th><\/tr>',
+    '<tr><td>เงินเดือน<\/td><td>' + parseFloat(item.base_salary||0).toLocaleString('th-TH',{minimumFractionDigits:2}) + '<\/td><td>ประกันสังคม<\/td><td>' + parseFloat(item.social_security||0).toLocaleString('th-TH',{minimumFractionDigits:2}) + '<\/td><\/tr>',
+    '<tr><td>OT<\/td><td>' + parseFloat(item.overtime||0).toLocaleString('th-TH',{minimumFractionDigits:2}) + '<\/td><td>ภาษี<\/td><td>' + parseFloat(item.withholding_tax||0).toLocaleString('th-TH',{minimumFractionDigits:2}) + '<\/td><\/tr>',
+    '<tr><td>โบนัส<\/td><td>' + parseFloat(item.bonus||0).toLocaleString('th-TH',{minimumFractionDigits:2}) + '<\/td><td><\/td><td><\/td><\/tr>',
+    '<\/table>',
+    '<\/div>',
+    '<div class="net"><span>เงินได้สุทธิ / Net Pay<\/span><span>' + parseFloat(item.net_pay||0).toLocaleString('th-TH',{minimumFractionDigits:2}) + ' บาท<\/span><\/div>',
+    '<\/div>',
+    '<\/body><\/html>'
+  ].join('\n');
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  window.open(url,'_blank');
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
+
+// ============================================================
+// SAVE EMPLOYEE
+// ============================================================
+async function saveEmployee(id) {
+  const g = eid => { const el=document.getElementById(eid); return el?el.value:''; };
+  const branchAccess = Array.from(document.querySelectorAll('.emBrAccess:checked')).map(el=>parseInt(el.value));
+  const body = {
+    full_name:g('emName'), nickname:g('emNick'), national_id:g('emNID'),
+    phone:g('emPhone'), branch_id:g('emBr')?parseInt(g('emBr')):null,
+    position:document.getElementById('emRoleName')?.options[document.getElementById('emRoleName')?.selectedIndex]?.text||g('emPos')||'',
+    start_date:g('emStart')||null, probation_end_date:g('emProb')||null,
+    salary:parseFloat(g('emSal'))||null, salary_base:parseFloat(g('emSalBase'))||null,
+    bank_name:g('emBank'), bank_account:g('emBankAcc'),
+    education:g('emEdu'), work_history:g('emWork'), emergency_contact:g('emEmerg'),
+    create_user:!id&&!!(g('emUser')&&g('emPass')),
+    username:g('emUser'), password:g('emPass'),
+    role_name:g('emRoleName'),
+    branch_access:branchAccess,
+  };
+  if(id) body.active=document.getElementById('emAct')?.checked??true;
+  if(!body.full_name){toast('กรุณากรอกชื่อ','error');return;}
+  try{
+    res;
+    if(id) await api.put('/employees/'+id,body);
+    else res=await api.post('/employees',body);
+    if(res?.user_id) toast('เพิ่มพนักงานและสร้าง account "'+body.username+'" เรียบร้อย','success');
+    else toast('บันทึกเรียบร้อย','success');
+    CM(); loadEmployees();
+  }catch(e){toast(e.message,'error');}
+}
+
+// ============================================================
+// SAVE PERMISSIONS
+// ============================================================
+
+
+// ============================================================
+// BUILD INVOICE HTML (for print)
+// ============================================================
+function buildInvoiceHTML(inv, co, remaining, statusLabel) {
+  return [
+    '<!DOCTYPE html>',
+    '\x3chtml lang="th">',
+    '\x3chead><meta charset="UTF-8"><title>ใบแจ้งหนี้ ' + inv.invoice_no + '<\/title>',
+    '<style>',
+    'body{font-family:"Sarabun",sans-serif;font-size:13px;color:#1f2937;background:#f4f4f4}',
+    '.toolbar{background:#1f2937;padding:10px 20px;display:flex;gap:10px;align-items:center}',
+    '.toolbar span{color:#9ca3af;font-size:13px}',
+    '.toolbar button{padding:7px 16px;border:none;border-radius:6px;font-family:"Sarabun",sans-serif;cursor:pointer}',
+    '.page{width:210mm;min-height:297mm;margin:12px auto;background:#fff;padding:16mm 18mm 14mm;box-shadow:0 2px 16px rgba(0,0,0,.12)}',
+    '.doc-header{display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:16px;border-bottom:3px solid #e67e00}',
+    '.company-detail h2{font-size:16px;font-weight:700;color:#e67e00}',
+    '.company-detail p{font-size:11px;color:#6b7280;line-height:1.5}',
+    '.doc-info{text-align:right}',
+    '.doc-info h1{font-size:24px;font-weight:700}',
+    '.doc-info .doc-no{font-size:13px;font-weight:700;color:#e67e00;font-family:monospace}',
+    '.parties{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}',
+    '.party-box{border:1px solid #e5e7eb;border-radius:8px;padding:12px}',
+    '.party-box h3{font-size:10px;color:#9ca3af;text-transform:uppercase;margin-bottom:6px}',
+    'table{width:100%;border-collapse:collapse;margin-bottom:14px}',
+    'thead tr{background:#e67e00;color:#fff}',
+    'th,td{padding:8px 10px;text-align:left}',
+    'th.r,td.r{text-align:right}',
+    'td{border-bottom:1px solid #f3f4f6}',
+    '.t-total{display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#e67e00;border-top:2px solid #e67e00;padding-top:8px;margin-top:4px}',
+    '.sigs{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px;padding-top:14px;border-top:1px solid #e5e7eb}',
+    '.sig-box{text-align:center}',
+    '.sig-line{border-bottom:1px solid #1f2937;margin:28px 16px 5px}',
+    '.sig-label{font-size:11px;color:#6b7280}',
+    '@media print{.toolbar{display:none}.page{margin:0;box-shadow:none}}',
+    '<\/style><\/head>',
+    '\x3cbody>',
+    '<div class="toolbar">',
+    '<span>🥚 Egg Station — ' + inv.invoice_no + '<\/span>',
+    '<button onclick="window.print()" style="background:#e67e00;color:#fff;margin-left:auto">🖨️ พิมพ์<\/button>',
+    '<button onclick="window.close()" style="background:#374151;color:#fff">✕ ปิด<\/button>',
+    '<\/div>',
+    '<div class="page">',
+    '<div class="doc-header">',
+    '<div class="company-detail">',
+    '<h2>' + (co.company_name||'Egg Station') + '<\/h2>',
+    co.address ? '<p>' + co.address.split('\n').join('<br>') + '<\/p>' : '',
+    co.phone ? '<p>โทร: ' + co.phone + '<\/p>' : '',
+    co.tax_id ? '<p>เลขผู้เสียภาษี: ' + co.tax_id + '<\/p>' : '',
+    '<\/div>',
+    '<div class="doc-info">',
+    '<h1>ใบแจ้งหนี้<\/h1>',
+    '<div class="doc-no">' + inv.invoice_no + '<\/div>',
+    '<\/div><\/div>',
+    '<div class="parties">',
+    '<div class="party-box"><h3>ออกให้แก่<\/h3><div style="font-size:14px;font-weight:700">' + (inv.business_name||inv.contact_name||'ลูกค้าทั่วไป') + '<\/div><\/div>',
+    '<div class="party-box">',
+    '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:#6b7280">วันที่<\/span><span style="font-weight:600">' + (inv.issue_date||'').slice(0,10) + '<\/span><\/div>',
+    '<div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#6b7280">ครบกำหนด<\/span><span style="font-weight:600">' + (inv.due_date||'').slice(0,10) + '<\/span><\/div>',
+    '<\/div><\/div>',
+    '<table><thead><tr><th>รายการ<\/th><th class="r">ยอด<\/th><\/tr><\/thead>',
+    '<tbody><tr><td>รายการสินค้า<\/td><td class="r">' + parseFloat(inv.total||0).toLocaleString('th-TH',{minimumFractionDigits:2}) + '<\/td><\/tr><\/tbody><\/table>',
+    '<div style="display:flex;justify-content:flex-end"><div style="width:240px">',
+    '<div class="t-total"><span>ยอดค้างชำระ<\/span><span>' + remaining.toLocaleString('th-TH',{minimumFractionDigits:2}) + ' บาท<\/span><\/div>',
+    '<\/div><\/div>',
+    '<div class="sigs">',
+    '<div class="sig-box"><div class="sig-line"><\/div><div class="sig-label">ลายเซ็นผู้รับ<\/div><\/div>',
+    '<div class="sig-box"><div class="sig-line"><\/div><div style="font-size:12px;font-weight:600">' + (inv.created_by_name||'') + '<\/div><div class="sig-label">ผู้ออกเอกสาร<\/div><\/div>',
+    '<\/div><\/div>',
+    '<\/body><\/html>'
+  ].join('\n');
+}
+
+// ============================================================
+// ADD PRODUCT CATEGORY
+// ============================================================
+async function addProductCategory() {
+  const name = document.getElementById('newCatName').value.trim();
+  const type = document.getElementById('newCatType').value;
+  if (!name) { toast('กรุณากรอกชื่อกลุ่ม','error'); return; }
+  try {
+    await api.post('/product-categories', {name, type});
+    toast('เพิ่มกลุ่มสินค้าเรียบร้อย','success');
+    showCategoryModal();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// PAGE LOADERS REGISTRATION
+// ============================================================
+
+// Register all page loaders
+
+
+// Auto login check
+
+// ============================================================
+// USERS (Account Management)
+// ============================================================
+async function loadUsers() {
+  try {
+    const [users, r] = await Promise.all([api.get('/users'), api.get('/roles')]);
+    roles = r;
+    document.getElementById('userT').innerHTML = users.length ? users.map(u=>`<tr>
+      <td>
+        <div style="font-weight:600">${u.full_name}</div>
+        <div style="font-size:11px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace">${u.username}</div>
+      </td>
+      <td><span class="badge bi">${fmt.role(u.role)}</span></td>
+      <td>${u.branch_code||'ทุกสาขา'}</td>
+      <td>${['owner','admin'].includes(u.role)?'<span class="badge bs">ทุกสาขา</span>':`<button class="btn btn-info btn-sm" onclick="showUserBranchModal(${u.id},'${u.full_name}')">🏪 สาขา</button>`}</td>
+      <td>${u.active?'<span class="badge bs">ใช้งาน</span>':'<span class="badge be">ระงับ</span>'}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-secondary btn-sm" onclick="showResetPasswordModal(${u.id},'${u.full_name}')">🔑 รีเซ็ต</button>
+        <button class="btn btn-${u.active?'danger':'success'} btn-sm" onclick="toggleUserActive(${u.id},${!u.active},'${u.full_name}')">${u.active?'ระงับ':'เปิด'}</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ไม่มีข้อมูล</td></tr>';
+  } catch(e) { console.error(e); }
+}
+
+function showResetPasswordModal(userId, userName) {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">🔑 รีเซ็ตรหัสผ่าน: ${userName}</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="display:grid;gap:10px">
+    <div><label class="lbl">รหัสผ่านใหม่ *</label><input type="password" class="ctrl" id="newPwd" placeholder="อย่างน้อย 6 ตัวอักษร" style="margin-top:4px"></div>
+    <div><label class="lbl">ยืนยันรหัสผ่าน *</label><input type="password" class="ctrl" id="confirmPwd" placeholder="พิมพ์รหัสผ่านอีกครั้ง" style="margin-top:4px"></div>
+  </div>
+  <button class="btn btn-primary" onclick="doResetPassword(${userId},'${userName}')" style="width:100%;margin-top:14px">🔑 รีเซ็ตรหัสผ่าน</button>
+  </div></div>`;
+}
+
+async function doResetPassword(userId, userName) {
+  const newPwd = document.getElementById('newPwd').value;
+  const confirmPwd = document.getElementById('confirmPwd').value;
+  if (!newPwd || newPwd.length < 6) { toast('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร','error'); return; }
+  if (newPwd !== confirmPwd) { toast('รหัสผ่านไม่ตรงกัน','error'); return; }
+  try {
+    await api.put('/users/'+userId, { password: newPwd });
+    toast(`รีเซ็ตรหัสผ่าน ${userName} เรียบร้อย`, 'success');
+    CM();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function toggleUserActive(userId, active, userName) {
+  const action = active ? 'เปิดใช้งาน' : 'ระงับ';
+  if (!confirm(`${action} account "${userName}"?`)) return;
+  try {
+    await api.put('/users/'+userId, { active });
+    toast(`${action} account เรียบร้อย`, 'success');
+    loadUsers();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showUserBranchModal(userId, userName) {
+  try {
+    const [userBranches] = await Promise.all([api.get('/users/'+userId+'/branches')]);
+    const userBranchIds = userBranches.map(b=>b.branch_id);
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal"><div class="mh"><div class="mt">🏪 สิทธิ์สาขา: ${userName}</div><button class="mc" onclick="CM()">✕</button></div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">เลือกสาขาที่พนักงานคนนี้สามารถเข้าทำงานได้</p>
+    <div style="display:grid;gap:8px">
+      ${branches.map(b=>`<label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:7px;cursor:pointer">
+        <input type="checkbox" id="ub_${b.id}" ${userBranchIds.includes(b.id)?'checked':''}>
+        <span style="font-size:14px">🏪 ${b.name} <span class="badge bg">${b.code}</span></span>
+      </label>`).join('')}
+    </div>
+    <button class="btn btn-primary" onclick="saveUserBranches(${userId})" style="width:100%;margin-top:14px">💾 บันทึกสิทธิ์สาขา</button>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function saveUserBranches(userId) {
+  const branchIds = branches.filter(b=>document.getElementById('ub_'+b.id)?.checked).map(b=>b.id);
+  try {
+    await api.put('/users/'+userId+'/branches', {branch_ids: branchIds});
+    toast('บันทึกสิทธิ์สาขาเรียบร้อย','success');
+    CM(); loadUsers();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// EMPLOYEES (เพิ่ม/แก้ไขพนักงาน + สร้าง Account)
+// ============================================================
+async function showEmployeeModal(e={}) {
+  const roleOptions = [
+    {val:'manager',label:'👨‍💼 ผู้จัดการ'},{val:'cashier',label:'💁 แคชเชียร์'},
+    {val:'stock',label:'📦 สต๊อก'},{val:'viewer',label:'👁️ ผู้ชม'},
+    {val:'accountant',label:'📊 บัญชี'},{val:'sales_pc',label:'🛍️ พนักงานขาย (PC)'},
+  ];
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:660px">
+    <div class="mh"><div class="mt">${e.id?'แก้ไข':'➕ เพิ่ม'}พนักงาน</div><button class="mc" onclick="CM()">✕</button></div>
+
+    <!-- แท็บ -->
+    <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
+      <button class="emp-tab" onclick="switchEmpTab('info',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid var(--accent);color:var(--accent);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer">📋 ข้อมูล</button>
+      <button class="emp-tab" onclick="switchEmpTab('pay',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer">💰 เงินเดือน</button>
+      <button class="emp-tab" onclick="switchEmpTab('edu',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer">📚 ประวัติ</button>
+    </div>
+
+    <!-- แท็บ: ข้อมูล -->
+    <div id="empTab-info" style="display:grid;gap:9px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+        <div><label class="lbl">ชื่อ-นามสกุล *</label><input type="text" class="ctrl" id="emName" value="${e.full_name||''}" style="margin-top:4px"></div>
+        <div><label class="lbl">ชื่อเล่น</label><input type="text" class="ctrl" id="emNick" value="${e.nickname||''}" style="margin-top:4px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+        <div><label class="lbl">เลขบัตรประชาชน</label><input type="text" class="ctrl" id="emNID" value="${e.national_id||''}" maxlength="13" style="margin-top:4px"></div>
+        <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="emPhone" value="${e.phone||''}" style="margin-top:4px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+        <div><label class="lbl">ตำแหน่ง / สิทธิ์ในระบบ *</label>
+          <select class="ctrl" id="emRoleName" style="margin-top:4px">
+            ${roleOptions.map(r=>`<option value="${r.val}" ${(e.role_name||'cashier')===r.val?'selected':''}>${r.label}</option>`).join('')}
+          </select>
+        </div>
+        <div><label class="lbl">สาขาประจำ</label>
+          <select class="ctrl" id="emBr" style="margin-top:4px">
+            <option value="">ทุกสาขา</option>
+            ${branches.map(b=>`<option value="${b.id}" ${b.id===e.branch_id?'selected':''}>${b.name}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="lbl" style="margin-bottom:6px;display:block">🏪 สาขาที่ทำงานได้ (ติ๊กหลายสาขาได้)</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${branches.map(b=>`<label style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-size:13px">
+            <input type="checkbox" class="emBrAccess" value="${b.id}" style="accent-color:var(--accent)">
+            ${b.name}
+          </label>`).join('')}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+        <div><label class="lbl">วันเริ่มงาน</label><input type="date" class="ctrl" id="emStart" value="${e.start_date?e.start_date.slice(0,10):''}" style="margin-top:4px"></div>
+        <div><label class="lbl">วันผ่านโปร</label><input type="date" class="ctrl" id="emProb" value="${e.probation_end_date?e.probation_end_date.slice(0,10):''}" style="margin-top:4px"></div>
+      </div>
+      ${!e.id ? `
+      <div style="background:var(--info-dim);border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-top:4px">
+        <div style="font-size:12px;font-weight:700;color:var(--info);margin-bottom:8px">🔐 Account เข้าใช้งานระบบ (ไม่บังคับ)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><label class="lbl">Username</label><input type="text" class="ctrl" id="emUser" placeholder="เช่น somchai หรือ email" style="margin-top:4px"></div>
+          <div><label class="lbl">Password</label><input type="password" class="ctrl" id="emPass" placeholder="อย่างน้อย 6 ตัว" style="margin-top:4px"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">💡 ถ้าไม่กรอก พนักงานจะไม่มี account เข้าระบบ</div>
+      </div>` : ''}
+      ${e.id ? `<label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="emAct" ${e.active?'checked':''}> เปิดใช้งาน</label>` : ''}
+    </div>
+
+    <!-- แท็บ: เงินเดือน -->
+    <div id="empTab-pay" style="display:none;grid-template-columns:1fr 1fr;gap:9px">
+      <div><label class="lbl">ฐานเงินเดือน (บาท)</label><input type="number" class="ctrl" id="emSalBase" value="${e.salary_base||0}" min="0" style="margin-top:4px"></div>
+      <div><label class="lbl">เงินเดือนปัจจุบัน (บาท)</label><input type="number" class="ctrl" id="emSal" value="${e.salary||0}" min="0" style="margin-top:4px"></div>
+      <div><label class="lbl">ธนาคาร</label><input type="text" class="ctrl" id="emBank" value="${e.bank_name||''}" placeholder="เช่น กสิกรไทย" style="margin-top:4px"></div>
+      <div><label class="lbl">เลขบัญชี</label><input type="text" class="ctrl" id="emBankAcc" value="${e.bank_account||''}" style="margin-top:4px"></div>
+    </div>
+
+    <!-- แท็บ: ประวัติ -->
+    <div id="empTab-edu" style="display:none;gap:9px">
+      <div><label class="lbl">ประวัติการศึกษา</label><textarea class="ctrl" id="emEdu" rows="3" style="margin-top:4px;resize:vertical">${e.education||''}</textarea></div>
+      <div><label class="lbl">ประวัติการทำงาน</label><textarea class="ctrl" id="emWork" rows="3" style="margin-top:4px;resize:vertical">${e.work_history||''}</textarea></div>
+      <div><label class="lbl">ผู้ติดต่อฉุกเฉิน</label><input type="text" class="ctrl" id="emEmerg" value="${e.emergency_contact||''}" style="margin-top:4px"></div>
+    </div>
+
+    <button class="btn btn-primary" onclick="saveEmployee(${e.id||0})" style="width:100%;margin-top:16px">💾 บันทึกพนักงาน</button>
+  </div></div>`;
+}
+
+function switchEmpTab(tab, btn) {
+  document.querySelectorAll('[id^="empTab-"]').forEach(el => { el.style.display='none'; });
+  const el = document.getElementById('empTab-'+tab);
+  if (el) el.style.display = (tab==='pay'||tab==='edu') ? 'grid' : 'block';
+  document.querySelectorAll('.emp-tab').forEach(b => { b.style.borderBottomColor='transparent'; b.style.color='var(--text-muted)'; b.style.fontWeight='400'; });
+  if (btn) { btn.style.borderBottomColor='var(--accent)'; btn.style.color='var(--accent)'; btn.style.fontWeight='600'; }
+}
+
+async function showUserModal(u={}) {
+  // redirect ไปหน้าพนักงาน
+  toast('เพิ่มพนักงานได้ที่หน้า 👔 พนักงาน', 'info');
+  CM();
+  showPage('employees');
+}
+
+
+// ============================================================
+// AUTO LOGIN — ถ้ามี token ที่ valid → เข้าระบบอัตโนมัติ
+// ============================================================
+(function() {
+  try {
+    const _t = localStorage.getItem('es_token');
+    const _u = localStorage.getItem('es_user');
+    if (!_t || !_u) {
+      console.log('[AutoLogin] No token/user found → show login');
+      return;
+    }
+    const user = JSON.parse(_u);
+    if (!user || !user.id) {
+      console.log('[AutoLogin] Invalid user data → clear');
+      localStorage.clear(); return;
+    }
+    console.log('[AutoLogin] Found user:', user.username, '→ initApp');
+    CU = user;
+    document.getElementById('loginPage').style.display = 'none';
+    initApp();
+    // verify ใน background
+    fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + _t } })
+      .then(r => {
+        if (r.status === 401) {
+          console.log('[AutoLogin] Token expired → logout');
+          logout();
+        }
+      })
+      .catch(e => console.log('[AutoLogin] verify error (ignore):', e.message));
+  } catch(e) {
+    console.error('[AutoLogin] Error:', e);
+  }
+})();
+
+// ============================================================
+// DAILY SUMMARY PRINT (ใบสรุปยอดขาย)
+// ============================================================
+async function printDailySummary() {
+  const date = document.getElementById('rptDate')?.value || new Date().toISOString().slice(0,10);
+  try {
+    const d = await api.get('/reports/daily?date='+date);
+    // ดึงยอดขายแยกสินค้า
+    const salesDetail = await api.get('/reports/sales-by-product?date='+date).catch(()=>({items:[]}));
+    
+    const branchName = d.branches?.[0]?.branch_name || 'ทุกสาขา';
+    const totalRevenue = d.branches?.reduce((s,b)=>s+parseFloat(b.total_revenue||0),0)||0;
+    const totalBills = d.branches?.reduce((s,b)=>s+parseInt(b.total_bills||0),0)||0;
+    const dateStr = new Date(date).toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+
+    const rows = (salesDetail.items||[]).map((it,i)=>
+      `<tr style="border-bottom:1px solid #f0f0f0">
+        <td style="padding:4px 8px;font-size:13px">${i+1}. ${it.product_name}</td>
+        <td style="padding:4px 8px;text-align:right;font-size:13px">${parseInt(it.qty_sold||0).toLocaleString('th-TH')}</td>
+        <td style="padding:4px 8px;text-align:right;font-size:13px">${Math.floor(parseInt(it.qty_sold||0)/30)}</td>
+        <td style="padding:4px 8px;text-align:right;font-size:13px">${parseFloat(it.revenue||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
+      </tr>`
+    ).join('');
+
+    const html = [
+      '<!DOCTYPE html>',
+      '\x3chtml lang="th">',
+      '<head><meta charset="UTF-8"><title>ใบสรุปยอดขาย</title>',
+      '<style>',
+      'body{font-family:"Sarabun",sans-serif;font-size:14px;margin:0;padding:0}',
+      '.toolbar{background:#1f2937;padding:10px 20px;display:flex;gap:10px}',
+      '.toolbar button{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:"Sarabun",sans-serif}',
+      '.page{max-width:380px;margin:0 auto;padding:16px}',
+      '.title{text-align:center;font-size:16px;font-weight:700;margin-bottom:4px}',
+      '.subtitle{text-align:center;font-size:13px;color:#666;margin-bottom:16px}',
+      'table{width:100%;border-collapse:collapse}',
+      'th{background:#f0f0f0;padding:5px 8px;font-size:12px;color:#666;text-align:left;border-bottom:2px solid #ddd}',
+      'th.r{text-align:right}',
+      '.total-row{background:#fff8f0;font-weight:700;border-top:2px solid #e67e00}',
+      '.total-row td{padding:7px 8px}',
+      '.section{margin-top:14px;padding-top:10px;border-top:1px dashed #ccc}',
+      '.section-title{font-size:12px;color:#666;margin-bottom:6px;font-weight:600}',
+      '.row{display:flex;justify-content:space-between;padding:3px 0;font-size:13px}',
+      '.grand{display:flex;justify-content:space-between;padding:8px 0;font-size:15px;font-weight:700;border-top:2px solid #333;margin-top:6px}',
+      '.footer{margin-top:14px;text-align:center;font-size:11px;color:#999;padding-top:10px;border-top:1px dashed #ccc}',
+      '@media print{.toolbar{display:none}}',
+      '<\/style><\/head>',
+      '\x3cbody>',
+      '<div class="toolbar">',
+      '<button onclick="window.print()" style="background:#e67e00;color:#fff">🖨️ พิมพ์<\/button>',
+      '<button onclick="window.close()" style="background:#374151;color:#fff">✕<\/button>',
+      '<\/div>',
+      '<div class="page">',
+      '<div class="title">สรุปยอดขาย ' + branchName + '<\/div>',
+      '<div class="subtitle">' + dateStr + '<\/div>',
+      '<table>',
+      '<thead><tr><th>สินค้า<\/th><th class="r">ฟอง<\/th><th class="r">แผง<\/th><th class="r">ยอด (บาท)<\/th><\/tr><\/thead>',
+      '<tbody>' + rows + '<\/tbody>',
+      '<tfoot><tr class="total-row">',
+      '<td>รวมทั้งหมด<\/td>',
+      '<td style="text-align:right">' + (salesDetail.items||[]).reduce((s,i)=>s+parseInt(i.qty_sold||0),0).toLocaleString('th-TH') + '<\/td>',
+      '<td style="text-align:right">' + Math.floor((salesDetail.items||[]).reduce((s,i)=>s+parseInt(i.qty_sold||0),0)/30) + '<\/td>',
+      '<td style="text-align:right">' + totalRevenue.toLocaleString('th-TH',{minimumFractionDigits:2}) + '<\/td>',
+      '<\/tr><\/tfoot>',
+      '<\/table>',
+      '<div class="section">',
+      '<div class="section-title">สรุปยอดเงิน<\/div>',
+      '<div class="row"><span>จำนวนบิล<\/span><span>' + totalBills + ' บิล<\/span><\/div>',
+      '<div class="grand"><span>ยอดรวม<\/span><span>' + totalRevenue.toLocaleString('th-TH',{minimumFractionDigits:2}) + ' บาท<\/span><\/div>',
+      '<\/div>',
+      '<div class="footer">** พิมพ์เมื่อ ' + new Date().toLocaleString('th-TH') + ' **<\/div>',
+      '<\/div>',
+      '<\/body><\/html>'
+    ].join('\n');
+
+    const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    window.open(url,'_blank');
+    setTimeout(()=>URL.revokeObjectURL(url), 10000);
+  } catch(e) { toast('โหลดข้อมูลไม่ได้: '+e.message,'error'); }
+}
+
+
+// ============================================================
+// QUICK MEMBER MODAL (จาก POS)
+// ============================================================
+async function showQuickMemberModal() {
+  const tiers = await api.get('/member-tiers').catch(()=>[]);
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:440px"><div class="mh"><div class="mt">⭐ สมัครสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
+  <div style="display:grid;gap:10px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="lbl">ชื่อสมาชิก *</label><input type="text" class="ctrl" id="qmName" style="margin-top:4px" placeholder="ชื่อ-นามสกุล"></div>
+      <div><label class="lbl">เบอร์โทร *</label><input type="text" class="ctrl" id="qmPhone" style="margin-top:4px" placeholder="0812345678"></div>
+    </div>
+    <div>
+      <label class="lbl">ระดับสมาชิก *</label>
+      <select class="ctrl" id="qmTier" style="margin-top:4px" onchange="onTierChange(${JSON.stringify(tiers).replace(/"/g,'&quot;')})">
+        <option value="">— เลือกระดับสมาชิก —</option>
+        ${tiers.map(t=>`<option value="${t.id}" data-type="${t.customer_type}">${t.name}</option>`).join('')}
+      </select>
+      <div id="qmTierDesc" style="font-size:12px;color:var(--text-muted);margin-top:5px;padding:7px 10px;background:var(--surface2);border-radius:6px;display:none"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="lbl">LINE ID</label><input type="text" class="ctrl" id="qmLine" style="margin-top:4px" placeholder="(ถ้ามี)"></div>
+      <div><label class="lbl">หมายเหตุ</label><input type="text" class="ctrl" id="qmNote" style="margin-top:4px" placeholder="(ถ้ามี)"></div>
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="submitQuickMember()" style="width:100%;margin-top:14px">⭐ สมัครสมาชิก</button>
+  </div></div>`;
+}
+
+function onTierChange(tiers) {
+  const sel = document.getElementById('qmTier');
+  const tierId = parseInt(sel.value);
+  const tier = tiers.find(t=>t.id===tierId);
+  const desc = document.getElementById('qmTierDesc');
+  if (tier && desc) {
+    const parts = [];
+    if (tier.description) parts.push(tier.description);
+    if (tier.customer_type) parts.push('ช่องทาง: ' + {retail:'ปลีก',restaurant:'ร้านข้าว',wholesale:'ส่ง'}[tier.customer_type]);
+    if (tier.discount_percent > 0) parts.push(`ส่วนลด ${tier.discount_percent}%`);
+    if (tier.discount_amount > 0) parts.push(`ส่วนลด ${tier.discount_amount} บาท`);
+    desc.textContent = parts.join(' | ');
+    desc.style.display = 'block';
+  } else if (desc) {
+    desc.style.display = 'none';
+  }
+}
+
+async function submitQuickMember() {
+  const name = document.getElementById('qmName').value.trim();
+  const phone = document.getElementById('qmPhone').value.trim();
+  const tierId = document.getElementById('qmTier')?.value;
+  if (!name || !phone) { toast('กรุณากรอกชื่อและเบอร์โทร','error'); return; }
+  if (!tierId) { toast('กรุณาเลือกระดับสมาชิก','error'); return; }
+  try {
+    await api.post('/members', {
+      name, phone,
+      tier_id: parseInt(tierId),
+      line_id: document.getElementById('qmLine')?.value||'',
+      note: document.getElementById('qmNote')?.value||'',
+      branch_id: CU.branch_id,
+    });
+    const tierSel = document.getElementById('qmTier');
+    const tierName = tierSel?.options[tierSel.selectedIndex]?.text||'';
+    toast(`✅ สมัครสมาชิก "${name}" (${tierName}) เรียบร้อย`, 'success');
+    CM();
+    if (typeof loadPosMem === 'function') loadPosMem();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// CREATE BRANCH MODAL
+// ============================================================
+
+
+async function submitCreateBranch() {
+  const name = document.getElementById('brName').value.trim();
+  const code = document.getElementById('brCode').value.trim().toUpperCase();
+  if (!name || !code) { toast('กรุณากรอกชื่อและรหัสสาขา','error'); return; }
+  try {
+    await api.post('/branches', { name, code, address: document.getElementById('brAddr').value, phone: document.getElementById('brPhone').value });
+    toast(`✅ สร้างสาขา "${name}" (${code}) เรียบร้อย`, 'success');
+    CM();
+    // reload branches
+    branches = await api.get('/branches');
+    toast('รีโหลดข้อมูลสาขาแล้ว', 'info');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+// ============================================================
+// PERMISSIONS
+// ============================================================
+var PERM_LIST = [
+  {key:'pos.sale', label:'ขายหน้าร้าน', group:'การขาย'},
+  {key:'pos.discount', label:'ให้ส่วนลด', group:'การขาย'},
+  {key:'sales.view', label:'ดูประวัติการขาย', group:'การขาย'},
+  {key:'daily_close.view', label:'ดูปิดยอดประจำวัน', group:'การขาย'},
+  {key:'daily_close.edit', label:'แก้ไขปิดยอดประจำวัน', group:'การขาย'},
+  {key:'invoice.view', label:'ดูใบแจ้งหนี้', group:'เอกสาร'},
+  {key:'invoice.create', label:'สร้างใบแจ้งหนี้', group:'เอกสาร'},
+  {key:'invoice.pay', label:'รับชำระใบแจ้งหนี้', group:'เอกสาร'},
+  {key:'quotation.view', label:'ดูใบเสนอราคา', group:'เอกสาร'},
+  {key:'quotation.create', label:'สร้างใบเสนอราคา', group:'เอกสาร'},
+  {key:'receipt.create', label:'สร้างใบรับสินค้า (Pre)', group:'สต๊อก'},
+  {key:'receipt.approve', label:'อนุมัติใบรับสินค้า', group:'สต๊อก'},
+  {key:'stock.view', label:'ดูสต๊อก', group:'สต๊อก'},
+  {key:'stock.transfer', label:'โอนย้ายสต๊อก', group:'สต๊อก'},
+  {key:'member.view', label:'ดูสมาชิก', group:'CRM'},
+  {key:'member.create', label:'เพิ่มสมาชิก', group:'CRM'},
+  {key:'contact.view', label:'ดูผู้ติดต่อ', group:'CRM'},
+  {key:'product.view', label:'ดูสินค้า', group:'จัดการ'},
+  {key:'product.edit', label:'แก้ไขสินค้า', group:'จัดการ'},
+  {key:'report.view', label:'ดูรายงาน', group:'จัดการ'},
+  {key:'expense.view', label:'ดูค่าใช้จ่าย', group:'การเงิน'},
+  {key:'expense.create', label:'บันทึกค่าใช้จ่าย', group:'การเงิน'},
+  {key:'employee.view', label:'ดูพนักงาน', group:'HR'},
+  {key:'payroll.view', label:'ดูเงินเดือน', group:'HR'},
 ];
 
-app.get('/api/permissions/schema', auth, role('owner','admin'), async (req, res) => {
-  res.json(ALL_PERMISSIONS);
-});
 
 
-
-app.put('/api/permissions/:roleName', auth, role('owner','admin'), async (req, res) => {
-  const { permissions } = req.body; // array of permission keys
-  const client = await pool.connect();
+async function loadPermissions(roleName) {
   try {
-    await client.query('BEGIN');
-    // ไม่แก้ owner/admin
-    if (['owner','admin'].includes(req.params.roleName)) {
-      return res.status(403).json({ error: 'ไม่สามารถแก้ไขสิทธิ์ของ owner/admin ได้' });
-    }
-    await client.query('DELETE FROM role_permissions WHERE role_name=$1', [req.params.roleName]);
-    for (const perm of (permissions||[])) {
-      await client.query('INSERT INTO role_permissions (role_name,permission,granted) VALUES ($1,$2,true) ON CONFLICT DO NOTHING', [req.params.roleName, perm]);
-    }
-    await client.query('COMMIT');
-    res.json({ message: 'บันทึกสิทธิ์เรียบร้อย' });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
-  finally { client.release(); }
-});
-
-// middleware ตรวจ permission (ใช้ใน API ที่ต้องการ)
-async function checkPerm(perm) {
-  return async (req, res, next) => {
-    if (['owner','admin'].includes(req.user.role)) return next();
-    const r = await pool.query('SELECT id FROM role_permissions WHERE role_name=$1 AND permission=$2 AND granted=true', [req.user.role, perm]);
-    if (r.rows.length > 0) return next();
-    return res.status(403).json({ error: `ไม่มีสิทธิ์: ${perm}` });
-  };
+    const perms = await api.get('/permissions/'+roleName).catch(()=>[]);
+    _curPerms = new Set((perms||[]).map(p=>p.permission));
+  } catch(e) {
+    _curPerms = new Set();
+  }
+  renderPermissions();
 }
 
-// USER BRANCH ACCESS
-app.get('/api/users/:id/branches', auth, role('owner','admin'), async (req, res) => {
-  const r = await pool.query(`SELECT uba.branch_id, b.code, b.name FROM user_branch_access uba JOIN branches b ON uba.branch_id=b.id WHERE uba.user_id=$1`, [req.params.id]);
-  res.json(r.rows);
-});
-app.put('/api/users/:id/branches', auth, role('owner','admin'), async (req, res) => {
-  const { branch_ids } = req.body; // array of branch_id
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('DELETE FROM user_branch_access WHERE user_id=$1', [req.params.id]);
-    for (const bid of (branch_ids||[])) {
-      await client.query('INSERT INTO user_branch_access (user_id,branch_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.id, bid]);
-    }
-    await client.query('COMMIT');
-    res.json({ message: 'อัพเดทสิทธิ์สาขาเรียบร้อย' });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
-  finally { client.release(); }
-});
-
-// Switch branch (เปลี่ยนสาขาที่ทำงาน)
-
-
-app.post('/api/auth/switch-branch', auth, async (req, res) => {
-  const { branch_id } = req.body;
-  const isOwner = ['owner','admin'].includes(req.user.role);
-  if (!isOwner) {
-    const access = await pool.query('SELECT id FROM user_branch_access WHERE user_id=$1 AND branch_id=$2', [req.user.id, branch_id]);
-    if (!access.rows.length) return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงสาขานี้' });
-  }
-  const branchR = await pool.query('SELECT id,code,name FROM branches WHERE id=$1', [branch_id]);
-  const branch = branchR.rows[0];
-  if (!branch) return res.status(404).json({ error: 'ไม่พบสาขา' });
-  const userR = await pool.query(`SELECT u.*,r.name AS role FROM users u JOIN roles r ON u.role_id=r.id WHERE u.id=$1`, [req.user.id]);
-  const u = userR.rows[0];
-  const token = jwt.sign({ id:u.id, username:u.username, full_name:u.full_name, role:u.role, branch_id:branch.id, branch_code:branch.code }, process.env.JWT_SECRET, { expiresIn: '8h' });
-  res.json({ token, branch_id: branch.id, branch_code: branch.code, branch_name: branch.name });
-});
-
-// MEMBER SETTINGS
-app.get('/api/member-settings', auth, async (req, res) => { const r = await pool.query('SELECT * FROM member_settings LIMIT 1'); res.json(r.rows[0]); });
-app.put('/api/member-settings', auth, role('owner','admin'), async (req, res) => { await pool.query('UPDATE member_settings SET eggs_required=$1,discount_amount=$2,updated_at=NOW()', [req.body.eggs_required, req.body.discount_amount]); res.json({ message: 'บันทึกเรียบร้อย' }); });
-
-// MEMBERS
-app.get('/api/members', auth, async (req, res) => { const r = await pool.query(`SELECT m.*,b.code AS branch_code, t.name AS tier_name, t.customer_type AS tier_customer_type FROM members m LEFT JOIN branches b ON m.branch_id=b.id LEFT JOIN member_tiers t ON m.tier_id=t.id WHERE m.active=true ORDER BY m.name`); res.json(r.rows); });
-app.post('/api/members', auth, async (req, res) => {
-  const { name, phone, branch_id } = req.body;
-  if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อ' });
-  try { const code = 'M' + Date.now().toString().slice(-6); const r = await pool.query('INSERT INTO members (code,name,phone,line_id,note,branch_id,tier_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *', [code, name, phone||null, req.body.line_id||null, req.body.note||null, branch_id||null, req.body.tier_id||null]); res.status(201).json({ message: 'เพิ่มสมาชิกเรียบร้อย', member: r.rows[0] }); }
-  catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
-});
-app.put('/api/members/:id', auth, async (req, res) => { const { name, phone, branch_id, active } = req.body; await pool.query('UPDATE members SET name=$1,phone=$2,branch_id=$3,active=$4,tier_id=$5 WHERE id=$6', [name, phone, branch_id||null, active, req.body.tier_id||null, req.params.id]); res.json({ message: 'แก้ไขเรียบร้อย' }); });
-
-// PRODUCTS
-app.get('/api/products', auth, async (req, res) => {
-  const { category_id, search, branch_id } = req.query;
-  try {
-    let stockJoin = branch_id
-      ? `LEFT JOIN stock s ON s.product_id=p.id AND s.branch_id=${parseInt(branch_id)}`
-      : `LEFT JOIN stock s ON s.product_id=p.id`;
-    let q = `SELECT p.*,
-      COALESCE(pc.name,'') AS category_name,
-      COALESCE(SUM(s.qty_unit),0) AS total_stock
-      FROM products p
-      LEFT JOIN product_categories pc ON p.category_id=pc.id
-      ${stockJoin}
-      WHERE 1=1`;
-    const params = [];
-    if (category_id) { params.push(category_id); q += ` AND p.category_id=$${params.length}`; }
-    if (search) { params.push('%'+search+'%'); q += ` AND (p.name ILIKE $${params.length} OR p.code ILIKE $${params.length})`; }
-    q += ' GROUP BY p.id, pc.name ORDER BY p.code NULLS LAST';
-    const r = await pool.query(q, params);
-    res.json(r.rows);
-  } catch(e) {
-    console.error('products GET error:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-app.post('/api/products', auth, role('owner','admin','manager'), async (req, res) => {
-  const { category_id, code, name, unit, is_egg, track_stock } = req.body;
-  if (!code || !name) return res.status(400).json({ error: 'กรุณากรอกรหัสและชื่อสินค้า' });
-  try {
-    // ตรวจว่า code ซ้ำไหม
-    const exist = await pool.query('SELECT id FROM products WHERE code=$1', [code]);
-    if (exist.rows.length > 0) {
-      return res.status(409).json({ error: 'รหัสสินค้านี้มีอยู่แล้ว ('+code+')' });
-    }
-    const r = await pool.query(
-      'INSERT INTO products (category_id,code,name,unit,is_egg,track_stock) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [category_id||null, code, name, unit||'ฟอง', is_egg||false, track_stock!==false]
-    );
-    // สร้าง stock record สำหรับทุกสาขา
-    const brs = await pool.query('SELECT id FROM branches WHERE active=true');
-    for (const br of brs.rows) {
-      await pool.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,0) ON CONFLICT DO NOTHING', [r.rows[0].id, br.id]);
-    }
-    res.status(201).json({ message: 'เพิ่มสินค้าเรียบร้อย', id: r.rows[0].id, product: r.rows[0] });
-  } catch(e) {
-    if (e.code === '23505') return res.status(409).json({ error: 'รหัสสินค้า "'+code+'" มีอยู่แล้ว' });
-    res.status(500).json({ error: e.message });
-  }
-});
-app.put('/api/products/:id', auth, role('owner','admin','manager'), async (req, res) => { const { name, unit, active, track_stock } = req.body; await pool.query('UPDATE products SET name=$1,unit=$2,active=$3,track_stock=$4 WHERE id=$5', [name, unit, active, track_stock!==false, req.params.id]); res.json({ message: 'แก้ไขเรียบร้อย' }); });
-app.delete('/api/products/:id', auth, role('owner','admin'), async (req, res) => {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('DELETE FROM product_prices WHERE product_id=$1', [req.params.id]);
-    await client.query('DELETE FROM stock WHERE product_id=$1', [req.params.id]);
-    await client.query('DELETE FROM products WHERE id=$1', [req.params.id]);
-    await client.query('COMMIT');
-    res.json({ message: 'ลบสินค้าเรียบร้อย' });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
-});
-
-app.get('/api/product-categories', auth, async (req, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM product_categories ORDER BY id');
-    res.json(r.rows);
-  } catch(e) { res.json([]); }
-});
-
-app.post('/api/product-categories', auth, role('owner','admin','manager'), async (req, res) => {
-  const { name, type } = req.body;
-  if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อกลุ่ม' });
-  try {
-    const r = await pool.query('INSERT INTO product_categories (name,type) VALUES ($1,$2) RETURNING *', [name, type||'stock']);
-    res.status(201).json(r.rows[0]);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.put('/api/product-categories/:id', auth, role('owner','admin','manager'), async (req, res) => {
-  const { name, type } = req.body;
-  if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อ' });
-  try {
-    await pool.query('UPDATE product_categories SET name=$1, type=$2 WHERE id=$3', [name, type||'stock', req.params.id]);
-    res.json({ message: 'แก้ไขเรียบร้อย' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/api/product-categories/:id', auth, role('owner','admin','manager'), async (req, res) => {
-  try {
-    await pool.query('UPDATE products SET category_id=NULL WHERE category_id=$1', [req.params.id]);
-    await pool.query('DELETE FROM product_categories WHERE id=$1', [req.params.id]);
-    res.json({ message: 'ลบเรียบร้อย' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/api/products/:id/prices', auth, async (req, res) => {
-  const r = await pool.query(`SELECT pp.*,b.code AS branch_code,b.name AS branch_name FROM product_prices pp JOIN branches b ON pp.branch_id=b.id WHERE pp.product_id=$1 ORDER BY b.code,pp.customer_type,pp.qty`, [req.params.id]);
-  res.json(r.rows);
-});
-app.delete('/api/products/prices/:priceId', auth, role('owner','admin','manager'), async (req, res) => {
-  await pool.query('DELETE FROM product_prices WHERE id=$1', [req.params.priceId]);
-  res.json({ message: 'ลบราคาเรียบร้อย' });
-});
-
-app.post('/api/products/:id/prices', auth, role('owner','admin','manager'), async (req, res) => {
-  const { branch_id, customer_type, qty, price } = req.body;
-  await pool.query(`INSERT INTO product_prices (product_id,branch_id,customer_type,qty,price) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (product_id,branch_id,customer_type,qty) DO UPDATE SET price=EXCLUDED.price,active=true`, [req.params.id, branch_id, customer_type, qty, price]);
-  res.json({ message: 'ตั้งราคาเรียบร้อย' });
-});
-app.post('/api/products/import-prices', auth, role('owner','admin'), async (req, res) => {
-  const { prices } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    let count = 0;
-    for (const row of prices) {
-      const prod = await client.query('SELECT id FROM products WHERE code=$1', [row.code]);
-      const branch = await client.query('SELECT id FROM branches WHERE code=$1', [row.branch_code]);
-      if (!prod.rows[0] || !branch.rows[0]) continue;
-      await client.query(`INSERT INTO product_prices (product_id,branch_id,customer_type,qty,price) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (product_id,branch_id,customer_type,qty) DO UPDATE SET price=EXCLUDED.price,active=true`, [prod.rows[0].id, branch.rows[0].id, row.customer_type, row.qty, row.price]);
-      count++;
-    }
-    await client.query('COMMIT');
-    res.json({ message: `นำเข้าราคาเรียบร้อย ${count} รายการ` });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); } finally { client.release(); }
-});
-
-app.get('/api/pos/products', auth, async (req, res) => {
-  const { branch_id, customer_type } = req.query;
-  if (!branch_id || !customer_type) return res.status(400).json({ error: 'กรุณาระบุ branch_id และ customer_type' });
-  
-  // ดึงสินค้าพร้อมราคาของ branch นั้น (ถ้ามี)
-  const r = await pool.query(`
-    SELECT p.id AS product_id, p.code, p.name, p.unit, p.is_egg,
-      pp.qty, pp.price,
-      COALESCE(s.qty_unit,0) AS stock_qty
-    FROM products p
-    LEFT JOIN product_prices pp ON pp.product_id=p.id AND pp.branch_id=$1 AND pp.customer_type=$2
-    LEFT JOIN stock s ON s.product_id=p.id AND s.branch_id=$1
-    WHERE 1=1
-    ORDER BY p.is_egg DESC, p.code, pp.qty NULLS LAST
-  `, [branch_id, customer_type]);
-  
-  // group by product
-  const grouped = {};
-  r.rows.forEach(row => {
-    if (!grouped[row.product_id]) {
-      grouped[row.product_id] = {
-        product_id: row.product_id, code: row.code, name: row.name,
-        unit: row.unit, is_egg: row.is_egg,
-        stock_qty: parseInt(row.stock_qty||0),
-        prices: [], is_bundle: false
-      };
-    }
-    if (row.qty && row.price) {
-      grouped[row.product_id].prices.push({ qty: parseInt(row.qty), price: parseFloat(row.price) });
-    }
+function renderPermissions() {
+  const container = document.getElementById('permContainer');
+  if (!container) { console.error('[PERM] permContainer not found'); return; }
+  console.log('[PERM] renderPermissions called, PERM_LIST:', PERM_LIST.length, '_curPerms:', _curPerms.size);
+  // จัด group
+  const groups = {};
+  PERM_LIST.forEach(p => {
+    if (!groups[p.group]) groups[p.group] = [];
+    groups[p.group].push(p);
   });
-  
-  // เพิ่ม bundles
-  const bundles = await pool.query(`
-    SELECT pb.*, p.name AS product_name, p.code, p.is_egg,
-      COALESCE(s.qty_unit,0) AS stock_qty
-    FROM product_bundles pb
-    JOIN products p ON pb.product_id=p.id
-    LEFT JOIN stock s ON s.product_id=p.id AND s.branch_id=$1
-    WHERE pb.active=true AND (pb.branch_id=$1 OR pb.branch_id IS NULL)
-      AND (pb.customer_type=$2 OR pb.customer_type='all')
-    ORDER BY pb.name
-  `, [branch_id, customer_type]);
-  
-  const result = Object.values(grouped);
-  bundles.rows.forEach(b => {
-    result.push({
-      product_id: b.product_id, code: b.code,
-      name: b.name + ' (ชุด '+b.qty_per_bundle+'ฟ.)',
-      unit: 'ชุด', is_egg: b.is_egg,
-      stock_qty: Math.floor(parseInt(b.stock_qty)/b.qty_per_bundle),
-      prices: [{ qty: b.qty_per_bundle, price: parseFloat(b.price) }],
-      is_bundle: true, bundle_id: b.id, qty_per_bundle: b.qty_per_bundle
-    });
-  });
-  
-  res.json(result);
-});
 
-// SHIFTS
-app.get('/api/shifts/current', auth, async (req, res) => {
-  if (!req.user.branch_id) return res.json(null);
-  const r = await pool.query(`SELECT s.*,u.full_name AS cashier_name,b.code AS branch_code FROM shifts s JOIN users u ON s.cashier_id=u.id JOIN branches b ON s.branch_id=b.id WHERE s.branch_id=$1 AND s.status='open' ORDER BY s.open_time DESC LIMIT 1`, [req.user.branch_id]);
-  res.json(r.rows[0] || null);
-});
-app.post('/api/shifts/open', auth, async (req, res) => {
-  const branchId = req.user.branch_id;
-  if (!branchId) return res.status(400).json({ error: 'ไม่พบสาขา' });
-  const existing = await pool.query(`SELECT id FROM shifts WHERE branch_id=$1 AND status='open'`, [branchId]);
-  if (existing.rows.length > 0) return res.status(409).json({ error: 'มีกะที่เปิดอยู่แล้ว' });
-  const r = await pool.query('INSERT INTO shifts (branch_id,cashier_id,opening_cash) VALUES ($1,$2,$3) RETURNING *', [branchId, req.user.id, req.body.opening_cash||0]);
-  res.status(201).json({ message: 'เปิดกะเรียบร้อย', shift: r.rows[0] });
-});
-app.post('/api/shifts/:id/close', auth, async (req, res) => {
-  const { closing_cash, note } = req.body;
-  const shift = await pool.query('SELECT * FROM shifts WHERE id=$1', [req.params.id]);
-  const s = shift.rows[0];
-  if (!s) return res.status(404).json({ error: 'ไม่พบกะ' });
-  const salesR = await pool.query(`SELECT COALESCE(SUM((pm->>'amount')::numeric),0) AS cash_sales FROM sales,jsonb_array_elements(payment_methods) AS pm WHERE shift_id=$1 AND pm->>'method'='cash' AND status='completed'`, [s.id]);
-  const expectedCash = parseFloat(s.opening_cash) + parseFloat(salesR.rows[0].cash_sales);
-  const difference = parseFloat(closing_cash||0) - expectedCash;
-  await pool.query(`UPDATE shifts SET close_time=NOW(),closing_cash=$1,expected_cash=$2,cash_difference=$3,status='closed',note=$4 WHERE id=$5`, [closing_cash||0, expectedCash, difference, note, req.params.id]);
-  res.json({ message: 'ปิดกะเรียบร้อย', expected_cash: expectedCash, difference });
-});
-app.get('/api/shifts', auth, async (req, res) => {
-  const branchId = req.user.branch_id;
-  let q = `SELECT s.*,u.full_name AS cashier_name,b.code AS branch_code FROM shifts s JOIN users u ON s.cashier_id=u.id JOIN branches b ON s.branch_id=b.id WHERE 1=1`;
-  const params = [];
-  if (branchId && !['owner','admin'].includes(req.user.role)) { params.push(branchId); q += ` AND s.branch_id=$${params.length}`; }
-  q += ' ORDER BY s.open_time DESC LIMIT 50';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
-
-// STOCK
-app.get('/api/stock', auth, async (req, res) => {
-  const { branch_id, search } = req.query;
-  let q = `SELECT s.*,p.name AS product_name,p.code,p.unit,p.is_egg,b.code AS branch_code,b.name AS branch_name FROM stock s JOIN products p ON s.product_id=p.id JOIN branches b ON s.branch_id=b.id WHERE p.active=true AND p.track_stock=true`;
-  const params = [];
-  if (branch_id) { params.push(branch_id); q += ` AND s.branch_id=$${params.length}`; }
-  if (search) { params.push('%'+search+'%'); q += ` AND (p.name ILIKE $${params.length} OR p.code ILIKE $${params.length})`; }
-  q += ' ORDER BY b.code,p.code';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
-
-app.get('/api/stock/movements', auth, async (req, res) => {
-  const { product_id, branch_id } = req.query;
-  let q = `SELECT sm.*,p.name AS product_name,p.code,b.code AS branch_code,u.full_name AS created_by_name FROM stock_movements sm JOIN products p ON sm.product_id=p.id JOIN branches b ON sm.branch_id=b.id LEFT JOIN users u ON sm.created_by=u.id WHERE 1=1`;
-  const params = [];
-  if (product_id) { params.push(product_id); q += ` AND sm.product_id=$${params.length}`; }
-  if (branch_id) { params.push(branch_id); q += ` AND sm.branch_id=$${params.length}`; }
-  q += ' ORDER BY sm.created_at DESC LIMIT 100';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
-
-// STOCK RECEIPTS (Pre)
-app.get('/api/stock/receipts', auth, async (req, res) => {
-  const isOwner = ['owner','admin'].includes(req.user.role);
-  let q = `SELECT sr.*,b.code AS branch_code,u.full_name AS created_by_name FROM stock_receipts sr JOIN branches b ON sr.branch_id=b.id LEFT JOIN users u ON sr.created_by=u.id WHERE 1=1`;
-  // manager เห็นเฉพาะ pre ของตัวเอง
-  if (!isOwner) q += ` AND sr.status='pre'`;
-  q += ' ORDER BY sr.created_at DESC LIMIT 50';
-  const r = await pool.query(q);
-  // ซ่อนราคาถ้าไม่ใช่ owner
-  r.rows.forEach(row => { if (!isOwner) { row.total_cost = null; } });
-  res.json(r.rows);
-});
-
-app.get('/api/stock/receipts/:id/items', auth, async (req, res) => {
-  const isOwner = ['owner','admin'].includes(req.user.role);
-  const r = await pool.query(`SELECT sri.*,p.name AS product_name,p.code FROM stock_receipt_items sri JOIN products p ON sri.product_id=p.id WHERE sri.receipt_id=$1`, [req.params.id]);
-  if (!isOwner) r.rows.forEach(row => { row.cost_per_unit = null; row.total_cost = null; });
-  res.json(r.rows);
-});
-
-app.post('/api/stock/receive', auth, role('owner','admin','manager','stock'), async (req, res) => {
-  const { branch_id, supplier_id, supplier_name, note, items } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
-    const branchCode = branchR.rows[0]?.code || '';
-    const docNo = await genDocNo('receipt_pre', branchCode);
-    const receipt = await client.query('INSERT INTO stock_receipts (doc_no,branch_id,supplier_id,supplier_name,note,created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id', [docNo, branch_id, supplier_id||null, supplier_name||null, note, req.user.id]);
-    const receiptId = receipt.rows[0].id;
-    for (const item of items) {
-      await client.query('INSERT INTO stock_receipt_items (receipt_id,product_id,qty_unit,qty_tray) VALUES ($1,$2,$3,$4)', [receiptId, item.product_id, item.qty_unit, item.qty_tray||null]);
-    }
-    await client.query('COMMIT');
-    res.status(201).json({ message: 'บันทึกใบรับสินค้า (Pre) เรียบร้อย', receipt_id: receiptId, doc_no: docNo });
-  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); } finally { client.release(); }
-});
-
-// Owner ใส่ราคาและอนุมัติ → ตัดสต๊อก
-app.post('/api/stock/receipts/:id/approve', auth, role('owner','admin'), async (req, res) => {
-  const { items } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const receipt = await client.query('SELECT * FROM stock_receipts WHERE id=$1', [req.params.id]);
-    const rec = receipt.rows[0];
-    if (!rec) return res.status(404).json({ error: 'ไม่พบเอกสาร' });
-    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [rec.branch_id]);
-    const branchCode = branchR.rows[0]?.code || '';
-    const grDocNo = await genDocNo('receipt_final', branchCode);
-    let totalCost = 0;
-    for (const item of items) {
-      const cost = parseFloat(item.cost_per_unit) || 0;
-      const itemR = await client.query('SELECT * FROM stock_receipt_items WHERE id=$1', [item.id]);
-      const it = itemR.rows[0];
-      if (!it) continue;
-      const itemTotal = cost * it.qty_unit;
-      totalCost += itemTotal;
-      await client.query('UPDATE stock_receipt_items SET unit_cost=$1 WHERE id=$2', [cost, item.id]).catch(()=>{});
-      // upsert stock — ไม่ใช้ ON CONFLICT ที่อาจ fail ถ้าไม่มี constraint
-      const existing = await client.query('SELECT id,qty_unit FROM stock WHERE product_id=$1 AND branch_id=$2', [it.product_id, rec.branch_id]);
-      if (existing.rows.length) {
-        await client.query('UPDATE stock SET qty_unit=qty_unit+$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [it.qty_unit, it.product_id, rec.branch_id]);
-      } else {
-        await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [it.product_id, rec.branch_id, it.qty_unit]);
-      }
-      // log movement
-      await client.query('INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note) VALUES ($1,$2,$3,$4,$5,$6)',
-        [it.product_id, rec.branch_id, 'in', it.qty_unit, grDocNo, rec.supplier_name||'รับสินค้า']).catch(()=>{});
-    }
-    await client.query("UPDATE stock_receipts SET status='approved',doc_no=$1,total_cost=$2 WHERE id=$3", [grDocNo, totalCost, req.params.id]);
-    await client.query('COMMIT');
-    res.json({ message: 'อนุมัติใบรับสินค้าเรียบร้อย', doc_no: grDocNo });
-  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: e.message }); } finally { client.release(); }
-});
-
-app.post('/api/stock/receipts/:id/photo', auth, upload.single('photo'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกรูป' });
-  await pool.query('UPDATE stock_receipts SET photo_url=$1 WHERE id=$2', ['/uploads/'+req.file.filename, req.params.id]);
-  res.json({ message: 'อัพโหลดรูปเรียบร้อย', url: '/uploads/'+req.file.filename });
-});
-
-app.post('/api/stock/transfer', auth, role('owner','admin','manager','stock'), async (req, res) => {
-  const { from_branch_id, to_branch_id, items, note,
-          product_id, qty_unit } = req.body;
-  if (!from_branch_id || !to_branch_id) return res.status(400).json({ error: 'กรุณาระบุสาขา' });
-
-  const transferItems = items && items.length ? items : (product_id ? [{ product_id, qty_unit }] : []);
-  if (!transferItems.length) return res.status(400).json({ error: 'กรุณาเพิ่มสินค้า' });
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const fromBr = await client.query('SELECT code FROM branches WHERE id=$1', [from_branch_id]);
-    const bCode = fromBr.rows[0]?.code||'';
-    const docNo = 'TRF-'+bCode+'-'+Date.now().toString().slice(-6);
-
-    // สร้าง transfer record
-    const trR = await client.query(
-      "INSERT INTO stock_transfers (doc_no,from_branch_id,to_branch_id,note,status,created_by) VALUES ($1,$2,$3,$4,'pending',$5) RETURNING id",
-      [docNo, from_branch_id, to_branch_id, note||null, req.user.id]
-    );
-    const trId = trR.rows[0].id;
-
-    // ตัดสต๊อกจากต้นทางทันที + บันทึก items
-    for (const item of transferItems) {
-      const { product_id: pid, qty_unit: qty } = item;
-      if (!pid || !qty) continue;
-      // ตรวจสต๊อกต้นทาง
-      const stk = await client.query('SELECT qty_unit FROM stock WHERE product_id=$1 AND branch_id=$2', [pid, from_branch_id]);
-      const cur = parseInt(stk.rows[0]?.qty_unit||0);
-      if (cur < qty) {
-        const prodR = await client.query('SELECT name FROM products WHERE id=$1', [pid]);
-        throw new Error('สต๊อก "'+prodR.rows[0]?.name+'" ไม่พอ (มี '+cur+' ฟอง)');
-      }
-      // ตัดจากต้นทาง
-      await client.query('UPDATE stock SET qty_unit=qty_unit-$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [qty, pid, from_branch_id]);
-      // บันทึก item
-      await client.query('INSERT INTO stock_transfer_items (transfer_id,product_id,qty_unit) VALUES ($1,$2,$3)', [trId, pid, qty]).catch(()=>{});
-    }
-    await client.query('COMMIT');
-    res.json({ message: 'ส่งออกสินค้าเรียบร้อย รอปลายทางกดรับสินค้า', doc_no: docNo, id: trId });
-  } catch(e) { await client.query('ROLLBACK'); res.status(400).json({ error: e.message }); }
-  finally { client.release(); }
-});
-
-// ปลายทางกดยืนยันรับสินค้า
-app.post('/api/stock/transfer/:id/confirm', auth, role('owner','admin','manager','stock'), async (req, res) => {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const tr = await client.query("SELECT * FROM stock_transfers WHERE id=$1 AND status='pending'", [req.params.id]);
-    if (!tr.rows.length) return res.status(404).json({ error: 'ไม่พบเอกสารหรือยืนยันแล้ว' });
-    const trData = tr.rows[0];
-    // ตรวจสิทธิ์สาขา — ต้องเป็นสาขาปลายทาง
-    if (req.user.branch_id && req.user.branch_id !== trData.to_branch_id &&
-        !['owner','admin'].includes(req.user.role)) {
-      return res.status(403).json({ error: 'ไม่มีสิทธิ์รับสินค้าสาขาอื่น' });
-    }
-    const items = await client.query('SELECT * FROM stock_transfer_items WHERE transfer_id=$1', [req.params.id]);
-    for (const item of items.rows) {
-      const ex = await client.query('SELECT id FROM stock WHERE product_id=$1 AND branch_id=$2', [item.product_id, trData.to_branch_id]);
-      if (ex.rows.length) {
-        await client.query('UPDATE stock SET qty_unit=qty_unit+$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [item.qty_unit, item.product_id, trData.to_branch_id]);
-      } else {
-        await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [item.product_id, trData.to_branch_id, item.qty_unit]);
-      }
-    }
-    await client.query("UPDATE stock_transfers SET status='confirmed',confirmed_by=$1,confirmed_at=NOW() WHERE id=$2", [req.user.id, req.params.id]);
-    await client.query('COMMIT');
-    res.json({ message: 'รับสินค้าเรียบร้อย สต๊อกปลายทางอัพเดทแล้ว' });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
-});
-
-// ดูประวัติโอนย้าย (รอรับ + รับแล้ว)
-app.get('/api/stock/transfers', auth, async (req, res) => {
-  const { branch_id, status } = req.query;
-  let q = `SELECT st.*,
-    fb.name AS from_branch_name, fb.code AS from_branch_code,
-    tb.name AS to_branch_name, tb.code AS to_branch_code,
-    u.full_name AS created_by_name
-    FROM stock_transfers st
-    JOIN branches fb ON st.from_branch_id=fb.id
-    JOIN branches tb ON st.to_branch_id=tb.id
-    LEFT JOIN users u ON st.created_by=u.id
-    WHERE 1=1`;
-  const params = [];
-  if (branch_id) { params.push(branch_id); q += ' AND (st.from_branch_id=$'+params.length+' OR st.to_branch_id=$'+params.length+')'; }
-  if (status) { params.push(status); q += ' AND st.status=$'+params.length; }
-  q += ' ORDER BY st.created_at DESC LIMIT 100';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
-
-app.get('/api/stock/transfers/:id/items', auth, async (req, res) => {
-  const r = await pool.query('SELECT sti.*,p.name AS product_name,p.code FROM stock_transfer_items sti JOIN products p ON sti.product_id=p.id WHERE sti.transfer_id=$1', [req.params.id]);
-  res.json(r.rows);
-});
-
-// CONTACTS
-app.get('/api/contacts', auth, async (req, res) => {
-  const { type } = req.query;
-  try {
-    let q = 'SELECT * FROM contacts WHERE 1=1';
-    if (type === 'customer') q += ' AND is_customer=true';
-    else if (type === 'supplier') q += ' AND is_supplier=true';
-    q += ' ORDER BY COALESCE(business_name,contact_name)';
-    const r = await pool.query(q);
-    res.json(r.rows);
-  } catch(e) { console.error('contacts:', e.message); res.json([]); }
-});
-app.post('/api/contacts', auth, async (req, res) => {
-  const { entity_type,is_customer,is_supplier,business_name,tax_id,branch_office,address,postal_code,office_phone,contact_name,email,mobile,credit_days,note } = req.body;
-  try { const r = await pool.query(`INSERT INTO contacts (entity_type,is_customer,is_supplier,business_name,tax_id,branch_office,address,postal_code,office_phone,contact_name,email,mobile,credit_days,note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`, [entity_type||'individual',is_customer||true,is_supplier||false,business_name,tax_id,branch_office,address,postal_code,office_phone,contact_name,email,mobile,credit_days||0,note]); res.status(201).json({ message: 'เพิ่มเรียบร้อย', contact: r.rows[0] }); }
-  catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
-});
-app.put('/api/contacts/:id', auth, async (req, res) => {
-  const { entity_type,is_customer,is_supplier,business_name,tax_id,branch_office,address,postal_code,office_phone,contact_name,email,mobile,credit_days,note,active } = req.body;
-  await pool.query(`UPDATE contacts SET entity_type=$1,is_customer=$2,is_supplier=$3,business_name=$4,tax_id=$5,branch_office=$6,address=$7,postal_code=$8,office_phone=$9,contact_name=$10,email=$11,mobile=$12,credit_days=$13,note=$14,active=$15 WHERE id=$16`, [entity_type,is_customer,is_supplier,business_name,tax_id,branch_office,address,postal_code,office_phone,contact_name,email,mobile,credit_days,note,active,req.params.id]);
-  res.json({ message: 'แก้ไขเรียบร้อย' });
-});
-app.delete('/api/contacts/:id', auth, role('owner','admin'), async (req, res) => { await pool.query('UPDATE contacts SET active=false WHERE id=$1', [req.params.id]); res.json({ message: 'ลบเรียบร้อย' }); });
-
-// QUOTATIONS
-app.get('/api/quotations', auth, async (req, res) => {
-  const r = await pool.query(`SELECT q.*,c.business_name,c.contact_name,b.code AS branch_code FROM quotations q LEFT JOIN contacts c ON q.contact_id=c.id JOIN branches b ON q.branch_id=b.id ORDER BY q.created_at DESC`);
-  res.json(r.rows);
-});
-app.post('/api/quotations', auth, async (req, res) => {
-  const { branch_id, contact_id, valid_until, items, discount, note } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
-    const docNo = await genDocNo('quotation', branchR.rows[0]?.code||'');
-    let subtotal = 0;
-    items.forEach(i => subtotal += parseFloat(i.qty) * parseFloat(i.price));
-    const total = subtotal - (parseFloat(discount)||0);
-    const r = await client.query(`INSERT INTO quotations (doc_no,branch_id,contact_id,valid_until,subtotal,discount,total,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, [docNo, branch_id, contact_id||null, valid_until||null, subtotal, discount||0, total, note, req.user.id]);
-    const qtId = r.rows[0].id;
-    for (const item of items) {
-      await client.query('INSERT INTO quotation_items (quotation_id,product_id,description,qty,unit,price,subtotal) VALUES ($1,$2,$3,$4,$5,$6,$7)', [qtId, item.product_id||null, item.description, item.qty, item.unit||'', item.price, item.qty*item.price]);
-    }
-    await client.query('COMMIT');
-    res.status(201).json({ message: 'สร้างใบเสนอราคาเรียบร้อย', doc_no: docNo, id: qtId });
-  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); } finally { client.release(); }
-});
-app.get('/api/quotations/:id/items', auth, async (req, res) => {
-  const r = await pool.query(`SELECT qi.*,p.name AS product_name FROM quotation_items qi LEFT JOIN products p ON qi.product_id=p.id WHERE qi.quotation_id=$1`, [req.params.id]);
-  res.json(r.rows);
-});
-
-// SALES
-async function generateSaleNo(branchCode) {
-  const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  const r = await pool.query(`SELECT COUNT(*) FROM sales WHERE sale_no LIKE $1`, [`${branchCode}-${today}-%`]);
-  return `${branchCode}-${today}-${String(parseInt(r.rows[0].count)+1).padStart(3,'0')}`;
-}
-
-app.post('/api/sales', auth, async (req, res) => {
-  const { branch_id, branch_code, contact_id, member_id, sale_channel, items, discount, member_discount, payment_methods, shift_id, note } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const sale_no = await generateSaleNo(branch_code||'XX');
-    let subtotal = 0;
-    for (const item of items) subtotal += item.qty_set * item.price_per_set;
-    const total = subtotal - (discount||0) - (member_discount||0);
-    const sale = await client.query('INSERT INTO sales (sale_no,branch_id,shift_id,contact_id,member_id,sale_channel,cashier_id,subtotal,discount,member_discount,total,payment_methods,note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id', [sale_no, branch_id, shift_id||null, contact_id||null, member_id||null, sale_channel||'retail', req.user.id, subtotal, discount||0, member_discount||0, total, JSON.stringify(payment_methods||[]), note]);
-    const saleId = sale.rows[0].id;
-    let totalEggs = 0;
-    for (const item of items) {
-      const qty_unit = item.qty_set * item.unit_size;
-      if (item.is_egg) totalEggs += qty_unit;
-      await client.query('INSERT INTO sale_items (sale_id,product_id,qty_set,unit_size,qty_unit,price_per_set,subtotal) VALUES ($1,$2,$3,$4,$5,$6,$7)', [saleId, item.product_id, item.qty_set, item.unit_size, qty_unit, item.price_per_set, item.qty_set*item.price_per_set]);
-      const before = await client.query('SELECT qty_unit FROM stock WHERE product_id=$1 AND branch_id=$2', [item.product_id, branch_id]);
-      const qBefore = before.rows[0] ? parseInt(before.rows[0].qty_unit) : 0;
-      await client.query('UPDATE stock SET qty_unit=qty_unit-$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [qty_unit, item.product_id, branch_id]);
-      await client.query('INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,qty_before,qty_after,ref_type,ref_id,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [item.product_id, branch_id, 'sale', -qty_unit, qBefore, qBefore-qty_unit, 'sale', saleId, sale_no, req.user.id]);
-    }
-    if (member_id && totalEggs > 0) {
-      const ms = await client.query('SELECT * FROM member_settings LIMIT 1');
-      const setting = ms.rows[0];
-      const member = await client.query('SELECT * FROM members WHERE id=$1', [member_id]);
-      const m = member.rows[0];
-      const newTotal = m.total_eggs + totalEggs;
-      const newSets = Math.floor(newTotal / setting.eggs_required);
-      const oldSets = Math.floor(m.total_eggs / setting.eggs_required);
-      const newDiscount = m.redeemable_discount + (newSets - oldSets) * parseFloat(setting.discount_amount);
-      const usedDiscount = parseFloat(member_discount||0);
-      await client.query('UPDATE members SET total_eggs=$1,redeemable_discount=$2,total_redeemed=total_redeemed+$3 WHERE id=$4', [newTotal, Math.max(0, newDiscount-usedDiscount), usedDiscount, member_id]);
-    }
-    const hasCredit = (payment_methods||[]).find(p => p.method === 'credit');
-    if (hasCredit) {
-      await client.query('INSERT INTO credit_sales (sale_id,contact_id,member_id,branch_id,amount) VALUES ($1,$2,$3,$4,$5)', [saleId, contact_id||null, member_id||null, branch_id, hasCredit.amount]);
-    }
-    if (sale_channel === 'wholesale' && hasCredit && contact_id) {
-      const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
-      const docNo = await genDocNo('invoice', branchR.rows[0]?.code||'');
-      const contact = await client.query('SELECT * FROM contacts WHERE id=$1', [contact_id]);
-      const c = contact.rows[0];
-      const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + (c.credit_days||7));
-      await client.query('INSERT INTO invoices (invoice_no,sale_id,contact_id,branch_id,due_date,total,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7)', [docNo, saleId, contact_id, branch_id, dueDate.toISOString().slice(0,10), hasCredit.amount, req.user.id]);
-    }
-    await client.query('COMMIT');
-    res.status(201).json({ message: 'บันทึกการขายเรียบร้อย', sale_no, sale_id: saleId });
-  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); } finally { client.release(); }
-});
-
-app.get('/api/sales', auth, async (req, res) => {
-  const { branch_id, date_from, date_to, date, channel } = req.query;
-  let q = `SELECT s.*,c.business_name,c.contact_name,u.full_name AS cashier_name,b.code AS branch_code FROM sales s LEFT JOIN contacts c ON s.contact_id=c.id JOIN users u ON s.cashier_id=u.id JOIN branches b ON s.branch_id=b.id WHERE 1=1`;
-  const params = [];
-  if (branch_id) { params.push(branch_id); q += ` AND s.branch_id=$${params.length}`; }
-  if (date) { params.push(date); q += ` AND s.sale_date=$${params.length}`; }
-  if (date_from) { params.push(date_from); q += ` AND s.sale_date>=$${params.length}`; }
-  if (date_to) { params.push(date_to); q += ` AND s.sale_date<=$${params.length}`; }
-  if (channel) { params.push(channel); q += ` AND s.sale_channel=$${params.length}`; }
-  q += ' ORDER BY s.created_at DESC LIMIT 200';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
-app.get('/api/sales/:id/items', auth, async (req, res) => {
-  const r = await pool.query(`SELECT si.*,p.name AS product_name,p.code FROM sale_items si JOIN products p ON si.product_id=p.id WHERE si.sale_id=$1`, [req.params.id]);
-  res.json(r.rows);
-});
-
-// INVOICES
-app.get('/api/invoices', auth, async (req, res) => {
-  const r = await pool.query(`SELECT i.*,c.contact_name,c.business_name,c.address AS contact_address,c.tax_id AS contact_tax_id,b.code AS branch_code,u.full_name AS created_by_name FROM invoices i LEFT JOIN contacts c ON i.contact_id=c.id JOIN branches b ON i.branch_id=b.id LEFT JOIN users u ON i.created_by=u.id ORDER BY i.created_at DESC`);
-  res.json(r.rows);
-});
-app.post('/api/invoices/manual', auth, role('owner','admin','manager'), async (req, res) => {
-  const { contact_id, branch_id, items, discount, due_date, note } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const docNo = await genDocNo('invoice', '');
-    // คำนวณยอด
-    let subtotal = 0;
-    (items||[]).forEach(it => subtotal += parseFloat(it.qty||1) * parseFloat(it.unit_price||0));
-    const discAmt = parseFloat(discount||0);
-    const total = subtotal - discAmt;
-    const r = await client.query(`INSERT INTO invoices (invoice_no,contact_id,branch_id,due_date,total,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [docNo, contact_id||null, branch_id, due_date||null, total, note||null, req.user.id]);
-    const invId = r.rows[0].id;
-    // ตัดสต๊อกสินค้าที่เป็น egg ตามหน่วย
-    for (const item of (items||[])) {
-      if (!item.product_id) continue;
-      // แปลงหน่วย: ฟอง=1, แผง(30ฟ.)=30, ลัง(300ฟ.)=300
-      const mult = (item.unit||'').includes('แผง') ? 30
-                 : (item.unit||'').includes('ลัง') ? 300
-                 : 1;
-      const qtyEggs = parseFloat(item.qty||1) * mult;
-      // ตัดสต๊อก
-      await client.query(
-        `UPDATE stock SET qty_unit=qty_unit-$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3`,
-        [qtyEggs, item.product_id, parseInt(branch_id)]
-      );
-      // บันทึก movement
-      await client.query(
-        `INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note)
-         VALUES ($1,$2,'out',$3,$4,$5)`,
-        [item.product_id, parseInt(branch_id), qtyEggs, docNo, `ใบแจ้งหนี้ ${item.description||''}`]
-      ).catch(()=>{});
-    }
-    await client.query('COMMIT');
-    res.status(201).json({ message:'สร้างใบแจ้งหนี้เรียบร้อย', invoice_no:docNo, id:invId });
-  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error:'เกิดข้อผิดพลาด' }); }
-  finally { client.release(); }
-});
-
-app.post('/api/invoices/:id/pay', auth, async (req, res) => {
-  const { amount, method, note } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('INSERT INTO invoice_payments (invoice_id,amount,method,note,created_by) VALUES ($1,$2,$3,$4,$5)', [req.params.id, amount, method, note, req.user.id]);
-    const inv = await client.query('SELECT * FROM invoices WHERE id=$1', [req.params.id]);
-    const newPaid = parseFloat(inv.rows[0].paid_amount) + parseFloat(amount);
-    const status = newPaid >= parseFloat(inv.rows[0].total) ? 'paid' : 'partial';
-    await client.query('UPDATE invoices SET paid_amount=$1,status=$2 WHERE id=$3', [newPaid, status, req.params.id]);
-    // สร้างใบเสร็จ
-    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [inv.rows[0].branch_id]);
-    const receiptNo = await genDocNo('receipt', branchR.rows[0]?.code||'');
-    await client.query('COMMIT');
-    res.json({ message: 'บันทึกเรียบร้อย', receipt_no: receiptNo });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); } finally { client.release(); }
-});
-
-// CREDIT SALES
-app.get('/api/credit-sales', auth, async (req, res) => {
-  const r = await pool.query(`SELECT cs.*,c.contact_name,c.business_name,c.mobile,b.code AS branch_code,s.sale_no,s.sale_date FROM credit_sales cs LEFT JOIN contacts c ON cs.contact_id=c.id JOIN branches b ON cs.branch_id=b.id JOIN sales s ON cs.sale_id=s.id WHERE cs.status!='paid' ORDER BY cs.created_at DESC`);
-  res.json(r.rows);
-});
-app.post('/api/credit-sales/:id/pay', auth, async (req, res) => {
-  const { amount, method } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('INSERT INTO credit_payments (credit_sale_id,amount,method,created_by) VALUES ($1,$2,$3,$4)', [req.params.id, amount, method, req.user.id]);
-    const cs = await client.query('SELECT * FROM credit_sales WHERE id=$1', [req.params.id]);
-    const newPaid = parseFloat(cs.rows[0].paid_amount) + parseFloat(amount);
-    const status = newPaid >= parseFloat(cs.rows[0].amount) ? 'paid' : 'partial';
-    await client.query('UPDATE credit_sales SET paid_amount=$1,status=$2 WHERE id=$3', [newPaid, status, req.params.id]);
-    await client.query('COMMIT');
-    res.json({ message: 'รับชำระเรียบร้อย' });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); } finally { client.release(); }
-});
-
-// EXPENSES
-app.get('/api/expenses', auth, async (req, res) => {
-  const { branch_id, date_from, date_to } = req.query;
-  let q = `SELECT e.*,ec.name AS category_name,b.code AS branch_code,u.full_name AS created_by_name
-    FROM expenses e JOIN expense_categories ec ON e.category_id=ec.id
-    JOIN branches b ON e.branch_id=b.id LEFT JOIN users u ON e.created_by=u.id WHERE 1=1`;
-  const params = [];
-  if (branch_id) { params.push(branch_id); q += ` AND e.branch_id=$${params.length}`; }
-  if (date_from) { params.push(date_from); q += ` AND e.expense_date>=$${params.length}`; }
-  if (date_to) { params.push(date_to); q += ` AND e.expense_date<=$${params.length}`; }
-  q += ' ORDER BY e.expense_date DESC LIMIT 100';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
-app.post('/api/expenses', auth, async (req, res) => {
-  const { branch_id, category_id, amount, expense_date, note, withholding_tax } = req.body;
-  if (!branch_id||!category_id||!amount) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
-  try {
-    const r = await pool.query(`INSERT INTO expenses (branch_id,category_id,amount,expense_date,note,withholding_tax,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [branch_id, category_id, amount, expense_date||new Date().toISOString().slice(0,10), note, withholding_tax||0, req.user.id]);
-    res.status(201).json({ message: 'บันทึกค่าใช้จ่ายเรียบร้อย', expense: r.rows[0] });
-  } catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
-});
-app.delete('/api/expenses/:id', auth, role('owner','admin','manager'), async (req, res) => {
-  await pool.query('DELETE FROM expenses WHERE id=$1', [req.params.id]);
-  res.json({ message: 'ลบเรียบร้อย' });
-});
-app.get('/api/expense-categories', auth, async (req, res) => {
-  const r = await pool.query('SELECT * FROM expense_categories ORDER BY id');
-  res.json(r.rows);
-});
-app.post('/api/expense-categories', auth, role('owner','admin'), async (req, res) => {
-  const r = await pool.query('INSERT INTO expense_categories (name) VALUES ($1) RETURNING *', [req.body.name]);
-  res.status(201).json(r.rows[0]);
-});
-
-// DEBT NOTES (ใบลดหนี้ / ใบเพิ่มหนี้)
-app.get('/api/debt-notes', auth, async (req, res) => {
-  const r = await pool.query(`SELECT dn.*,c.business_name,c.contact_name,b.code AS branch_code,i.invoice_no AS ref_invoice_no
-    FROM debt_notes dn LEFT JOIN contacts c ON dn.contact_id=c.id JOIN branches b ON dn.branch_id=b.id
-    LEFT JOIN invoices i ON dn.ref_invoice_id=i.id ORDER BY dn.created_at DESC`);
-  res.json(r.rows);
-});
-app.post('/api/debt-notes', auth, role('owner','admin','manager'), async (req, res) => {
-  const { note_type, branch_id, contact_id, ref_invoice_id, amount, reason } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const docType = note_type === 'debit' ? 'debit_note' : 'credit_note';
-    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
-    const docNo = await genDocNo(docType, branchR.rows[0]?.code||'');
-    const r = await client.query(`INSERT INTO debt_notes (doc_no,note_type,branch_id,contact_id,ref_invoice_id,amount,reason,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [docNo, note_type, branch_id, contact_id||null, ref_invoice_id||null, amount, reason, req.user.id]);
-    // ปรับยอดใบแจ้งหนี้ถ้าอ้างอิง
-    if (ref_invoice_id) {
-      const adj = note_type === 'credit' ? -parseFloat(amount) : parseFloat(amount);
-      await client.query('UPDATE invoices SET total=total+$1 WHERE id=$2', [adj, ref_invoice_id]);
-    }
-    await client.query('COMMIT');
-    res.status(201).json({ message: 'สร้างเอกสารเรียบร้อย', doc_no: docNo, note: r.rows[0] });
-  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
-  finally { client.release(); }
-});
-
-// PROMOTIONS
-app.get('/api/promotions', auth, async (req, res) => {
-  const r = await pool.query(`SELECT p.*,pr.name AS product_name,b.code AS branch_code FROM promotions p LEFT JOIN products pr ON p.product_id=pr.id LEFT JOIN branches b ON p.branch_id=b.id ORDER BY p.start_date DESC`);
-  res.json(r.rows);
-});
-app.post('/api/promotions', auth, role('owner','admin','manager'), async (req, res) => {
-  const { name, branch_id, promo_type, product_id, min_qty, discount_value, free_product_id, free_qty, start_date, end_date } = req.body;
-  try {
-    const r = await pool.query(`INSERT INTO promotions (name,branch_id,promo_type,product_id,min_qty,discount_value,free_product_id,free_qty,start_date,end_date,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [name, branch_id||null, promo_type, product_id||null, min_qty||1, discount_value||null, free_product_id||null, free_qty||null, start_date, end_date, req.user.id]);
-    res.status(201).json({ message: 'สร้างโปรโมชั่นเรียบร้อย', promotion: r.rows[0] });
-  } catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
-});
-app.put('/api/promotions/:id', auth, role('owner','admin','manager'), async (req, res) => {
-  const { active } = req.body;
-  await pool.query('UPDATE promotions SET active=$1 WHERE id=$2', [active, req.params.id]);
-  res.json({ message: 'อัพเดทเรียบร้อย' });
-});
-
-// EMPLOYEES
-app.get('/api/employees', auth, async (req, res) => {
-  const r = await pool.query(`SELECT e.*,b.code AS branch_code,b.name AS branch_name FROM employees e LEFT JOIN branches b ON e.branch_id=b.id WHERE e.active=true ORDER BY e.full_name`);
-  res.json(r.rows);
-});
-app.post('/api/employees', auth, role('owner','admin'), async (req, res) => {
-  const { full_name, nickname, phone, branch_id, position, start_date, salary,
-          create_user, username, password, role_name, branch_access } = req.body;
-  if (!full_name) return res.status(400).json({ error: 'กรุณากรอกชื่อ' });
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const code = 'EMP' + Date.now().toString().slice(-5);
-    const emp = await client.query(`INSERT INTO employees (code,full_name,nickname,phone,branch_id,position,start_date,salary) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [code, full_name, nickname, phone, branch_id||null, position, start_date||null, salary||null]);
-    const empId = emp.rows[0].id;
-    let userId = null;
-    // สร้าง user account ถ้าต้องการ
-    if (create_user && username && password) {
-      const hash = await bcrypt.hash(password, 10);
-      const roleR = await client.query('SELECT id FROM roles WHERE name=$1', [role_name||'cashier']);
-      const roleId = roleR.rows[0]?.id || 4;
-      const userR = await client.query('INSERT INTO users (username,password_hash,full_name,role_id,branch_id,phone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-        [username, hash, full_name, roleId, branch_id||null, phone||null]);
-      userId = userR.rows[0].id;
-      // สิทธิ์สาขา
-      for (const bid of (branch_access||[])) {
-        await client.query('INSERT INTO user_branch_access (user_id,branch_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [userId, bid]);
-      }
-    }
-    await client.query('COMMIT');
-    res.status(201).json({ message: 'เพิ่มพนักงานเรียบร้อย', employee: emp.rows[0], user_id: userId });
-  } catch(e) {
-    await client.query('ROLLBACK');
-    if (e.code==='23505') return res.status(409).json({ error: 'username นี้มีอยู่แล้ว' });
-    res.status(500).json({ error: 'เกิดข้อผิดพลาด' });
-  } finally { client.release(); }
-});
-app.put('/api/employees/:id', auth, role('owner','admin'), async (req, res) => {
-  const { full_name, nickname, national_id, phone, email, address, branch_id, position, start_date, probation_end_date, salary, salary_base, bank_name, bank_account, education, work_history, emergency_contact, active } = req.body;
-  await pool.query(`UPDATE employees SET full_name=$1,nickname=$2,national_id=$3,phone=$4,email=$5,address=$6,branch_id=$7,position=$8,start_date=$9,probation_end_date=$10,salary=$11,salary_base=$12,bank_name=$13,bank_account=$14,education=$15,work_history=$16,emergency_contact=$17,active=$18 WHERE id=$19`,
-    [full_name, nickname, national_id, phone, email, address, branch_id||null, position, start_date||null, probation_end_date||null, salary||null, salary_base||null, bank_name, bank_account, education, work_history, emergency_contact, active, req.params.id]);
-  res.json({ message: 'แก้ไขเรียบร้อย' });
-});
-
-// Upload รูปพนักงาน
-app.post('/api/employees/:id/photo', auth, role('owner','admin'), upload.single('photo'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกรูป' });
-  await pool.query('UPDATE employees SET photo_url=$1 WHERE id=$2', ['/uploads/'+req.file.filename, req.params.id]);
-  res.json({ message: 'อัพโหลดรูปเรียบร้อย', url: '/uploads/'+req.file.filename });
-});
-
-// Upload เอกสารพนักงาน
-app.post('/api/employees/:id/doc', auth, role('owner','admin'), upload.single('doc'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
-  await pool.query('UPDATE employees SET doc_url=$1 WHERE id=$2', ['/uploads/'+req.file.filename, req.params.id]);
-  res.json({ message: 'อัพโหลดเอกสารเรียบร้อย', url: '/uploads/'+req.file.filename });
-});
-
-// ============================================================
-// PRODUCT BUNDLES API
-// ============================================================
-app.get('/api/bundles', auth, async (req, res) => {
-  const { branch_id } = req.query;
-  let q = `SELECT pb.*,p.name AS product_name,p.code AS product_code,b.code AS branch_code
-    FROM product_bundles pb JOIN products p ON pb.product_id=p.id
-    LEFT JOIN branches b ON pb.branch_id=b.id WHERE pb.active=true`;
-  const params = [];
-  if (branch_id) { params.push(branch_id); q += ` AND (pb.branch_id=$${params.length} OR pb.branch_id IS NULL)`; }
-  q += ' ORDER BY pb.name';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
-
-app.post('/api/bundles', auth, role('owner','admin','manager'), async (req, res) => {
-  const { name, branch_id, product_id, qty_per_bundle, price, customer_type } = req.body;
-  if (!name||!product_id||!qty_per_bundle||!price) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
-  const r = await pool.query(`INSERT INTO product_bundles (name,branch_id,product_id,qty_per_bundle,price,customer_type) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-    [name, branch_id||null, parseInt(product_id), parseInt(qty_per_bundle), parseFloat(price), customer_type||'retail']);
-  res.status(201).json({ message: 'สร้างชุดสินค้าเรียบร้อย', bundle: r.rows[0] });
-});
-
-app.put('/api/bundles/:id', auth, role('owner','admin','manager'), async (req, res) => {
-  const { name, qty_per_bundle, price, customer_type, active } = req.body;
-  await pool.query('UPDATE product_bundles SET name=$1,qty_per_bundle=$2,price=$3,customer_type=$4,active=$5 WHERE id=$6',
-    [name, qty_per_bundle, price, customer_type, active, req.params.id]);
-  res.json({ message: 'แก้ไขเรียบร้อย' });
-});
-
-app.delete('/api/bundles/:id', auth, role('owner','admin','manager'), async (req, res) => {
-  await pool.query('UPDATE product_bundles SET active=false WHERE id=$1', [req.params.id]);
-  res.json({ message: 'ลบเรียบร้อย' });
-});
-
-// ============================================================
-// EXPENSE DOCS API
-// ============================================================
-app.get('/api/expense-docs', auth, async (req, res) => {
-  const r = await pool.query(`SELECT ed.*,b.code AS branch_code,c.business_name,c.contact_name AS ct_name
-    FROM expense_docs ed JOIN branches b ON ed.branch_id=b.id
-    LEFT JOIN contacts c ON ed.contact_id=c.id
-    ORDER BY ed.created_at DESC`);
-  res.json(r.rows);
-});
-
-app.get('/api/expense-docs/:id', auth, async (req, res) => {
-  const doc = await pool.query(`SELECT ed.*,b.code AS branch_code FROM expense_docs ed JOIN branches b ON ed.branch_id=b.id WHERE ed.id=$1`,[req.params.id]);
-  const items = await pool.query('SELECT * FROM expense_doc_items WHERE doc_id=$1 ORDER BY item_no',[req.params.id]);
-  if (!doc.rows[0]) return res.status(404).json({error:'ไม่พบเอกสาร'});
-  res.json({...doc.rows[0], items: items.rows});
-});
-
-app.post('/api/expense-docs', auth, async (req, res) => {
-  const { branch_id, contact_id, contact_name, contact_address, contact_tax_id, doc_date, due_date, credit_days, items, discount_pct, vat_pct, withholding_tax, ref_no, note, internal_note } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const branchR = await client.query('SELECT code FROM branches WHERE id=$1',[branch_id]);
-    const docNo = await genDocNo('expense_doc', branchR.rows[0]?.code||'');
-    let subtotal = 0;
-    (items||[]).forEach(i => subtotal += parseFloat(i.qty||1) * parseFloat(i.unit_price||0));
-    const discAmt = subtotal * (parseFloat(discount_pct)||0) / 100;
-    const afterDisc = subtotal - discAmt;
-    const vatAmt = afterDisc * (parseFloat(vat_pct)||0) / 100;
-    const wht = parseFloat(withholding_tax)||0;
-    const total = afterDisc + vatAmt - wht;
-    const r = await client.query(`INSERT INTO expense_docs
-      (doc_no,branch_id,contact_id,contact_name,contact_address,contact_tax_id,doc_date,due_date,credit_days,subtotal,discount_pct,discount_amt,after_discount,vat_pct,vat_amt,withholding_tax,total,ref_no,note,internal_note,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING id`,
-      [docNo,branch_id,contact_id||null,contact_name||null,contact_address||null,contact_tax_id||null,
-       doc_date||new Date().toISOString().slice(0,10),due_date||null,credit_days||0,
-       subtotal,discount_pct||0,discAmt,afterDisc,vat_pct||0,vatAmt,wht,total,
-       ref_no||null,note||null,internal_note||null,req.user.id]);
-    const docId = r.rows[0].id;
-    for (let i=0; i<(items||[]).length; i++) {
-      const item = items[i];
-      const st = parseFloat(item.qty||1)*parseFloat(item.unit_price||0);
-      await client.query('INSERT INTO expense_doc_items (doc_id,item_no,description,product_id,qty,unit,unit_price,subtotal) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-        [docId,i+1,item.description,item.product_id||null,item.qty||1,item.unit||'',item.unit_price||0,st]);
-    }
-    await client.query('COMMIT');
-    res.status(201).json({message:'สร้างเอกสารเรียบร้อย',doc_no:docNo,id:docId});
-  } catch(e){await client.query('ROLLBACK');console.error(e);res.status(500).json({error:'เกิดข้อผิดพลาด'});}
-  finally{client.release();}
-});
-
-app.post('/api/expense-docs/:id/attachment', auth, upload.single('file'), async (req,res) => {
-  if (!req.file) return res.status(400).json({error:'กรุณาเลือกไฟล์'});
-  await pool.query('UPDATE expense_docs SET attachment_url=$1 WHERE id=$2',['/uploads/'+req.file.filename,req.params.id]);
-  res.json({message:'อัพโหลดเรียบร้อย',url:'/uploads/'+req.file.filename});
-});
-
-// ============================================================
-// PAYROLL API
-// ============================================================
-app.get('/api/payroll', auth, role('owner','admin'), async (req, res) => {
-  const r = await pool.query(`SELECT pp.*,u.full_name AS created_by_name,
-    (SELECT COUNT(*) FROM payroll_items WHERE period_id=pp.id) AS emp_count,
-    (SELECT COALESCE(SUM(net_pay),0) FROM payroll_items WHERE period_id=pp.id) AS total_net
-    FROM payroll_periods pp LEFT JOIN users u ON pp.created_by=u.id
-    ORDER BY pp.created_at DESC`);
-  res.json(r.rows);
-});
-
-app.post('/api/payroll', auth, role('owner','admin'), async (req, res) => {
-  const { name, period_from, period_to, payment_date } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const pp = await client.query(`INSERT INTO payroll_periods (name,period_from,period_to,payment_date,created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [name, period_from, period_to, payment_date||null, req.user.id]);
-    const periodId = pp.rows[0].id;
-    // ดึงพนักงาน active ทั้งหมด + เพิ่มเข้า payroll
-    const emps = await client.query(`SELECT * FROM employees WHERE active=true`);
-    for (const e of emps.rows) {
-      const base = parseFloat(e.salary)||0;
-      const ss = Math.min(base*0.05, 750); // ประกันสังคม 5% ไม่เกิน 750
-      await client.query(`INSERT INTO payroll_items (period_id,employee_id,base_salary,social_security,total_income,total_deduct,net_pay)
-        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [periodId, e.id, base, ss, base, ss, base-ss]);
-    }
-    await client.query('COMMIT');
-    res.status(201).json({message:'สร้าง Payroll เรียบร้อย', id: periodId, emp_count: emps.rows.length});
-  } catch(e){await client.query('ROLLBACK');console.error(e);res.status(500).json({error:'เกิดข้อผิดพลาด'});}
-  finally{client.release();}
-});
-
-app.get('/api/payroll/:id/items', auth, role('owner','admin'), async (req, res) => {
-  const r = await pool.query(`SELECT pi.*,e.full_name,e.nickname,e.code AS emp_code,e.position,e.bank_name,e.bank_account
-    FROM payroll_items pi JOIN employees e ON pi.employee_id=e.id
-    WHERE pi.period_id=$1 ORDER BY e.full_name`, [req.params.id]);
-  res.json(r.rows);
-});
-
-app.put('/api/payroll/:periodId/items/:itemId', auth, role('owner','admin'), async (req, res) => {
-  const { overtime, bonus, commission, allowance, other_income, withholding_tax, student_loan, absent_deduct, other_deduct, deposit, note } = req.body;
-  const item = await pool.query('SELECT * FROM payroll_items WHERE id=$1', [req.params.itemId]);
-  const it = item.rows[0];
-  const totalIncome = parseFloat(it.base_salary)+parseFloat(overtime||0)+parseFloat(bonus||0)+parseFloat(commission||0)+parseFloat(allowance||0)+parseFloat(other_income||0);
-  const totalDeduct = parseFloat(it.social_security)+parseFloat(withholding_tax||0)+parseFloat(student_loan||0)+parseFloat(absent_deduct||0)+parseFloat(other_deduct||0)+parseFloat(deposit||0);
-  const netPay = totalIncome - totalDeduct;
-  await pool.query(`UPDATE payroll_items SET overtime=$1,bonus=$2,commission=$3,allowance=$4,other_income=$5,withholding_tax=$6,student_loan=$7,absent_deduct=$8,other_deduct=$9,deposit=$10,note=$11,total_income=$12,total_deduct=$13,net_pay=$14 WHERE id=$15`,
-    [overtime||0,bonus||0,commission||0,allowance||0,other_income||0,withholding_tax||0,student_loan||0,absent_deduct||0,other_deduct||0,deposit||0,note,totalIncome,totalDeduct,netPay,req.params.itemId]);
-  res.json({message:'อัพเดทเรียบร้อย',net_pay:netPay});
-});
-
-app.post('/api/payroll/:id/approve', auth, role('owner','admin'), async (req, res) => {
-  await pool.query(`UPDATE payroll_periods SET status='approved' WHERE id=$1`, [req.params.id]);
-  await pool.query(`UPDATE payroll_items SET status='approved' WHERE period_id=$1`, [req.params.id]);
-  res.json({message:'อนุมัติ Payroll เรียบร้อย'});
-});
-
-// ============================================================
-// DAMAGED EGGS API
-// ============================================================
-app.get('/api/damaged-eggs', auth, async (req, res) => {
-  const { branch_id, date } = req.query;
-  let q = `SELECT de.*,b.code AS branch_code,u.full_name AS created_by_name
-    FROM damaged_eggs de JOIN branches b ON de.branch_id=b.id
-    LEFT JOIN users u ON de.created_by=u.id WHERE 1=1`;
-  const params = [];
-  if (branch_id) { params.push(branch_id); q += ` AND de.branch_id=$${params.length}`; }
-  if (date) { params.push(date); q += ` AND de.damage_date=$${params.length}`; }
-  q += ' ORDER BY de.created_at DESC';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
-
-app.post('/api/damaged-eggs', auth, upload.single('photo'), async (req, res) => {
-  const { branch_id, damage_date, product_id, product_name, qty, note } = req.body;
-  const photo_url = req.file ? '/uploads/'+req.file.filename : null;
-  if (!branch_id || !qty) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
-  try {
-    const r = await pool.query(`INSERT INTO damaged_eggs (branch_id,damage_date,product_id,product_name,qty,note,photo_url,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [branch_id, damage_date||new Date().toISOString().slice(0,10),
-       product_id||null, product_name||null, parseInt(qty), note||null, photo_url, req.user.id]);
-    res.status(201).json({ message: 'บันทึกไข่บุบเรียบร้อย', record: r.rows[0] });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/api/damaged-eggs/:id', auth, async (req, res) => {
-  await pool.query('DELETE FROM damaged_eggs WHERE id=$1', [req.params.id]);
-  res.json({ message: 'ลบเรียบร้อย' });
-});
-
-// ============================================================
-// DAILY ATTACHMENTS API (เอกสารแนบรายวัน)
-// ============================================================
-app.get('/api/daily-attachments', auth, async (req, res) => {
-  const { branch_id, date } = req.query;
-  let q = `SELECT da.*,b.code AS branch_code,u.full_name AS uploaded_by_name
-    FROM daily_attachments da JOIN branches b ON da.branch_id=b.id
-    LEFT JOIN users u ON da.uploaded_by=u.id WHERE 1=1`;
-  const params = [];
-  if (branch_id) { params.push(branch_id); q += ` AND da.branch_id=$${params.length}`; }
-  if (date) { params.push(date); q += ` AND da.attach_date=$${params.length}`; }
-  q += ' ORDER BY da.created_at DESC';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
-
-// Upload จาก desktop/mobile (ต้องมี token)
-app.post('/api/daily-attachments', auth, upload.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
-  const { branch_id, attach_date, doc_type, note } = req.body;
-  const ext = req.file.originalname.split('.').pop().toLowerCase();
-  const file_type = ['pdf'].includes(ext) ? 'pdf' : 'image';
-  try {
-    const r = await pool.query(`INSERT INTO daily_attachments (branch_id,attach_date,file_url,file_type,doc_type,note,uploaded_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [branch_id, attach_date||new Date().toISOString().slice(0,10),
-       '/uploads/'+req.file.filename, file_type,
-       doc_type||'other', note||null, req.user.id]);
-    res.status(201).json({ message: 'อัพโหลดเรียบร้อย', attachment: r.rows[0], url: '/uploads/'+req.file.filename });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// PUBLIC upload สำหรับ QR scan (ไม่ต้อง login แต่ต้องมี token พิเศษ)
-app.post('/api/daily-attachments/qr-upload', upload.single('file'), async (req, res) => {
-  const { qr_token, branch_id, attach_date, doc_type, note } = req.body;
-  // verify QR token (format: branchId_date_secret)
-  const expectedToken = Buffer.from(`${branch_id}_${attach_date}_${process.env.JWT_SECRET}`).toString('base64').slice(0,16);
-  if (qr_token !== expectedToken) return res.status(403).json({ error: 'QR Token ไม่ถูกต้องหรือหมดอายุ' });
-  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
-  const ext = req.file.originalname.split('.').pop().toLowerCase();
-  const file_type = ['pdf'].includes(ext) ? 'pdf' : 'image';
-  try {
-    const r = await pool.query(`INSERT INTO daily_attachments (branch_id,attach_date,file_url,file_type,doc_type,note)
-      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [branch_id, attach_date, '/uploads/'+req.file.filename, file_type, doc_type||'other', note||null]);
-    res.status(201).json({ message: 'อัพโหลดเรียบร้อย', url: '/uploads/'+req.file.filename });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// สร้าง QR token
-app.get('/api/daily-attachments/qr-token', auth, (req, res) => {
-  const { branch_id, date } = req.query;
-  const token = Buffer.from(`${branch_id}_${date}_${process.env.JWT_SECRET}`).toString('base64').slice(0,16);
-  const baseUrl = process.env.APP_URL || req.protocol+'://'+req.get('host');
-  const uploadUrl = `${baseUrl}/upload-qr?branch_id=${branch_id}&date=${date}&token=${token}`;
-  res.json({ token, upload_url: uploadUrl });
-});
-
-app.delete('/api/daily-attachments/:id', auth, async (req, res) => {
-  await pool.query('DELETE FROM daily_attachments WHERE id=$1', [req.params.id]);
-  res.json({ message: 'ลบเรียบร้อย' });
-});
-
-// ============================================================
-// PUBLIC QR Upload Page (สำหรับมือถือสแกน QR)
-// ============================================================
-app.get('/upload-qr', (req, res) => {
-  const { branch_id, date, token } = req.query;
-  const branchId = branch_id || '';
-  const uploadDate = date || new Date().toISOString().slice(0,10);
-  res.send(`<!DOCTYPE html>
-<html lang="th">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>📎 แนบเอกสาร - Egg Station</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Sarabun',sans-serif;background:#f4f6f9;color:#1f2937;font-size:16px;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
-.card{background:#fff;border-radius:14px;padding:24px;width:100%;max-width:400px;box-shadow:0 4px 20px rgba(0,0,0,.1)}
-.header{text-align:center;margin-bottom:24px}
-.header .icon{font-size:48px;display:block;margin-bottom:8px}
-.header h1{font-size:20px;font-weight:700;color:#e67e00}
-.header p{font-size:13px;color:#6b7280;margin-top:4px}
-.info-box{background:#fff3e0;border:1px solid #fed7aa;border-radius:8px;padding:12px;margin-bottom:20px;font-size:13px}
-.info-box strong{color:#e67e00}
-.form-group{margin-bottom:16px}
-label{display:block;font-size:13px;font-weight:600;color:#6b7280;margin-bottom:6px}
-select,input[type="text"],textarea{width:100%;border:1.5px solid #d1d5db;border-radius:8px;padding:10px 13px;font-family:'Sarabun',sans-serif;font-size:15px;outline:none;color:#1f2937}
-select:focus,input:focus,textarea:focus{border-color:#e67e00}
-.upload-area{border:2px dashed #d1d5db;border-radius:10px;padding:30px 20px;text-align:center;cursor:pointer;transition:all .2s;background:#f9fafb}
-.upload-area:hover,.upload-area.drag{border-color:#e67e00;background:#fff3e0}
-.upload-area input{display:none}
-.upload-area .icon{font-size:40px;margin-bottom:8px}
-.upload-area p{font-size:14px;color:#6b7280}
-.upload-area .hint{font-size:12px;color:#9ca3af;margin-top:4px}
-.preview{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}
-.preview img{width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #d1d5db}
-.preview .pdf-icon{width:80px;height:80px;background:#eff6ff;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:28px;border:1px solid #bfdbfe}
-.btn{width:100%;padding:14px;background:#e67e00;color:#fff;border:none;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:16px;font-weight:700;cursor:pointer;margin-top:8px}
-.btn:disabled{opacity:.6;cursor:not-allowed}
-.btn-secondary{background:#f0f2f5;color:#1f2937;margin-top:6px}
-.result{margin-top:16px;padding:14px;border-radius:8px;font-size:14px;text-align:center;display:none}
-.result.success{background:#f0fdf4;color:#16a34a;border:1px solid #86efac}
-.result.error{background:#fef2f2;color:#dc2626;border:1px solid #fca5a5}
-.progress{background:#e5e7eb;border-radius:4px;height:6px;margin-top:10px;overflow:hidden;display:none}
-.progress-bar{height:100%;background:#e67e00;border-radius:4px;transition:width .3s}
-</style>
-</head>
-<body>
-<div class="card">
-  <div class="header">
-    <span class="icon">📎</span>
-    <h1>แนบเอกสาร</h1>
-    <p>Egg Station - อัพโหลดเอกสารจากมือถือ</p>
-  </div>
-  <div class="info-box">
-    <strong>📅 วันที่:</strong> ${uploadDate}<br>
-    <strong>🏪 สาขา:</strong> รหัส ${branchId}
-  </div>
-  <div class="form-group">
-    <label>ประเภทเอกสาร</label>
-    <select id="docType">
-      <option value="delivery_bill">บิลส่งไข่ / ใบส่งของ</option>
-      <option value="receipt_bill">ใบรับสินค้า / บิลซื้อ</option>
-      <option value="damaged_egg">รูปไข่บุบ / เสียหาย</option>
-      <option value="daily_report">รายงานประจำวัน</option>
-      <option value="other">อื่นๆ</option>
-    </select>
-  </div>
-  <div class="form-group">
-    <label>หมายเหตุ (ถ้ามี)</label>
-    <input type="text" id="noteInput" placeholder="เช่น บิลเบอร์ 123 จากฟาร์มA">
-  </div>
-  <div class="form-group">
-    <label>เลือกรูป/เอกสาร (เลือกได้หลายไฟล์)</label>
-    <div class="upload-area" onclick="document.getElementById('fileInput').click()" id="dropArea">
-      <div class="icon">📷</div>
-      <p>กดเพื่อถ่ายรูปหรือเลือกไฟล์</p>
-      <div class="hint">รองรับ JPG, PNG, PDF ขนาดไม่เกิน 10MB/ไฟล์</div>
-      <input type="file" id="fileInput" multiple accept="image/*,.pdf" capture="environment" onchange="handleFiles(this.files)">
+  container.innerHTML = Object.entries(groups).map(([grp, perms]) => `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)">${grp}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:7px">
+        ${perms.map(p=>`
+          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1.5px solid ${_curPerms.has(p.key)?'var(--accent)':'var(--border)'};border-radius:7px;cursor:pointer;background:${_curPerms.has(p.key)?'var(--accent-dim)':'var(--surface)'}">
+            <input type="checkbox" ${_curPerms.has(p.key)?'checked':''} value="${p.key}"
+              onchange="togglePerm('${p.key}', this.checked)"
+              style="accent-color:var(--accent);width:15px;height:15px">
+            <span style="font-size:13px">${p.label}</span>
+          </label>
+        `).join('')}
+      </div>
     </div>
-    <div class="preview" id="preview"></div>
-  </div>
-  <div class="progress" id="progress"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
-  <button class="btn" id="uploadBtn" onclick="doUpload()" disabled>📤 อัพโหลด</button>
-  <div class="result" id="result"></div>
-</div>
+  `).join('');
+}
 
-<script>
-const TOKEN = '${token}';
-const BRANCH_ID = '${branchId}';
-const DATE = '${uploadDate}';
-let selectedFiles = [];
+function togglePerm(key, checked) {
+  if (checked) _curPerms.add(key);
+  else _curPerms.delete(key);
+  renderPermissions();
+}
 
-function handleFiles(files) {
-  selectedFiles = Array.from(files);
-  const preview = document.getElementById('preview');
-  preview.innerHTML = '';
-  selectedFiles.forEach(f => {
-    if (f.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = e => { preview.innerHTML += '<img src="'+e.target.result+'">'; };
-      reader.readAsDataURL(f);
-    } else {
-      preview.innerHTML += '<div class="pdf-icon">📄</div>';
+
+
+
+// ============================================================
+// IMPORT / EXPORT PRICES
+// ============================================================
+
+
+// แก้ export ให้ส่ง token ใน header ไม่ใช่ query
+async function exportPrices() {
+  try {
+    const res = await fetch('/api/products/export-prices', { headers: {'Authorization':'Bearer '+api.tok()} });
+    if (!res.ok) throw new Error('export ล้มเหลว');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'prices.csv'; a.click();
+    URL.revokeObjectURL(url);
+    toast('Export เรียบร้อย ✅', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function showImportPricesModal() {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:520px">
+    <div class="mh"><div class="mt">📤 Import ราคาสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="background:var(--info-dim);border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px">
+      <div style="font-weight:700;color:var(--info);margin-bottom:6px">📋 รูปแบบไฟล์ CSV</div>
+      <div style="font-family:monospace;background:#fff;padding:8px;border-radius:5px;font-size:12px;border:1px solid #bfdbfe">
+        code,branch_code,customer_type,qty,price<br>
+        EGG-0,TB,retail,1,4.50<br>
+        EGG-0,TB,retail,30,4.20<br>
+        EGG-0,OM,retail,1,4.60<br>
+        EGG-0,TB,wholesale,300,3.90
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+        customer_type: <strong>retail</strong> (ปลีก), <strong>restaurant</strong> (ร้านข้าว), <strong>wholesale</strong> (ส่ง)<br>
+        qty: จำนวนฟอง เช่น 1, 5, 10, 15, 20, 30, 300
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn btn-secondary" onclick="exportPrices();CM()" style="flex:1">📥 Export ก่อน (เป็น template)</button>
+    </div>
+    <div><label class="lbl">เลือกไฟล์ CSV</label>
+      <input type="file" id="importPriceFile" accept=".csv,.json" class="ctrl" style="margin-top:6px;padding:8px">
+    </div>
+    <button class="btn btn-primary" onclick="doImportPrices()" style="width:100%;margin-top:14px">📤 Import ราคา</button>
+  </div></div>`;
+}
+
+async function doImportPrices() {
+  const file = document.getElementById('importPriceFile').files[0];
+  if (!file) { toast('กรุณาเลือกไฟล์','error'); return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch('/api/products/import-prices', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer '+api.tok() },
+      body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    toast(data.message, 'success');
+    if (data.errors && data.errors.length) {
+      toast('มีข้อผิดพลาด: '+data.errors.slice(0,3).join(', '), 'error');
     }
+    CM();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+async function savePriceAllBranches(pid, pname) {
+  const ty = document.getElementById('prTy').value;
+  const qty = parseInt(document.getElementById('prQty').value)||1;
+  const price = parseFloat(document.getElementById('prPr').value);
+  if (!price) { toast('กรุณากรอกราคา','error'); return; }
+  if (!confirm('ตั้งราคา '+fmt.b(price)+' ('+ty+', '+qty+'ฟ.) ให้ทุกสาขา?')) return;
+  try {
+    for (const br of branches) {
+      await api.post('/products/'+pid+'/prices', {
+        branch_id: br.id, customer_type: ty, qty, price
+      }).catch(()=>{});
+    }
+    toast('✅ ตั้งราคาทุกสาขาเรียบร้อย', 'success');
+    showPriceM(pid, pname);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+// ============================================================
+// DAILY CLOSE — ปิดยอดประจำวัน (แบบ Excel)
+// ============================================================
+async function initDailyClose() {
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('dcDate').value = today;
+  document.getElementById('dcDateLabel').textContent =
+    new Date().toLocaleDateString('th-TH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  await loadDailyClose();
+}
+
+async function loadDailyClose() {
+  const date = document.getElementById('dcDate').value;
+  const branchId = document.getElementById('dcBranch').value;
+  if (!branchId) {
+    document.getElementById('dcContent').innerHTML =
+      '<div class="es"><div class="ei">📋</div><p>เลือกสาขาและวันที่เพื่อเริ่มปิดยอด</p></div>';
+    return;
+  }
+  document.getElementById('dcContent').innerHTML = '<div class="es"><div class="ei">⏳</div><p>กำลังโหลด...</p></div>';
+  try {
+    const [sales, stock, dc] = await Promise.all([
+      api.get('/reports/sales-by-product?date='+date+'&branch_id='+branchId),
+      api.get('/stock?branch_id='+branchId),
+      api.get('/daily-close?date='+date+'&branch_id='+branchId).catch(()=>null),
+    ]);
+    const branch = branches.find(b=>b.id===parseInt(branchId));
+    renderDailyClose(date, branch, sales.items||[], stock, dc);
+  } catch(e) { document.getElementById('dcContent').innerHTML = '<div class="es"><div class="ei">❌</div><p>'+e.message+'</p></div>'; }
+}
+
+function renderDailyClose(date, branch, salesItems, stock, dc) {
+  const totalSales = salesItems.reduce((s,i)=>s+parseFloat(i.revenue||0), 0);
+  const totalEggs = salesItems.filter(i=>i.is_egg).reduce((s,i)=>s+parseInt(i.qty_sold||0), 0);
+  const saved = dc || {};
+
+  const salesRows = salesItems.map(it => `
+    <tr>
+      <td style="padding:7px 12px;font-weight:600">${it.product_name}</td>
+      <td style="padding:7px 12px;text-align:right">${parseInt(it.qty_sold||0).toLocaleString('th-TH')}</td>
+      <td style="padding:7px 12px;text-align:right">${Math.floor(parseInt(it.qty_sold||0)/30)}</td>
+      <td style="padding:7px 12px;text-align:right;font-weight:600">${parseFloat(it.revenue||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
+    </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:12px">ยังไม่มียอดขาย</td></tr>';
+
+  const eggStock = stock.filter(s=>s.is_egg||s.product_name.includes('ไข่'));
+  const stockRows = eggStock.map(s => `
+    <tr>
+      <td style="padding:7px 12px;font-weight:600">${s.product_name}</td>
+      <td style="padding:7px 12px;text-align:right">${parseInt(s.qty_unit||0).toLocaleString('th-TH')}</td>
+      <td style="padding:7px 12px;text-align:right">${Math.floor(parseInt(s.qty_unit||0)/30)}</td>
+      <td style="padding:7px 12px;text-align:right">${Math.floor(parseInt(s.qty_unit||0)/300)}</td>
+    </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:12px">ไม่มีข้อมูลสต๊อก</td></tr>';
+
+  document.getElementById('dcContent').innerHTML = `
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+
+    <!-- ซ้าย: ยอดขาย + สต๊อก -->
+    <div>
+      <!-- ยอดขายแยกสินค้า -->
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div class="ct" style="margin:0">📦 ยอดขายแยกสินค้า</div>
+          <div style="font-size:12px;color:var(--text-muted)">${new Date(date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})}</div>
+        </div>
+        <table>
+          <thead><tr style="background:var(--surface2)">
+            <th style="padding:6px 12px">สินค้า</th>
+            <th style="padding:6px 12px;text-align:right">ฟอง</th>
+            <th style="padding:6px 12px;text-align:right">แผง</th>
+            <th style="padding:6px 12px;text-align:right">ยอด (บาท)</th>
+          </tr></thead>
+          <tbody>${salesRows}</tbody>
+          <tfoot><tr style="background:var(--accent-dim);font-weight:700;border-top:2px solid var(--accent)">
+            <td style="padding:8px 12px">รวม</td>
+            <td style="padding:8px 12px;text-align:right">${totalEggs.toLocaleString('th-TH')}</td>
+            <td style="padding:8px 12px;text-align:right">${Math.floor(totalEggs/30)}</td>
+            <td style="padding:8px 12px;text-align:right;color:var(--accent)">${totalSales.toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+
+      <!-- สต๊อกคงเหลือ -->
+      <div class="card">
+        <div class="ct">🥚 สต๊อกคงเหลือปลายวัน</div>
+        <table>
+          <thead><tr style="background:var(--surface2)">
+            <th style="padding:6px 12px">สินค้า</th>
+            <th style="padding:6px 12px;text-align:right">ฟอง</th>
+            <th style="padding:6px 12px;text-align:right">แผง</th>
+            <th style="padding:6px 12px;text-align:right">ลัง</th>
+          </tr></thead>
+          <tbody>${stockRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ขวา: เงิน + ไข่บุบ + หมายเหตุ -->
+    <div>
+      <!-- เงินสด -->
+      <div class="card" style="margin-bottom:12px">
+        <div class="ct">💰 สรุปเงิน</div>
+        <div style="display:grid;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px">ยอดขายระบบ</span>
+            <span style="font-weight:700;color:var(--accent)">${totalSales.toLocaleString('th-TH',{minimumFractionDigits:2})} ฿</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <label style="font-size:13px">เงินสดในลิ้นชัก (บาท)</label>
+            <input type="number" class="ctrl" id="dcCash" value="${saved.cash_amount||''}" min="0" step="0.01"
+              style="width:140px;text-align:right" oninput="calcDcDiff()">
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <label style="font-size:13px">QR / โอน (บาท)</label>
+            <input type="number" class="ctrl" id="dcTransfer" value="${saved.transfer_amount||''}" min="0" step="0.01"
+              style="width:140px;text-align:right" oninput="calcDcDiff()">
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:2px solid var(--border)">
+            <span style="font-size:13px;font-weight:700">ผลต่าง</span>
+            <span id="dcDiff" style="font-weight:700;font-size:16px">฿0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ไข่บุบ -->
+      <div class="card" style="margin-bottom:12px">
+        <div class="ct">🥚 ไข่บุบ/คืน</div>
+        <div style="display:grid;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <label style="font-size:13px">จำนวนไข่บุบ (ฟอง)</label>
+            <input type="number" class="ctrl" id="dcBroken" value="${saved.broken_eggs||0}" min="0"
+              style="width:100px;text-align:right">
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <label style="font-size:13px">ราคาทดแทน/ฟอง</label>
+            <input type="number" class="ctrl" id="dcBrokenPrice" value="${saved.broken_price||4.5}" min="0" step="0.01"
+              style="width:100px;text-align:right" oninput="calcDcBroken()">
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--border)">
+            <span style="font-size:12px;color:var(--text-muted)">มูลค่าความเสียหาย</span>
+            <span id="dcBrokenVal" style="font-weight:600;color:var(--error)">฿0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- หมายเหตุ -->
+      <div class="card">
+        <div class="ct">📝 หมายเหตุ</div>
+        <textarea class="ctrl" id="dcNote" rows="3" style="resize:vertical">${saved.note||''}</textarea>
+      </div>
+    </div>
+  </div>`;
+
+  // คำนวณค่าเริ่มต้น
+  _dcTotalSales = totalSales;
+  calcDcDiff();
+  calcDcBroken();
+}
+
+let _dcTotalSales = 0;
+
+function calcDcDiff() {
+  const cash = parseFloat(document.getElementById('dcCash')?.value||0);
+  const transfer = parseFloat(document.getElementById('dcTransfer')?.value||0);
+  const diff = (cash + transfer) - _dcTotalSales;
+  const el = document.getElementById('dcDiff');
+  if (el) {
+    el.textContent = (diff >= 0 ? '+' : '') + diff.toLocaleString('th-TH',{minimumFractionDigits:2}) + ' ฿';
+    el.style.color = Math.abs(diff) < 1 ? 'var(--success)' : diff > 0 ? 'var(--info)' : 'var(--error)';
+  }
+}
+
+function calcDcBroken() {
+  const qty = parseInt(document.getElementById('dcBroken')?.value||0);
+  const price = parseFloat(document.getElementById('dcBrokenPrice')?.value||4.5);
+  const val = qty * price;
+  const el = document.getElementById('dcBrokenVal');
+  if (el) el.textContent = val.toLocaleString('th-TH',{minimumFractionDigits:2}) + ' ฿';
+}
+
+async function saveDailyClose() {
+  const date = document.getElementById('dcDate').value;
+  const branchId = document.getElementById('dcBranch').value;
+  if (!branchId) { toast('กรุณาเลือกสาขา','error'); return; }
+  const body = {
+    date, branch_id: parseInt(branchId),
+    cash_amount: parseFloat(document.getElementById('dcCash')?.value||0),
+    transfer_amount: parseFloat(document.getElementById('dcTransfer')?.value||0),
+    broken_eggs: parseInt(document.getElementById('dcBroken')?.value||0),
+    broken_price: parseFloat(document.getElementById('dcBrokenPrice')?.value||4.5),
+    note: document.getElementById('dcNote')?.value||'',
+    sales_total: _dcTotalSales,
+  };
+  try {
+    await api.post('/daily-close', body);
+    toast('💾 บันทึกปิดยอดเรียบร้อย','success');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function loadDCHistory() {
+  const branchId = document.getElementById('dcBranch').value;
+  try {
+    const data = await api.get('/daily-close/history'+(branchId?'?branch_id='+branchId:''));
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:600px">
+      <div class="mh"><div class="mt">📜 ประวัติปิดยอด</div><button class="mc" onclick="CM()">✕</button></div>
+      <table><thead><tr><th>วันที่</th><th>สาขา</th><th>ยอดขาย</th><th>เงินสด</th><th>โอน</th><th>ผลต่าง</th><th></th></tr></thead>
+      <tbody>${data.map(d=>{
+        const total = parseFloat(d.sales_total||0);
+        const actual = parseFloat(d.cash_amount||0)+parseFloat(d.transfer_amount||0);
+        const diff = actual - total;
+        return `<tr>
+          <td>${fmt.d(d.date)}</td>
+          <td>${d.branch_code}</td>
+          <td style="text-align:right">${fmt.b(total)}</td>
+          <td style="text-align:right">${fmt.b(d.cash_amount)}</td>
+          <td style="text-align:right">${fmt.b(d.transfer_amount)}</td>
+          <td style="text-align:right;color:${Math.abs(diff)<1?'var(--success)':diff>0?'var(--info)':'var(--error)'};font-weight:700">${diff>=0?'+':''}${fmt.b(diff)}</td>
+          <td><button class="btn btn-secondary btn-sm" onclick="printDC(${d.id})">🖨️</button></td>
+        </tr>`;
+      }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ไม่มีข้อมูล</td></tr>'}</tbody>
+      </table>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function printDC(id) {
+  try {
+    const d = await api.get('/daily-close/'+id);
+    const salesItems = d.sales_items || [];
+    const stockItems = d.stock_items || [];
+    const dateStr = new Date(d.date+'T00:00:00').toLocaleDateString('th-TH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    const diff = (parseFloat(d.cash_amount||0)+parseFloat(d.transfer_amount||0)) - parseFloat(d.sales_total||0);
+
+    const html = [
+      '<!DOCTYPE html>',
+      '\x3chtml lang="th"><head><meta charset="UTF-8"><title>ใบปิดยอด '+d.date+'</title>',
+      '<style>',
+      'body{font-family:"Sarabun",sans-serif;font-size:13px;margin:0;background:#f4f4f4}',
+      '.toolbar{background:#1f2937;padding:10px 20px;display:flex;gap:10px}',
+      '.toolbar button{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:"Sarabun",sans-serif}',
+      '.page{max-width:800px;margin:12px auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,.1)}',
+      '.header{text-align:center;border-bottom:2px solid #e67e00;padding-bottom:12px;margin-bottom:16px}',
+      '.header h2{color:#e67e00;font-size:18px;margin:0 0 4px}',
+      '.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}',
+      '.section{margin-bottom:14px}',
+      '.section-title{font-weight:700;font-size:13px;color:#e67e00;border-bottom:1px solid #f0f0f0;padding-bottom:5px;margin-bottom:8px}',
+      'table{width:100%;border-collapse:collapse}',
+      'th{background:#f5f5f5;padding:5px 8px;font-size:12px;color:#666;text-align:left}',
+      'th.r,td.r{text-align:right}',
+      'td{padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px}',
+      '.total-row td{font-weight:700;background:#fff8f0;border-top:2px solid #e67e00}',
+      '.money-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}',
+      '.money-total{display:flex;justify-content:space-between;padding:8px 0;font-size:15px;font-weight:700;border-top:2px solid #333}',
+      '.diff-ok{color:#16a34a} .diff-err{color:#dc2626} .diff-hi{color:#2563eb}',
+      '.footer{text-align:center;font-size:11px;color:#999;margin-top:14px;padding-top:10px;border-top:1px dashed #ccc}',
+      '@media print{.toolbar{display:none}body{background:#fff}.page{box-shadow:none;margin:0;border-radius:0}}',
+      '<\\/style></head>',
+      '\x3cbody>',
+      '<div class="toolbar">',
+      '<button onclick="window.print()" style="background:#e67e00;color:#fff">🖨️ พิมพ์</button>',
+      '<button onclick="window.close()" style="background:#374151;color:#fff">✕</button>',
+      '</div>',
+      '<div class="page">',
+      '<div class="header">',
+      '<h2>ใบปิดยอดประจำวัน</h2>',
+      '<div>' + (d.branch_name||'') + ' — ' + dateStr + '</div>',
+      '</div>',
+      '<div class="grid">',
+      '<div>',
+      '<div class="section">',
+      '<div class="section-title">📦 ยอดขายแยกสินค้า</div>',
+      '<table><thead><tr><th>สินค้า</th><th class="r">ฟอง</th><th class="r">แผง</th><th class="r">ยอด (฿)</th></tr></thead><tbody>',
+      salesItems.map(it=>`<tr><td>${it.product_name}</td><td class="r">${parseInt(it.qty_sold||0).toLocaleString('th-TH')}</td><td class="r">${Math.floor(parseInt(it.qty_sold||0)/30)}</td><td class="r">${parseFloat(it.revenue||0).toLocaleString('th-TH',{minimumFractionDigits:2})}</td></tr>`).join(''),
+      '<tr class="total-row"><td>รวม</td><td class="r">' + salesItems.reduce((s,i)=>s+parseInt(i.qty_sold||0),0).toLocaleString('th-TH') + '</td><td class="r">' + Math.floor(salesItems.reduce((s,i)=>s+parseInt(i.qty_sold||0),0)/30) + '</td><td class="r">' + parseFloat(d.sales_total||0).toLocaleString('th-TH',{minimumFractionDigits:2}) + '</td></tr>',
+      '</tbody></table></div>',
+      '<div class="section">',
+      '<div class="section-title">🥚 สต๊อกคงเหลือ</div>',
+      '<table><thead><tr><th>สินค้า</th><th class="r">ฟอง</th><th class="r">แผง</th><th class="r">ลัง</th></tr></thead><tbody>',
+      stockItems.map(s=>`<tr><td>${s.product_name}</td><td class="r">${parseInt(s.qty_unit||0).toLocaleString('th-TH')}</td><td class="r">${Math.floor(parseInt(s.qty_unit||0)/30)}</td><td class="r">${Math.floor(parseInt(s.qty_unit||0)/300)}</td></tr>`).join(''),
+      '</tbody></table></div>',
+      '</div>',
+      '<div>',
+      '<div class="section">',
+      '<div class="section-title">💰 สรุปเงิน</div>',
+      '<div class="money-row"><span>ยอดขายระบบ</span><span style="font-weight:700">' + parseFloat(d.sales_total||0).toLocaleString('th-TH',{minimumFractionDigits:2}) + ' ฿</span></div>',
+      '<div class="money-row"><span>เงินสดในลิ้นชัก</span><span>' + parseFloat(d.cash_amount||0).toLocaleString('th-TH',{minimumFractionDigits:2}) + ' ฿</span></div>',
+      '<div class="money-row"><span>QR / โอน</span><span>' + parseFloat(d.transfer_amount||0).toLocaleString('th-TH',{minimumFractionDigits:2}) + ' ฿</span></div>',
+      '<div class="money-total"><span>ผลต่าง</span><span class="' + (Math.abs(diff)<1?'diff-ok':diff>0?'diff-hi':'diff-err') + '">' + (diff>=0?'+':'') + diff.toLocaleString('th-TH',{minimumFractionDigits:2}) + ' ฿</span></div>',
+      '</div>',
+      d.broken_eggs > 0 ? '<div class="section"><div class="section-title">🥚 ไข่บุบ/คืน</div><div class="money-row"><span>จำนวน</span><span>' + d.broken_eggs + ' ฟอง</span></div><div class="money-row"><span>ราคาทดแทน/ฟอง</span><span>' + d.broken_price + ' ฿</span></div><div class="money-row"><span>มูลค่าความเสียหาย</span><span style="color:#dc2626;font-weight:700">' + (d.broken_eggs * d.broken_price).toLocaleString('th-TH',{minimumFractionDigits:2}) + ' ฿</span></div></div>' : '',
+      d.note ? '<div class="section"><div class="section-title">📝 หมายเหตุ</div><div style="font-size:13px;color:#444">' + d.note + '</div></div>' : '',
+      '<div style="margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:20px">',
+      '<div style="text-align:center"><div style="border-top:1px solid #333;margin:28px 10px 5px"></div><div style="font-size:12px;color:#666">ผู้ปิดยอด</div></div>',
+      '<div style="text-align:center"><div style="border-top:1px solid #333;margin:28px 10px 5px"></div><div style="font-size:12px;color:#666">ผู้ตรวจสอบ</div></div>',
+      '</div>',
+      '</div>',
+      '</div>',
+      '<div class="footer">พิมพ์เมื่อ ' + new Date().toLocaleString('th-TH') + '</div>',
+      '</div><\/body><\/html>'
+    ].join('\n');
+
+    const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    window.open(url,'_blank');
+    setTimeout(()=>URL.revokeObjectURL(url), 10000);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+// ============================================================
+// MEMBER TIERS MANAGEMENT
+// ============================================================
+async function showTierModal() {
+  try {
+    const tiers = await api.get('/member-tiers').catch(e => { console.error('member-tiers:', e); return []; });
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:600px">
+      <div class="mh"><div class="mt">🏅 จัดการระดับสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
+
+      <!-- รายการ tiers -->
+      <div style="margin-bottom:14px">
+        ${tiers.map(t=>`
+          <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start">
+            <div>
+              <div style="font-weight:700;font-size:14px">${t.name}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+                ${t.description||''}
+                ${t.customer_type ? ' | ช่องทาง: <strong>'+{retail:'ปลีก',restaurant:'ร้านข้าว',wholesale:'ส่ง'}[t.customer_type]+'</strong>' : ''}
+                ${t.discount_percent > 0 ? ' | ส่วนลด: <strong>'+t.discount_percent+'%</strong>' : ''}
+                ${t.discount_amount > 0 ? ' | ส่วนลด: <strong>'+t.discount_amount+' บาท</strong>' : ''}
+                ${t.min_eggs_required > 0 ? ' | ขั้นต่ำ: '+t.min_eggs_required+' ฟอง' : ''}
+              </div>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-secondary btn-sm" onclick="showEditTier(${JSON.stringify(t).replace(/"/g,'&quot;')})">แก้ไข</button>
+              <button class="btn btn-danger btn-sm" onclick="delTier(${t.id})">ลบ</button>
+            </div>
+          </div>
+        `).join('') || '<div style="text-align:center;color:var(--text-muted);padding:16px">ยังไม่มีระดับสมาชิก</div>'}
+      </div>
+
+      <!-- เพิ่มใหม่ -->
+      <div style="border-top:1px solid var(--border);padding-top:14px" id="tierFormArea">
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px" id="tierFormTitle">+ เพิ่มระดับสมาชิกใหม่</div>
+        <input type="hidden" id="editTierId">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="grid-column:1/-1">
+            <label class="lbl">ชื่อระดับ *</label>
+            <input type="text" class="ctrl" id="tierName" style="margin-top:4px" placeholder="เช่น ระดับ 1 (ทั่วไป)">
+          </div>
+          <div style="grid-column:1/-1">
+            <label class="lbl">คำอธิบาย</label>
+            <input type="text" class="ctrl" id="tierDesc" style="margin-top:4px" placeholder="เช่น ลูกค้าทั่วไปซื้อปลีก">
+          </div>
+          <div>
+            <label class="lbl">ช่องทางราคา</label>
+            <select class="ctrl" id="tierType" style="margin-top:4px">
+              <option value="retail">ปลีก (retail)</option>
+              <option value="restaurant">ร้านข้าว (restaurant)</option>
+              <option value="wholesale">ส่ง (wholesale)</option>
+            </select>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">⬆️ ราคาจะดึงตามช่องทางนี้จากหน้า 💰 ราคา</div>
+          </div>
+          <div>
+            <label class="lbl">ลำดับแสดง</label>
+            <input type="number" class="ctrl" id="tierOrder" value="0" min="0" style="margin-top:4px">
+          </div>
+          <div>
+            <label class="lbl">ส่วนลดเพิ่มเติม (%)</label>
+            <input type="number" class="ctrl" id="tierDiscPct" value="0" min="0" step="0.1" style="margin-top:4px">
+          </div>
+          <div>
+            <label class="lbl">ส่วนลดเพิ่มเติม (บาท)</label>
+            <input type="number" class="ctrl" id="tierDiscAmt" value="0" min="0" step="0.01" style="margin-top:4px">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveTier()" style="width:100%;margin-top:12px" id="tierSaveBtn">+ เพิ่มระดับสมาชิก</button>
+      </div>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function showEditTier(t) {
+  document.getElementById('editTierId').value = t.id;
+  document.getElementById('tierName').value = t.name;
+  document.getElementById('tierDesc').value = t.description||'';
+  document.getElementById('tierType').value = t.customer_type||'retail';
+  document.getElementById('tierOrder').value = t.sort_order||0;
+  document.getElementById('tierDiscPct').value = t.discount_percent||0;
+  document.getElementById('tierDiscAmt').value = t.discount_amount||0;
+  document.getElementById('tierFormTitle').textContent = '✏️ แก้ไขระดับสมาชิก';
+  document.getElementById('tierSaveBtn').textContent = '💾 บันทึกการแก้ไข';
+}
+
+async function saveTier() {
+  const id = document.getElementById('editTierId').value;
+  const body = {
+    name: document.getElementById('tierName').value.trim(),
+    description: document.getElementById('tierDesc').value,
+    customer_type: document.getElementById('tierType').value,
+    sort_order: parseInt(document.getElementById('tierOrder').value)||0,
+    discount_percent: parseFloat(document.getElementById('tierDiscPct').value)||0,
+    discount_amount: parseFloat(document.getElementById('tierDiscAmt').value)||0,
+  };
+  if (!body.name) { toast('กรุณากรอกชื่อระดับสมาชิก','error'); return; }
+  try {
+    if (id) {
+      await api.put('/member-tiers/'+id, body);
+      toast('แก้ไขระดับสมาชิกเรียบร้อย','success');
+    } else {
+      await api.post('/member-tiers', body);
+      toast('เพิ่มระดับสมาชิกเรียบร้อย','success');
+    }
+    showTierModal();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function delTier(id) {
+  if (!confirm('ลบระดับสมาชิกนี้?')) return;
+  try {
+    await api.del('/member-tiers/'+id);
+    toast('ลบเรียบร้อย','success');
+    showTierModal();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+async function confirmDelProd(id, name) {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:380px">
+    <div class="mh"><div class="mt">🗑️ ยืนยันการลบสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="text-align:center;padding:16px 0">
+      <div style="font-size:32px;margin-bottom:10px">⚠️</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px">ลบ "${name}"?</div>
+      <div style="font-size:13px;color:var(--text-muted)">การลบสินค้าจะลบราคาและสต๊อกที่เกี่ยวข้องด้วย<br>ไม่สามารถกู้คืนได้</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <button class="btn btn-secondary" onclick="CM()" style="justify-content:center">ยกเลิก</button>
+      <button class="btn btn-danger" onclick="doDelProd(${id})" style="justify-content:center">🗑️ ยืนยันลบ</button>
+    </div>
+  </div></div>`;
+}
+
+async function doDelProd(id) {
+  try {
+    await api.del('/products/'+id);
+    toast('ลบสินค้าเรียบร้อย','success');
+    CM(); loadProds();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+// ============================================================
+// STOCK TRANSFER — ปลายทางกดรับสินค้า
+// ============================================================
+async function showPendingTransfers() {
+  try {
+    const branchId = CU.branch_id || '';
+    const data = await api.get('/stock/transfers?branch_id='+branchId+'&status=pending');
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:680px">
+      <div class="mh"><div class="mt">📬 รายการโอนย้ายสต๊อกที่รอรับ</div><button class="mc" onclick="CM()">✕</button></div>
+      ${data.length ?
+        `<div style="display:grid;gap:8px">
+          ${data.map(tr=>`
+            <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px">
+              <div style="display:flex;justify-content:space-between;align-items:start">
+                <div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent)">${tr.doc_no}</div>
+                  <div style="font-size:13px;margin-top:4px">
+                    <strong>${tr.from_branch_name}</strong>
+                    <span style="color:var(--text-muted);margin:0 6px">→</span>
+                    <strong>${tr.to_branch_name}</strong>
+                  </div>
+                  <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+                    ${fmt.d(tr.created_at)} | โดย ${tr.created_by_name||'-'}
+                    ${tr.note?'<br>หมายเหตุ: '+tr.note:''}
+                  </div>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <button class="btn btn-secondary btn-sm" onclick="showTransferItems(${tr.id})">ดูรายการ</button>
+                  ${tr.to_branch_id===CU.branch_id||['owner','admin'].includes(CU.role) ?
+                    `<button class="btn btn-primary btn-sm" onclick="confirmTransfer(${tr.id},'${tr.doc_no}')">✅ รับสินค้า</button>` :
+                    `<span class="badge bw">ไม่ใช่สาขาของคุณ</span>`
+                  }
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>` :
+        '<div class="es"><div class="ei">📭</div><p>ไม่มีรายการรอรับ</p></div>'
+      }
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showTransferItems(trId) {
+  try {
+    const items = await api.get('/stock/transfers/'+trId+'/items');
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal"><div class="mh"><div class="mt">📦 รายการสินค้า</div><button class="mc" onclick="showPendingTransfers()">← กลับ</button></div>
+    <table><thead><tr><th>สินค้า</th><th style="text-align:right">ฟอง</th><th style="text-align:right">แผง</th></tr></thead>
+    <tbody>${items.map(it=>`<tr>
+      <td><strong>${it.product_name}</strong> <span style="font-size:11px;color:var(--text-muted)">${it.code}</span></td>
+      <td style="text-align:right">${fmt.n(it.qty_unit)}</td>
+      <td style="text-align:right">${Math.floor(it.qty_unit/30)}</td>
+    </tr>`).join('')}</tbody>
+    </table></div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function confirmTransfer(trId, docNo) {
+  if (!confirm('ยืนยันรับสินค้า '+docNo+' เข้าสต๊อกสาขานี้?')) return;
+  try {
+    const res = await api.post('/stock/transfers/'+trId+'/confirm', {});
+    toast('✅ '+res.message,'success');
+    CM(); loadStock(); showPendingTransfers();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showTransferHistory() {
+  try {
+    const data = await api.get('/stock/transfers?branch_id='+(CU.branch_id||''));
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:700px">
+      <div class="mh"><div class="mt">📋 ประวัติโอนย้ายสต๊อก</div><button class="mc" onclick="CM()">✕</button></div>
+      <table><thead><tr><th>เอกสาร</th><th>ต้นทาง</th><th>ปลายทาง</th><th>วันที่</th><th>สถานะ</th><th></th></tr></thead>
+      <tbody>${data.map(tr=>`<tr>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${tr.doc_no}</td>
+        <td>${tr.from_branch_code}</td>
+        <td>${tr.to_branch_code}</td>
+        <td>${fmt.d(tr.created_at)}</td>
+        <td>${tr.status==='confirmed'?'<span class="badge bs">รับแล้ว</span>':'<span class="badge bw">รอรับ</span>'}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="showTransferItems(${tr.id})">ดู</button></td>
+      </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ไม่มีข้อมูล</td></tr>'}</tbody>
+      </table>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+// ============================================================
+// MEMBER LOYALTY — แลกฟองสะสม
+// ============================================================
+async function showRedeemModal() {
+  if (!selMember) { toast('กรุณาเลือกสมาชิกก่อน','error'); return; }
+  try {
+    const data = await api.get('/members/'+selMember.id+'/points');
+    const mem = data.member;
+    const available = (mem.total_eggs||0) - (mem.redeemed_eggs||0);
+    const log = data.log || [];
+    const settings = await api.get('/member-settings').catch(()=>({eggs_required:100,discount_amount:5}));
+
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:480px">
+      <div class="mh"><div class="mt">⭐ ฟองสะสม — ${mem.name}</div><button class="mc" onclick="CM()">✕</button></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+        <div style="background:var(--accent-dim);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:11px;color:var(--text-muted)">สะสมทั้งหมด</div>
+          <div style="font-size:22px;font-weight:700;color:var(--accent)">${fmt.n(mem.total_eggs||0)}</div>
+          <div style="font-size:11px">ฟอง</div>
+        </div>
+        <div style="background:var(--error-dim);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:11px;color:var(--text-muted)">ใช้แล้ว</div>
+          <div style="font-size:22px;font-weight:700;color:var(--error)">${fmt.n(mem.redeemed_eggs||0)}</div>
+          <div style="font-size:11px">ฟอง</div>
+        </div>
+        <div style="background:var(--success-dim);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:11px;color:var(--text-muted)">คงเหลือ</div>
+          <div style="font-size:22px;font-weight:700;color:var(--success)">${fmt.n(available)}</div>
+          <div style="font-size:11px">ฟอง</div>
+        </div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:14px;font-size:13px">
+        <span style="color:var(--text-muted)">อัตราแลก: </span>
+        <strong>${settings.eggs_required} ฟอง = ส่วนลด ${settings.discount_amount} บาท</strong>
+        ${available >= settings.eggs_required ?
+          '<span class="badge bs" style="margin-left:8px">แลกได้ '+Math.floor(available/settings.eggs_required)+' ครั้ง</span>' :
+          '<span class="badge bg" style="margin-left:8px">ยังไม่ถึง (ขาด '+(settings.eggs_required-available)+' ฟอง)</span>'}
+      </div>
+      ${available >= settings.eggs_required ? `
+      <div style="border:1.5px solid var(--accent);border-radius:8px;padding:12px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px">🎁 แลกส่วนลด</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div><label class="lbl">จำนวนครั้ง</label>
+            <input type="number" class="ctrl" id="redeemTimes" value="1" min="1" max="${Math.floor(available/settings.eggs_required)}"
+              oninput="calcRedeemVal(${settings.eggs_required},${settings.discount_amount})"
+              style="width:80px;margin-top:4px;text-align:center">
+          </div>
+          <div><div class="lbl">ฟองที่ใช้</div><div id="redeemEggs" style="font-size:18px;font-weight:700;color:var(--accent)">${settings.eggs_required}</div></div>
+          <div><div class="lbl">ส่วนลด</div><div id="redeemDiscount" style="font-size:18px;font-weight:700;color:var(--success)">฿${settings.discount_amount}</div></div>
+        </div>
+        <button class="btn btn-primary" onclick="doRedeem(${mem.id},${settings.eggs_required},${settings.discount_amount})"
+          style="width:100%;margin-top:12px">✅ ยืนยันแลกส่วนลด</button>
+      </div>` : ''}
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px">ประวัติล่าสุด</div>
+      <div style="max-height:140px;overflow-y:auto;border:1px solid var(--border);border-radius:7px">
+        ${log.length ? log.map(l=>`<div style="padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px;display:flex;justify-content:space-between">
+          <span>${l.reason}</span>
+          <span style="font-weight:700;color:${l.change_eggs>0?'var(--success)':'var(--error)'}">
+            ${l.change_eggs>0?'+':''}${l.change_eggs} ฟอง
+          </span></div>`).join('') : '<div style="padding:12px;text-align:center;color:var(--text-muted)">ยังไม่มีประวัติ</div>'}
+      </div>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function calcRedeemVal(eggsPerTime, discPerTime) {
+  const times = parseInt(document.getElementById('redeemTimes')?.value||1);
+  const eggsEl = document.getElementById('redeemEggs');
+  const discEl = document.getElementById('redeemDiscount');
+  if (eggsEl) eggsEl.textContent = fmt.n(times * eggsPerTime);
+  if (discEl) discEl.textContent = '฿' + (times * discPerTime).toLocaleString('th-TH');
+}
+
+async function doRedeem(memberId, eggsPerTime, discPerTime) {
+  const times = parseInt(document.getElementById('redeemTimes')?.value||1);
+  const eggs = times * eggsPerTime;
+  const discount = times * discPerTime;
+  try {
+    await api.post('/members/'+memberId+'/redeem', { eggs_to_redeem: eggs, discount_amount: discount });
+    const current = parseFloat(document.getElementById('posExtraDisc')?.value||0);
+    if (document.getElementById('posExtraDisc')) {
+      document.getElementById('posExtraDisc').value = (current + discount).toFixed(2);
+    }
+    if (selMember) selMember.redeemed_eggs = (selMember.redeemed_eggs||0) + eggs;
+    updateCartTotal();
+    toast('แลก '+fmt.n(eggs)+' ฟอง ลด ฿'+discount+' เรียบร้อย', 'success');
+    CM();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showMemberPoints(memberId, memberName) {
+  try {
+    const data = await api.get('/members/'+memberId+'/points');
+    const mem = data.member;
+    const available = (mem.total_eggs||0) - (mem.redeemed_eggs||0);
+    const log = data.log || [];
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal"><div class="mh"><div class="mt">⭐ ${memberName}</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div class="sc"><div class="sl">สะสมทั้งหมด</div><div class="sv">${fmt.n(mem.total_eggs||0)} ฟ.</div></div>
+      <div class="sc"><div class="sl">คงเหลือ</div><div class="sv" style="color:var(--success)">${fmt.n(available)} ฟ.</div></div>
+    </div>
+    <table><thead><tr><th>วันที่</th><th>รายการ</th><th style="text-align:right">ฟอง</th></tr></thead>
+    <tbody>${log.map(l=>`<tr>
+      <td style="font-size:11px">${fmt.d(l.created_at)}</td>
+      <td style="font-size:12px">${l.reason}</td>
+      <td style="text-align:right;font-weight:700;color:${l.change_eggs>0?'var(--success)':'var(--error)'}">
+        ${l.change_eggs>0?'+':''}${fmt.n(l.change_eggs)}</td>
+    </tr>`).join('')||'<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">ยังไม่มีประวัติ</td></tr>'}</tbody>
+    </table></div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// FIX: Permissions page — ใช้ fetch โดยตรง ไม่ผ่าน api wrapper
+// ============================================================
+async function selectPermRole(roleName, btn) {
+  _curPermRole = roleName;
+  // highlight ปุ่ม
+  document.querySelectorAll('.perm-role-btn').forEach(b => {
+    b.style.background = 'var(--surface)';
+    b.style.borderColor = 'var(--border)';
+    b.style.fontWeight = '400';
   });
-  document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
-}
-
-// Drag & Drop
-const dropArea = document.getElementById('dropArea');
-['dragenter','dragover'].forEach(e => dropArea.addEventListener(e, ev => { ev.preventDefault(); dropArea.classList.add('drag'); }));
-['dragleave','drop'].forEach(e => dropArea.addEventListener(e, ev => { ev.preventDefault(); dropArea.classList.remove('drag'); if(ev.dataTransfer?.files) handleFiles(ev.dataTransfer.files); }));
-
-async function doUpload() {
-  const btn = document.getElementById('uploadBtn');
-  const result = document.getElementById('result');
-  const progress = document.getElementById('progress');
-  const bar = document.getElementById('progressBar');
-  if (!selectedFiles.length) return;
-
-  btn.disabled = true;
-  btn.textContent = 'กำลังอัพโหลด...';
-  progress.style.display = 'block';
-  result.style.display = 'none';
-
-  const docType = document.getElementById('docType').value;
-  const note = document.getElementById('noteInput').value;
-  let uploaded = 0, failed = 0;
-
-  for (let i = 0; i < selectedFiles.length; i++) {
-    const fd = new FormData();
-    fd.append('file', selectedFiles[i]);
-    fd.append('qr_token', TOKEN);
-    fd.append('branch_id', BRANCH_ID);
-    fd.append('attach_date', DATE);
-    fd.append('doc_type', docType);
-    fd.append('note', note);
-    try {
-      const res = await fetch('/api/daily-attachments/qr-upload', { method:'POST', body:fd });
-      const data = await res.json();
-      if (res.ok) uploaded++;
-      else failed++;
-    } catch(e) { failed++; }
-    bar.style.width = ((i+1)/selectedFiles.length*100)+'%';
+  if (btn) {
+    btn.style.background = 'var(--accent-dim)';
+    btn.style.borderColor = 'var(--accent)';
+    btn.style.fontWeight = '700';
   }
-
-  btn.disabled = false;
-  btn.textContent = '📤 อัพโหลด';
-  result.style.display = 'block';
-  if (uploaded > 0 && failed === 0) {
-    result.className = 'result success';
-    result.innerHTML = '✅ อัพโหลดสำเร็จ '+uploaded+' ไฟล์<br><small>เอกสารถูกบันทึกเข้าระบบแล้ว</small>';
-    selectedFiles = [];
-    document.getElementById('preview').innerHTML = '';
-    document.getElementById('fileInput').value = '';
-    document.getElementById('uploadBtn').disabled = true;
-  } else {
-    result.className = 'result error';
-    result.innerHTML = '❌ สำเร็จ '+uploaded+' ไฟล์ / ล้มเหลว '+failed+' ไฟล์';
+  // render ทันทีด้วย empty permissions ก่อน (ไม่รอ API)
+  _curPerms = new Set();
+  renderPermissions();
+  // โหลด permissions จาก server ใน background
+  try {
+    const token = localStorage.getItem('es_token') || '';
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const resp = await fetch('/api/permissions/' + roleName, {
+      headers: { 'Authorization': 'Bearer ' + token },
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    if (resp.ok) {
+      const data = await resp.json();
+      const perms = Array.isArray(data) ? data : [];
+      // รองรับทั้ง [{permission:'...'}, ...] และ ['...', ...]
+      _curPerms = new Set(perms.map(p => typeof p === 'string' ? p : (p.permission || '')));
+      renderPermissions(); // re-render พร้อม ticks
+    }
+  } catch(e) {
+    console.warn('permissions fetch:', e.message);
+    // ไม่ต้อง render อีก เพราะ render แล้วตอนต้น
   }
 }
+
+
+
+
+// ============================================================
+// PRODUCT DETAIL PAGE
+// ============================================================
+let _curProdId = null;
+let _curProdData = null;
+
+async function openProductDetail(productId) {
+  _curProdId = productId;
+  showPage('product-detail');
+  // reset branch filter
+  const bf = document.getElementById('pdBranchFilter');
+  if (bf) { while (bf.options.length > 1) bf.remove(1); bf.value = ''; }
+  try {
+    await loadProductDetail();
+  } catch(e) {
+    toast('โหลดรายละเอียดสินค้าไม่ได้: '+e.message, 'error');
+    console.error('openProductDetail error:', e);
+  }
+}
+
+async function loadProductDetail() {
+  if (!_curProdId) return;
+  try {
+    const data = await api.get('/products/'+_curProdId);
+    _curProdData = data;
+
+    // Title
+    document.getElementById('pdTitle').textContent = (data.code||'') + ' ' + data.name;
+
+    // Cards
+    const totalStock = data.stocks.reduce((s,st)=>s+parseInt(st.qty_unit||0),0);
+    document.getElementById('pdTotalStock').textContent = fmt.n(totalStock) + ' ฟอง';
+    document.getElementById('pdCategory').textContent = data.category_name || '-';
+
+    // หาราคาปลีก/ฟอง
+    const retailPrice = data.prices.find(p=>p.customer_type==='retail' && parseInt(p.qty)===1);
+    const restPrice = data.prices.find(p=>p.customer_type==='restaurant' && parseInt(p.qty)===1);
+    document.getElementById('pdSalePrice').textContent =
+      (retailPrice ? '฿'+parseFloat(retailPrice.price).toFixed(2) : '-') +
+      (restPrice ? ' / ฿'+parseFloat(restPrice.price).toFixed(2)+' (ร้านข้าว)' : '');
+    document.getElementById('pdCostPrice').textContent = data.cost_price ? '฿'+parseFloat(data.cost_price).toFixed(2) : '-';
+
+    // Info table
+    document.getElementById('pdInfoTable').innerHTML = [
+      ['รหัสสินค้า', data.code||'-'],
+      ['ชื่อสินค้า', data.name],
+      ['กลุ่มสินค้า', data.category_name||'-'],
+      ['หน่วย', data.unit||'-'],
+      ['เป็นไข่', data.is_egg?'✅ ใช่':'❌ ไม่ใช่'],
+      ['นับสต๊อก', data.track_stock?'✅ ใช่':'❌ ไม่'],
+      ['บาร์โค้ด', data.barcode||'-'],
+    ].map(([k,v])=>`<tr>
+      <td style="color:var(--text-muted);font-size:12px;padding:5px 0;width:40%">${k}</td>
+      <td style="font-weight:600;font-size:13px;padding:5px 0">${v}</td>
+    </tr>`).join('');
+
+    // สต๊อกแยกสาขา
+    const branchFilter = document.getElementById('pdBranchFilter');
+    const curBranch = branchFilter.value;
+    if (data.stocks.length && branchFilter.options.length <= 1) {
+      data.stocks.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.branch_id; opt.textContent = s.branch_name;
+        branchFilter.appendChild(opt);
+      });
+      if (curBranch) branchFilter.value = curBranch;
+    }
+
+    document.getElementById('pdStockTable').innerHTML = data.stocks.length
+      ? data.stocks.map(s => {
+          const qty = parseInt(s.qty_unit||0);
+          return `<tr>
+            <td><strong>${s.branch_name}</strong> <span style="font-size:11px;color:var(--text-muted)">${s.branch_code}</span></td>
+            <td style="text-align:right;font-weight:700">${fmt.n(qty)}</td>
+            <td style="text-align:right;color:var(--text-muted)">${Math.floor(qty/30)}</td>
+            <td style="text-align:right;color:var(--text-muted)">${Math.floor(qty/300)}</td>
+          </tr>`;
+        }).join('') +
+        `<tr style="background:var(--accent-dim);font-weight:700;border-top:2px solid var(--accent)">
+          <td>รวมทั้งหมด</td>
+          <td style="text-align:right;color:var(--accent)">${fmt.n(totalStock)}</td>
+          <td style="text-align:right">${Math.floor(totalStock/30)}</td>
+          <td style="text-align:right">${Math.floor(totalStock/300)}</td>
+        </tr>`
+      : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">ยังไม่มีสต๊อก</td></tr>';
+
+    // ตาราง ราคา
+    renderPriceTable(data.prices);
+
+    // โหลด movements
+    loadProductMovements();
+  } catch(e) {
+    toast(e.message,'error');
+    console.error('loadProductDetail:', e);
+    const info = document.getElementById('pdInfoTable');
+    if (info) info.innerHTML = '<tr><td colspan="2" style="color:var(--error)">โหลดไม่ได้: '+e.message+'</td></tr>';
+  }
+}
+
+function renderPriceTable(prices) {
+  const typeLabel = {retail:'ปลีก', restaurant:'ร้านข้าว', wholesale:'ส่ง'};
+  const grouped = {};
+  prices.forEach(p => {
+    const key = (p.branch_code||'') + '_' + p.customer_type;
+    if (!grouped[key]) grouped[key] = { branch_name: p.branch_name, branch_code: p.branch_code, customer_type: p.customer_type, branch_id: p.branch_id, items: [] };
+    grouped[key].items.push(p);
+  });
+
+  const rows = Object.values(grouped).flatMap(g =>
+    g.items.map((p, i) => `<tr>
+      ${i===0 ? `<td rowspan="${g.items.length}" style="font-weight:600">${g.branch_name||'ทุกสาขา'}</td>
+        <td rowspan="${g.items.length}"><span class="badge ${p.customer_type==='retail'?'bi':p.customer_type==='restaurant'?'bw':'bs'}">${typeLabel[p.customer_type]||p.customer_type}</span></td>` : ''}
+      <td style="text-align:right">${fmt.n(p.qty)} ฟอง</td>
+      <td style="text-align:right;font-weight:700;color:var(--accent)">฿${parseFloat(p.price).toFixed(2)}</td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick="editPriceRow(${p.id},${p.branch_id},'${p.customer_type}',${p.qty},${p.price})">แก้</button>
+        <button class="btn btn-danger btn-sm" onclick="delPrice(${p.id})">ลบ</button>
+      </td>
+    </tr>`)
+  );
+
+  document.getElementById('pdPriceTable').innerHTML = rows.length
+    ? rows.join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">ยังไม่มีราคา — กด "+ เพิ่มราคา"</td></tr>';
+}
+
+async function loadProductMovements() {
+  if (!_curProdId) return;
+  const branchId = document.getElementById('pdBranchFilter')?.value||'';
+  try {
+    const data = await api.get('/stock/movements/product/'+_curProdId+(branchId?'?branch_id='+branchId:''));
+    const typeMap = {
+      'in':'🟢 รับเข้า','out':'🔴 ออก','sale':'🔴 ขาย','receive':'🟢 รับสินค้า',
+      'transfer_out':'🔵 โอนออก','transfer_in':'🟢 โอนเข้า',
+      'adjust_in':'🟡 ปรับเพิ่ม','adjust_out':'🟡 ปรับลด',
+    };
+    let running = 0;
+    const rows = data.map(m => {
+      const qty = parseInt(m.qty_unit||m.qty_change||0);
+      const isIn = ['in','receive','transfer_in','adjust_in'].includes(m.movement_type);
+      return {m, qty, isIn};
+    });
+    // คำนวณ running balance จากท้าย
+    let balance = _curProdData?.stocks?.find(s=>!document.getElementById('pdBranchFilter')?.value || s.branch_id==document.getElementById('pdBranchFilter')?.value)?.qty_unit
+      || _curProdData?.stocks?.reduce((s,st)=>s+parseInt(st.qty_unit||0),0) || 0;
+
+    document.getElementById('pdMovTable').innerHTML = rows.length
+      ? rows.map(({m,qty,isIn}, idx) => {
+          const dispBal = balance;
+          if (!isIn) balance += qty; else balance -= qty;
+          return `<tr>
+            <td style="font-size:12px">${fmt.d(m.created_at)}</td>
+            <td>${typeMap[m.movement_type]||m.movement_type}</td>
+            <td style="font-size:11px">${m.branch_name||m.branch_code||'-'}</td>
+            <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent)">${m.ref_doc||m.doc_no||'-'}</td>
+            <td style="font-size:12px;color:var(--text-muted)">${m.note||m.created_by_name||'-'}</td>
+            <td style="text-align:right;font-weight:700;color:${isIn?'var(--success)':'var(--error)'}">
+              ${isIn?'+':'-'}${fmt.n(qty)}
+            </td>
+            <td style="text-align:right;color:var(--text-muted)">${fmt.n(dispBal)}</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ยังไม่มีการเคลื่อนไหว</td></tr>';
+  } catch(e) {}
+}
+
+// ============================================================
+// ปรับยอดคงคลัง
+// ============================================================
+function showAdjustModal() {
+  if (!_curProdData) return;
+  const stocks = _curProdData.stocks;
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:460px">
+    <div class="mh"><div class="mt">📦 ปรับยอดคงคลัง — ${_curProdData.name}</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:10px">
+      <div>
+        <label class="lbl">สาขา *</label>
+        <select class="ctrl" id="adjBranch" style="margin-top:4px" onchange="updateAdjCurrent()">
+          ${branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="lbl">รายการปรับปรุง</label>
+        <select class="ctrl" id="adjType" style="margin-top:4px" onchange="updateAdjReasons()">
+          <option value="add">ปรับเพิ่ม</option>
+          <option value="sub">ปรับลด</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl">สาเหตุ</label>
+        <select class="ctrl" id="adjReason" style="margin-top:4px">
+          <option value="">-- กรุณาเลือก --</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <label class="lbl">จำนวนคงเหลือ</label>
+          <div id="adjCurrent" style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text-muted)">-</div>
+        </div>
+        <div>
+          <label class="lbl">จำนวนปรับ *</label>
+          <input type="number" class="ctrl" id="adjQty" min="1" style="margin-top:4px" oninput="updateAdjAfter()">
+        </div>
+      </div>
+      <div>
+        <label class="lbl">จำนวนหลังปรับ</label>
+        <div id="adjAfter" style="font-size:18px;font-weight:700;margin-top:6px">-</div>
+      </div>
+      <div>
+        <label class="lbl">หมายเหตุ</label>
+        <textarea class="ctrl" id="adjNote" rows="2" style="margin-top:4px"></textarea>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="doAdjust()" style="width:100%;margin-top:14px">✅ ปรับยอดคงคลัง</button>
+  </div></div>`;
+  updateAdjCurrent();
+  updateAdjReasons();
+}
+
+function updateAdjCurrent() {
+  const branchId = parseInt(document.getElementById('adjBranch')?.value);
+  const s = _curProdData?.stocks?.find(s=>s.branch_id===branchId);
+  const qty = parseInt(s?.qty_unit||0);
+  const el = document.getElementById('adjCurrent');
+  if (el) el.textContent = fmt.n(qty) + ' ฟอง';
+  updateAdjAfter();
+}
+
+function updateAdjReasons() {
+  const type = document.getElementById('adjType')?.value;
+  const reasons = type === 'add'
+    ? ['รับโอนสินค้าสำเร็จ', 'ปรับจำนวนสินค้าจากการนับสินค้า', 'อื่นๆ']
+    : ['ตัดวัตถุดิบใช้ไป', 'ปรับจำนวนสินค้าจากการนับสินค้า', 'สินค้าสูญหาย', 'ทำลายสินค้า', 'สินค้าชำรุด/เสื่อมสภาพ', 'ภัยพิบัติ/อัคคีภัย', 'อื่นๆ'];
+  const sel = document.getElementById('adjReason');
+  if (sel) sel.innerHTML = '<option value="">-- กรุณาเลือก --</option>' + reasons.map(r=>`<option>${r}</option>`).join('');
+  updateAdjAfter();
+}
+
+function updateAdjAfter() {
+  const branchId = parseInt(document.getElementById('adjBranch')?.value);
+  const type = document.getElementById('adjType')?.value;
+  const qty = parseInt(document.getElementById('adjQty')?.value||0);
+  const s = _curProdData?.stocks?.find(s=>s.branch_id===branchId);
+  const current = parseInt(s?.qty_unit||0);
+  const after = type === 'add' ? current + qty : current - qty;
+  const el = document.getElementById('adjAfter');
+  if (el) {
+    el.textContent = fmt.n(after) + ' ฟอง';
+    el.style.color = after < 0 ? 'var(--error)' : after === current ? 'var(--text-muted)' : 'var(--success)';
+  }
+}
+
+async function doAdjust() {
+  const branch_id = document.getElementById('adjBranch')?.value;
+  const adjust_type = document.getElementById('adjType')?.value;
+  const qty = parseInt(document.getElementById('adjQty')?.value||0);
+  const reason = document.getElementById('adjReason')?.value;
+  const note = document.getElementById('adjNote')?.value;
+  if (!branch_id || !qty || qty <= 0) { toast('กรุณากรอกข้อมูลให้ครบ','error'); return; }
+  if (!reason) { toast('กรุณาเลือกสาเหตุ','error'); return; }
+  try {
+    const res = await api.post('/stock/adjust', { product_id: _curProdId, branch_id: parseInt(branch_id), adjust_type, qty, reason, note });
+    toast(`✅ ${res.message} (${fmt.n(res.before)} → ${fmt.n(res.after)})`, 'success');
+    CM();
+    await loadProductDetail();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// แก้ไขราคา SKU
+// ============================================================
+function showAddPriceRow() {
+  editPriceRow(null, null, 'retail', 1, '');
+}
+
+function editPriceRow(priceId, branchId, custType, qty, price) {
+  const typeLabel = {retail:'ปลีก', restaurant:'ร้านข้าว', wholesale:'ส่ง'};
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:400px">
+    <div class="mh"><div class="mt">${priceId?'แก้ไขราคา':'เพิ่มราคาใหม่'}</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:10px">
+      <div>
+        <label class="lbl">สาขา</label>
+        <select class="ctrl" id="epBranch" style="margin-top:4px">
+          <option value="">ทุกสาขา (default)</option>
+          ${branches.map(b=>`<option value="${b.id}" ${b.id==branchId?'selected':''}>${b.name}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="lbl">ระดับลูกค้า</label>
+        <select class="ctrl" id="epType" style="margin-top:4px">
+          ${['retail','restaurant','wholesale'].map(t=>`<option value="${t}" ${t===custType?'selected':''}>${typeLabel[t]}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="lbl">จำนวน (ฟอง) เช่น 1=ราคาต่อฟอง, 30=ราคาต่อแผง</label>
+        <input type="number" class="ctrl" id="epQty" value="${qty||1}" min="1" style="margin-top:4px">
+      </div>
+      <div>
+        <label class="lbl">ราคา (บาท)</label>
+        <input type="number" class="ctrl" id="epPrice" value="${price||''}" min="0" step="0.01" style="margin-top:4px">
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="savePriceRow(${priceId||'null'})" style="width:100%;margin-top:14px">💾 บันทึกราคา</button>
+  </div></div>`;
+}
+
+async function savePriceRow(priceId) {
+  const branch_id = document.getElementById('epBranch')?.value || null;
+  const customer_type = document.getElementById('epType')?.value;
+  const qty = parseInt(document.getElementById('epQty')?.value||1);
+  const price = parseFloat(document.getElementById('epPrice')?.value);
+  if (!customer_type || !qty || isNaN(price)) { toast('กรุณากรอกข้อมูลให้ครบ','error'); return; }
+  try {
+    await api.put('/products/'+_curProdId+'/prices', {
+      prices: [{ id: priceId, branch_id: branch_id?parseInt(branch_id):null, customer_type, qty, price }]
+    });
+    toast('บันทึกราคาเรียบร้อย','success');
+    CM();
+    const data = await api.get('/products/'+_curProdId);
+    _curProdData = data;
+    renderPriceTable(data.prices);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function delPrice(priceId) {
+  if (!confirm('ลบราคานี้?')) return;
+  try {
+    await api.del('/products/'+_curProdId+'/prices/'+priceId);
+    toast('ลบราคาเรียบร้อย','success');
+    const data = await api.get('/products/'+_curProdId);
+    _curProdData = data;
+    renderPriceTable(data.prices);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function showPriceEditorModal() {
+  if (!_curProdData) return;
+  showAddPriceRow();
+}
+
+
+async function loadCompanySettings() {
+  try {
+    const data = await api.get('/company').catch(()=>null);
+    if (!data) return;
+    if (document.getElementById('coName')) document.getElementById('coName').value = data.name||'';
+    if (document.getElementById('coTax')) document.getElementById('coTax').value = data.tax_id||'';
+    if (document.getElementById('coAddr')) document.getElementById('coAddr').value = data.address||'';
+    if (document.getElementById('coPhone')) document.getElementById('coPhone').value = data.phone||'';
+  } catch(e) { console.error('loadCompanySettings:', e); }
+}
+
+
+// ============================================================
+// STUB FUNCTIONS — หน้าที่ยังไม่ได้พัฒนา
+// ============================================================
+async function loadEmployees() {
+  try {
+    const data = await api.get('/employees').catch(()=>[]);
+    const el = document.getElementById('empT');
+    if (!el) return;
+    el.innerHTML = data.length
+      ? data.map(e=>`<tr>
+          <td><strong>${e.full_name||e.name||'-'}</strong></td>
+          <td>${e.position||'-'}</td>
+          <td>${e.branch_name||'-'}</td>
+          <td>${e.phone||'-'}</td>
+          <td><span class="badge ${e.active?'bs':'bg'}">${e.active?'ใช้งาน':'ปิด'}</span></td>
+          <td><button class="btn btn-secondary btn-sm" onclick='showEmployeeModal(${JSON.stringify(e).replace(/'/g,"&#39;")})'>แก้ไข</button></td>
+        </tr>`).join('')
+      : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ยังไม่มีพนักงาน</td></tr>';
+  } catch(e) { console.error('loadEmployees:', e); }
+}
+
+async function saveCompanySettings() {
+  try {
+    const body = {
+      name: document.getElementById('coName')?.value||'',
+      tax_id: document.getElementById('coTax')?.value||'',
+      address: document.getElementById('coAddr')?.value||'',
+      phone: document.getElementById('coPhone')?.value||'',
+    };
+    await api.post('/company', body);
+    toast('บันทึกข้อมูลบริษัทเรียบร้อย','success');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showCreateBranchModal() {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:400px">
+    <div class="mh"><div class="mt">🏪 เพิ่มสาขาใหม่</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:10px">
+      <div><label class="lbl">รหัสสาขา *</label><input type="text" class="ctrl" id="brCode" style="margin-top:4px" placeholder="เช่น TB, OM"></div>
+      <div><label class="lbl">ชื่อสาขา *</label><input type="text" class="ctrl" id="brName" style="margin-top:4px"></div>
+      <div><label class="lbl">ที่อยู่</label><input type="text" class="ctrl" id="brAddr" style="margin-top:4px"></div>
+    </div>
+    <button class="btn btn-primary" onclick="saveNewBranch()" style="width:100%;margin-top:14px">+ เพิ่มสาขา</button>
+  </div></div>`;
+}
+
+async function saveNewBranch() {
+  const code = document.getElementById('brCode')?.value?.trim();
+  const name = document.getElementById('brName')?.value?.trim();
+  if (!code || !name) { toast('กรุณากรอกรหัสและชื่อสาขา','error'); return; }
+  try {
+    await api.post('/branches', { code, name, address: document.getElementById('brAddr')?.value||'' });
+    toast('เพิ่มสาขาเรียบร้อย','success');
+    CM();
+    const data = await api.get('/branches');
+    branches = data;
+    populateBranchSelects();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function loadPromos() {
+  const el = document.getElementById('promoT');
+  if (el) el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">ยังไม่ได้พัฒนาโมดูลโปรโมชัน</td></tr>';
+}
+
+function loadDebtNotes() {
+  const el = document.getElementById('debtT');
+  if (el) el.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ยังไม่ได้พัฒนาโมดูลใบหนี้</td></tr>';
+}
+
+function loadExpenseDocs() {
+  const el = document.getElementById('expDocT');
+  if (el) el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">ยังไม่ได้พัฒนาโมดูลเอกสารค่าใช้จ่าย</td></tr>';
+}
+
+function loadPayroll() {
+  const el = document.getElementById('payrollT');
+  if (el) el.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ยังไม่ได้พัฒนาโมดูลเงินเดือน</td></tr>';
+}
+
 </script>
 </body>
-</html>`);
-});
-
-// ============================================================
-// DAILY CLOSE API
-// ============================================================
-app.get('/api/daily-close/prepare', auth, async (req, res) => {
-  // ดึงข้อมูลสำหรับเตรียมปิดยอดวันนี้
-  const { branch_id, date } = req.query;
-  const closeDate = date || new Date().toISOString().slice(0,10);
-  const bid = parseInt(branch_id) || req.user.branch_id;
-  if (!bid) return res.status(400).json({ error: 'กรุณาระบุสาขา' });
-
-  try {
-    // 1. ยอดขายวันนี้ แยกช่องทาง
-    const salesR = await pool.query(`
-      SELECT
-        COALESCE(SUM(CASE WHEN pm->>'method'='cash' THEN (pm->>'amount')::numeric ELSE 0 END),0) AS cash_total,
-        COALESCE(SUM(CASE WHEN pm->>'method'='transfer' THEN (pm->>'amount')::numeric ELSE 0 END),0) AS transfer_total,
-        COALESCE(SUM(CASE WHEN pm->>'method' NOT IN ('cash','transfer','credit') THEN (pm->>'amount')::numeric ELSE 0 END),0) AS other_total,
-        COUNT(s.id) AS bill_count,
-        COALESCE(SUM(s.total),0) AS total_sales
-      FROM sales s
-      LEFT JOIN LATERAL jsonb_array_elements(COALESCE(s.payment_methods,'[]'::jsonb)) AS pm ON true
-      WHERE s.branch_id=$1 AND s.sale_date=$2 AND s.status='completed'
-    `, [bid, closeDate]);
-
-    // 2. สต๊อกไข่ปัจจุบัน
-    const stockR = await pool.query(`
-      SELECT p.code, p.name, p.is_egg,
-        COALESCE(s.qty_unit,0) AS qty_current,
-        pc.name AS category_name
-      FROM products p
-      LEFT JOIN stock s ON s.product_id=p.id AND s.branch_id=$1
-      LEFT JOIN product_categories pc ON p.category_id=pc.id
-      WHERE p.active=true AND p.is_egg=true
-      ORDER BY p.code
-    `, [bid]);
-
-    // 3. ยอดขายไข่แต่ละเบอร์วันนี้
-    const eggSalesR = await pool.query(`
-      SELECT p.code, p.name, COALESCE(SUM(si.qty_unit),0) AS sold_qty
-      FROM sale_items si
-      JOIN products p ON si.product_id=p.id
-      JOIN sales s ON si.sale_id=s.id
-      WHERE s.branch_id=$1 AND s.sale_date=$2 AND s.status='completed' AND p.is_egg=true
-      GROUP BY p.id, p.code, p.name ORDER BY p.code
-    `, [bid, closeDate]);
-
-    // 4. รับเข้าวันนี้
-    const receiveR = await pool.query(`
-      SELECT p.code, COALESCE(SUM(sri.qty_unit),0) AS received_qty
-      FROM stock_receipt_items sri
-      JOIN products p ON sri.product_id=p.id
-      JOIN stock_receipts sr ON sri.receipt_id=sr.id
-      WHERE sr.branch_id=$1 AND DATE(sr.created_at)=$2 AND sr.status='approved'
-      GROUP BY p.id, p.code
-    `, [bid, closeDate]);
-
-    // 5. กะปัจจุบัน (opening cash)
-    const shiftR = await pool.query(`
-      SELECT * FROM shifts WHERE branch_id=$1 AND (
-        (status='open') OR (status='closed' AND DATE(close_time)=$2)
-      ) ORDER BY open_time DESC LIMIT 1
-    `, [bid, closeDate]);
-
-    const sales = salesR.rows[0];
-    const eggSalesMap = {};
-    eggSalesR.rows.forEach(r => eggSalesMap[r.code] = parseInt(r.sold_qty)||0);
-    const receiveMap = {};
-    receiveR.rows.forEach(r => receiveMap[r.code] = parseInt(r.received_qty)||0);
-
-    // รวม egg data
-    const eggItems = stockR.rows.map(p => ({
-      code: p.code,
-      name: p.name,
-      qty_current: parseInt(p.qty_current)||0,
-      sold_today: eggSalesMap[p.code]||0,
-      received_today: receiveMap[p.code]||0,
-      // qty_open = qty_current + sold - received (ย้อนกลับ)
-      qty_open: (parseInt(p.qty_current)||0) + (eggSalesMap[p.code]||0) - (receiveMap[p.code]||0),
-    }));
-
-    res.json({
-      date: closeDate,
-      branch_id: bid,
-      sales: {
-        bill_count: parseInt(sales.bill_count)||0,
-        cash: parseFloat(sales.cash_total)||0,
-        transfer: parseFloat(sales.transfer_total)||0,
-        other: parseFloat(sales.other_total)||0,
-        total: parseFloat(sales.total_sales)||0,
-      },
-      opening_cash: shiftR.rows[0] ? parseFloat(shiftR.rows[0].opening_cash)||0 : 0,
-      egg_items: eggItems,
-    });
-  } catch(e) { console.error(e); res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/daily-close', auth, async (req, res) => {
-  const { branch_id, close_date, cash_system, cash_actual, transfer_system, transfer_actual, other_income, items, note, egg_variance, egg_variance_value } = req.body;
-  const cash_diff = parseFloat(cash_actual||0) - parseFloat(cash_system||0);
-  const transfer_diff = parseFloat(transfer_actual||0) - parseFloat(transfer_system||0);
-  const total_system = parseFloat(cash_system||0) + parseFloat(transfer_system||0) + parseFloat(other_income||0);
-  const total_actual = parseFloat(cash_actual||0) + parseFloat(transfer_actual||0) + parseFloat(other_income||0);
-  try {
-    await pool.query(`INSERT INTO daily_closes
-      (branch_id,close_date,cash_system,cash_actual,cash_diff,transfer_system,transfer_actual,transfer_diff,other_income,total_system,total_actual,total_diff,egg_variance,egg_variance_value,items,note,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-      ON CONFLICT (branch_id,close_date) DO UPDATE SET
-        cash_system=$3,cash_actual=$4,cash_diff=$5,transfer_system=$6,transfer_actual=$7,transfer_diff=$8,
-        other_income=$9,total_system=$10,total_actual=$11,total_diff=$12,egg_variance=$13,
-        egg_variance_value=$14,items=$15,note=$16,created_by=$17`,
-      [branch_id, close_date, cash_system||0, cash_actual||0, cash_diff,
-       transfer_system||0, transfer_actual||0, transfer_diff,
-       other_income||0, total_system, total_actual, total_actual-total_system,
-       egg_variance||0, egg_variance_value||0,
-       JSON.stringify(items||[]), note||null, req.user.id]);
-    res.json({ message: 'บันทึกปิดยอดเรียบร้อย' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/api/daily-close/history', auth, async (req, res) => {
-  const { branch_id } = req.query;
-  let q = `SELECT dc.*,b.code AS branch_code,u.full_name AS created_by_name
-    FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id
-    LEFT JOIN users u ON dc.created_by=u.id WHERE 1=1`;
-  const params = [];
-  if (branch_id) { params.push(branch_id); q += ` AND dc.branch_id=$${params.length}`; }
-  q += ' ORDER BY dc.close_date DESC LIMIT 30';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
-});
-
-// ============================================================
-// COMPANY SETTINGS API
-// ============================================================
-app.get('/api/company-settings', auth, async (req, res) => {
-  const r = await pool.query('SELECT * FROM company_settings LIMIT 1');
-  res.json(r.rows[0] || {});
-});
-
-app.put('/api/company-settings', auth, role('owner','admin'), async (req, res) => {
-  const { company_name, company_name_en, tax_id, address, phone, email, website, bank_name, bank_account, bank_account_name, invoice_note } = req.body;
-  await pool.query(`UPDATE company_settings SET company_name=$1,company_name_en=$2,tax_id=$3,address=$4,phone=$5,email=$6,website=$7,bank_name=$8,bank_account=$9,bank_account_name=$10,invoice_note=$11,updated_at=NOW()`,
-    [company_name, company_name_en, tax_id, address, phone, email, website, bank_name, bank_account, bank_account_name, invoice_note]);
-  res.json({ message: 'บันทึกเรียบร้อย' });
-});
-
-app.post('/api/company-settings/logo', auth, role('owner','admin'), upload.single('logo'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์' });
-  await pool.query('UPDATE company_settings SET logo_url=$1', ['/uploads/'+req.file.filename]);
-  res.json({ message: 'อัพโหลดโลโก้เรียบร้อย', url: '/uploads/'+req.file.filename });
-});
-
-// REPORTS
-app.get('/api/reports/sales-by-product', auth, async (req, res) => {
-  const { date, branch_id } = req.query;
-  const d = date || new Date().toISOString().slice(0,10);
-  let q = `SELECT p.name AS product_name, p.code,
-    COALESCE(SUM(si.qty_unit),0) AS qty_sold,
-    COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue
-    FROM sale_items si
-    JOIN products p ON si.product_id=p.id
-    JOIN sales s ON si.sale_id=s.id
-    WHERE s.sale_date=$1 AND s.status='completed'`;
-  const params = [d];
-  if (branch_id) { params.push(branch_id); q += ` AND s.branch_id=$${params.length}`; }
-  q += ' GROUP BY p.id, p.name, p.code ORDER BY qty_sold DESC';
-  const r = await pool.query(q, params);
-  res.json({ items: r.rows });
-});
-
-app.get('/api/reports/daily', auth, async (req, res) => {
-  const { date, branch_id } = req.query;
-  const targetDate = date || new Date().toISOString().slice(0,10);
-  let branchFilter = ''; const params = [targetDate];
-  if (branch_id) { params.push(branch_id); branchFilter = ` AND s.branch_id=$${params.length}`; }
-  const r = await pool.query(`SELECT b.code AS branch_code,b.name AS branch_name,COUNT(s.id) AS total_bills,SUM(s.total) AS total_revenue,SUM(s.discount) AS total_discount FROM sales s JOIN branches b ON s.branch_id=b.id WHERE s.sale_date=$1 AND s.status='completed'${branchFilter} GROUP BY b.id,b.code,b.name ORDER BY b.code`, params);
-  res.json({ date: targetDate, branches: r.rows });
-});
-
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-
-// ============================================================
-// PERMISSIONS API
-// ============================================================
-app.get('/api/permissions/:role', auth, async (req, res) => {
-  try {
-    const r = await pool.query("SELECT * FROM role_permissions WHERE role_name=$1 AND granted=true", [req.params.role]);
-    res.json(r.rows);
-  } catch(e) { res.json([]); }
-});
-
-app.put('/api/permissions/:role', auth, async (req, res) => {
-  const { permissions } = req.body; // array of permission strings
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('DELETE FROM role_permissions WHERE role_name=$1', [req.params.role]);
-    for (const perm of (permissions||[])) {
-      await client.query('INSERT INTO role_permissions (role_name,permission) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.role, perm]);
-    }
-    await client.query('COMMIT');
-    res.json({ message: 'บันทึกสิทธิ์เรียบร้อย' });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
-});
-
-
-// IMPORT PRICES FROM CSV/JSON
-
-
-// EXPORT PRICES TO CSV
-app.get('/api/products/export-prices', auth, async (req, res) => {
-  const r = await pool.query(`
-    SELECT p.code, b.code AS branch_code, pp.customer_type, pp.qty, pp.price
-    FROM product_prices pp
-    JOIN products p ON pp.product_id=p.id
-    JOIN branches b ON pp.branch_id=b.id
-    ORDER BY p.code, b.code, pp.customer_type, pp.qty
-  `);
-  const csv = ['code,branch_code,customer_type,qty,price',
-    ...r.rows.map(r=>`${r.code},${r.branch_code},${r.customer_type},${r.qty},${r.price}`)
-  ].join('\n');
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="prices.csv"');
-  res.send('\uFEFF'+csv); // BOM สำหรับ Excel
-});
-
-
-// ============================================================
-// DAILY CLOSE API
-// ============================================================
-app.get('/api/daily-close', auth, async (req, res) => {
-  const { date, branch_id } = req.query;
-  if (!date || !branch_id) return res.status(400).json({ error: 'กรุณาระบุ date และ branch_id' });
-  const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.date=$1 AND dc.branch_id=$2',
-    [date, branch_id]);
-  if (!r.rows.length) return res.status(404).json({ error: 'ยังไม่มีข้อมูล' });
-  res.json(r.rows[0]);
-});
-
-
-
-
-
-
-
-
-// ============================================================
-// MEMBER TIERS API
-// ============================================================
-app.get('/api/member-tiers', auth, async (req, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM member_tiers WHERE active=true ORDER BY sort_order, id');
-    res.json(r.rows);
-  } catch(e) { res.json([]); }
-});
-
-app.post('/api/member-tiers', auth, role('owner','admin'), async (req, res) => {
-  const { name, description, customer_type, discount_percent, discount_amount, min_eggs_required, sort_order } = req.body;
-  if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อระดับสมาชิก' });
-  const r = await pool.query(
-    'INSERT INTO member_tiers (name,description,customer_type,discount_percent,discount_amount,min_eggs_required,sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-    [name, description||null, customer_type||'retail', discount_percent||0, discount_amount||0, min_eggs_required||0, sort_order||0]
-  );
-  res.status(201).json(r.rows[0]);
-});
-
-app.put('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res) => {
-  const { name, description, customer_type, discount_percent, discount_amount, min_eggs_required, sort_order, active } = req.body;
-  await pool.query(
-    'UPDATE member_tiers SET name=$1,description=$2,customer_type=$3,discount_percent=$4,discount_amount=$5,min_eggs_required=$6,sort_order=$7,active=$8 WHERE id=$9',
-    [name, description, customer_type||'retail', discount_percent||0, discount_amount||0, min_eggs_required||0, sort_order||0, active!==false, req.params.id]
-  );
-  res.json({ message: 'อัพเดทเรียบร้อย' });
-});
-
-app.delete('/api/member-tiers/:id', auth, role('owner','admin'), async (req, res) => {
-  await pool.query('UPDATE member_tiers SET active=false WHERE id=$1', [req.params.id]);
-  res.json({ message: 'ลบเรียบร้อย' });
-});
-
-
-// ============================================================
-// MEMBER POINTS / LOYALTY
-// ============================================================
-// ดูยอดสะสม
-
-
-// ใช้คะแนน (redeem)
-
-
-// เพิ่มฟองหลังขาย (เรียกจาก completeSale)
-
-
-// ดึงราคาตาม tier ของสมาชิก
-
-
-
-// ============================================================
-// PRODUCT DETAIL APIs
-// ============================================================
-
-
-// ปรับยอดคงคลัง
-
-
-// ประวัติการเคลื่อนไหวสต๊อกแยกสินค้า
-
-
-// แก้ราคาสินค้าแต่ละ SKU (upsert)
-
-
-// ลบราคา SKU
-
-
-
-initSchema().then(() => {
-  const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.error(`Port ${PORT} already in use, retrying in 1s...`);
-      setTimeout(() => server.listen(PORT), 1000);
-    } else {
-      throw err;
-    }
-  });
-});
-
-
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use((req, res, next) => {
-  if (req.path === '/' || req.path.endsWith('.html')) {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-  }
-  next();
-});
-app.use((req, res, next) => {
-  if (req.path === '/' || req.path.endsWith('.html')) {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-  }
-  next();
-});
-app.use(express.static(__dirname));
-
-
-function auth(req, res, next) {
-  const token = (req.headers['authorization'] || '').split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบ' });
-  try { req.user = jwt.verify(token, process.env.JWT_SECRET); next(); }
-  catch { res.status(401).json({ error: 'Token หมดอายุ' }); }
-}
-function role(...roles) { return (req, res, next) => { if (!roles.includes(req.user.role)) return res.status(403).json({ error: 'ไม่มีสิทธิ์' }); next(); }; }
-
-// ============================================================
-// DOC NUMBER GENERATOR
-// ============================================================
-// SALES BY PRODUCT REPORT
-// ============================================================
-
-
-// ============================================================
-// STOCK RECEIPTS - รับสินค้า (Pre + Approved)
-// ============================================================
-app.post('/api/stock/receipts', auth, async (req, res) => {
-  const { branch_id, receipt_date, supplier_name, items, note, status } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
-    const bCode = branchR.rows[0]?.code||'';
-    const isApproved = status === 'approved' && ['owner','admin'].includes(req.user.role);
-    const docNo = isApproved
-      ? await genDocNo('stock_receipt', bCode)
-      : 'PRE-'+bCode+'-'+new Date().toISOString().slice(2,7).replace('-','')+'-'+String(Date.now()).slice(-4);
-    
-    const recv = await client.query(
-      `INSERT INTO stock_receipts (doc_no,branch_id,receipt_date,supplier_name,status,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [docNo, branch_id, receipt_date||new Date().toISOString().slice(0,10), supplier_name||null, isApproved?'approved':'pre', note||null, req.user.id]
-    );
-    const recvId = recv.rows[0].id;
-
-    for (const item of (items||[])) {
-      await client.query('INSERT INTO stock_receipt_items (receipt_id,product_id,qty_unit,unit_cost) VALUES ($1,$2,$3,$4)',
-        [recvId, item.product_id, item.qty_unit, item.unit_cost||null]);
-      if (isApproved) {
-        const _ex = await client.query('SELECT id FROM stock WHERE product_id=$1 AND branch_id=$2', [item.product_id, branch_id]);
-        if (_ex.rows.length) {
-          await client.query('UPDATE stock SET qty_unit=qty_unit+$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [item.qty_unit, item.product_id, branch_id]);
-        } else {
-          await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [item.product_id, branch_id, item.qty_unit]);
-        }
-        await client.query(
-          'INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note) VALUES ($1,$2,$3,$4,$5,$6)',
-          [item.product_id, branch_id, 'in', item.qty_unit, docNo, supplier_name||'รับสินค้า']
-        ).catch(()=>{});
-      }
-    }
-    await client.query('COMMIT');
-    res.status(201).json({ message: isApproved?'รับสินค้าและตัดสต๊อกเรียบร้อย':'บันทึก Pre เรียบร้อย', id: recvId, doc_no: docNo });
-  } catch(e) { await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
-});
-
-
-// ============================================================
-// PERMISSIONS API
-// ============================================================
-
-
-
-
-
-// IMPORT PRICES FROM CSV/JSON
-
-
-// EXPORT PRICES TO CSV
-
-
-
-// ============================================================
-// DAILY CLOSE API
-// ============================================================
-
-
-
-
-app.get('/api/daily-close/:id', auth, async (req, res) => {
-  const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.id=$1', [req.params.id]);
-  if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบข้อมูล' });
-  const dc = r.rows[0];
-  // ดึง snapshot หรือ realtime
-  const salesR = await pool.query(`SELECT p.name AS product_name,p.is_egg,COALESCE(SUM(si.qty_unit),0) AS qty_sold,COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue FROM sale_items si JOIN products p ON si.product_id=p.id JOIN sales s ON si.sale_id=s.id WHERE s.sale_date=$1 AND s.branch_id=$2 AND s.status='completed' GROUP BY p.id,p.name,p.is_egg ORDER BY qty_sold DESC`, [dc.date, dc.branch_id]);
-  const stockR = await pool.query(`SELECT s.qty_unit,p.name AS product_name,p.is_egg FROM stock s JOIN products p ON s.product_id=p.id WHERE s.branch_id=$1 AND (p.is_egg=true OR p.track_stock=true) ORDER BY p.code`, [dc.branch_id]);
-  res.json({ ...dc, sales_items: salesR.rows, stock_items: stockR.rows });
-});
-
-
-
-
-// ============================================================
-// MEMBER TIERS API
-// ============================================================
-
-
-
-
-
-
-
-
-
-// ============================================================
-// MEMBER POINTS / LOYALTY
-// ============================================================
-// ดูยอดสะสม
-app.get('/api/members/:id/points', auth, async (req, res) => {
-  try {
-    const mem = await pool.query('SELECT id,name,phone,total_eggs,redeemed_eggs,tier_id FROM members WHERE id=$1', [req.params.id]);
-    if (!mem.rows.length) return res.status(404).json({ error: 'ไม่พบสมาชิก' });
-    const log = await pool.query('SELECT * FROM member_points_log WHERE member_id=$1 ORDER BY created_at DESC LIMIT 20', [req.params.id]);
-    const tier = mem.rows[0].tier_id ?
-      await pool.query('SELECT * FROM member_tiers WHERE id=$1', [mem.rows[0].tier_id]).then(r => r.rows[0]) : null;
-    res.json({ member: mem.rows[0], tier, log: log.rows });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ใช้คะแนน (redeem)
-app.post('/api/members/:id/redeem', auth, async (req, res) => {
-  const { eggs_to_redeem, discount_amount } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const mem = await client.query('SELECT * FROM members WHERE id=$1 FOR UPDATE', [req.params.id]);
-    if (!mem.rows.length) return res.status(404).json({ error: 'ไม่พบสมาชิก' });
-    const m = mem.rows[0];
-    const available = (m.total_eggs||0) - (m.redeemed_eggs||0);
-    if (available < eggs_to_redeem) return res.status(400).json({ error: `ฟองสะสมไม่พอ (มี ${available} ฟอง)` });
-    await client.query('UPDATE members SET redeemed_eggs=redeemed_eggs+$1 WHERE id=$2', [eggs_to_redeem, req.params.id]);
-    await client.query('INSERT INTO member_points_log (member_id,change_eggs,reason,created_by) VALUES ($1,$2,$3,$4)',
-      [req.params.id, -eggs_to_redeem, 'แลกส่วนลด '+discount_amount+' บาท', req.user.id]);
-    await client.query('COMMIT');
-    res.json({ message: `แลกสำเร็จ ${eggs_to_redeem} ฟอง = ลด ${discount_amount} บาท` });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
-});
-
-// เพิ่มฟองหลังขาย (เรียกจาก completeSale)
-app.post('/api/members/:id/add-eggs', auth, async (req, res) => {
-  const { eggs, sale_id } = req.body;
-  if (!eggs || eggs <= 0) return res.json({ ok: true });
-  try {
-    await pool.query('UPDATE members SET total_eggs=COALESCE(total_eggs,0)+$1 WHERE id=$2', [eggs, req.params.id]);
-    await pool.query('INSERT INTO member_points_log (member_id,change_eggs,reason,sale_id,created_by) VALUES ($1,$2,$3,$4,$5)',
-      [req.params.id, eggs, 'ซื้อไข่', sale_id||null, req.user.id]);
-    res.json({ ok: true });
-  } catch(e) { res.json({ ok: false }); }
-});
-
-// ดึงราคาตาม tier ของสมาชิก
-app.get('/api/pos/products-for-member/:member_id', auth, async (req, res) => {
-  try {
-    const mem = await pool.query('SELECT m.*,t.customer_type FROM members m LEFT JOIN member_tiers t ON m.tier_id=t.id WHERE m.id=$1', [req.params.member_id]);
-    if (!mem.rows.length) return res.status(404).json({ error: 'ไม่พบสมาชิก' });
-    const ctype = mem.rows[0].customer_type || 'retail';
-    const branchId = req.query.branch_id || mem.rows[0].branch_id;
-    const r = await pool.query(`
-      SELECT p.id AS product_id, p.code, p.name, p.unit, p.is_egg,
-        pp.qty, pp.price, COALESCE(s.qty_unit,0) AS stock_qty,
-        $2 AS customer_type
-      FROM products p
-      LEFT JOIN product_prices pp ON pp.product_id=p.id AND pp.branch_id=$1 AND pp.customer_type=$2
-      LEFT JOIN stock s ON s.product_id=p.id AND s.branch_id=$1
-      WHERE p.track_stock=true OR p.is_egg=true
-      ORDER BY p.is_egg DESC, p.code, pp.qty NULLS LAST`,
-      [branchId, ctype]);
-    const grouped = {};
-    r.rows.forEach(row => {
-      if (!grouped[row.product_id]) grouped[row.product_id] = { ...row, prices: [] };
-      if (row.qty && row.price) grouped[row.product_id].prices.push({ qty: parseInt(row.qty), price: parseFloat(row.price) });
-    });
-    res.json({ customer_type: ctype, products: Object.values(grouped) });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-
-// ============================================================
-// PRODUCT DETAIL APIs
-// ============================================================
-app.get('/api/products/:id', auth, async (req, res) => {
-  try {
-    const r = await pool.query(`
-      SELECT p.*, pc.name AS category_name, pc.type AS category_type
-      FROM products p
-      LEFT JOIN product_categories pc ON p.category_id=pc.id
-      WHERE p.id=$1`, [req.params.id]);
-    if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบสินค้า' });
-    const prod = r.rows[0];
-    // ราคาแยก branch + customer_type
-    const prices = await pool.query(`
-      SELECT pp.*, b.name AS branch_name, b.code AS branch_code
-      FROM product_prices pp
-      LEFT JOIN branches b ON pp.branch_id=b.id
-      WHERE pp.product_id=$1 ORDER BY b.code, pp.customer_type, pp.qty`, [req.params.id]);
-    // สต๊อกแยกสาขา
-    const stocks = await pool.query(`
-      SELECT s.*, b.name AS branch_name, b.code AS branch_code
-      FROM stock s
-      JOIN branches b ON s.branch_id=b.id
-      WHERE s.product_id=$1 ORDER BY b.code`, [req.params.id]);
-    res.json({ ...prod, prices: prices.rows, stocks: stocks.rows });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ปรับยอดคงคลัง
-app.post('/api/stock/adjust', auth, role('owner','admin','manager','stock'), async (req, res) => {
-  const { product_id, branch_id, adjust_type, qty, reason, note } = req.body;
-  if (!product_id || !branch_id || !qty) return res.status(400).json({ error: 'ข้อมูลไม่ครบ' });
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const cur = await client.query('SELECT qty_unit FROM stock WHERE product_id=$1 AND branch_id=$2', [product_id, branch_id]);
-    const before = parseInt(cur.rows[0]?.qty_unit||0);
-    const change = adjust_type === 'add' ? parseInt(qty) : -parseInt(qty);
-    const after = before + change;
-    if (after < 0) throw new Error('สต๊อกติดลบไม่ได้ (มี '+before+' หน่วย)');
-    if (cur.rows.length) {
-      await client.query('UPDATE stock SET qty_unit=$1, updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [after, product_id, branch_id]);
-    } else {
-      await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [product_id, branch_id, after]);
-    }
-    // log movement
-    const moveType = adjust_type === 'add' ? 'adjust_in' : 'adjust_out';
-    await client.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [product_id, branch_id, moveType, Math.abs(change),
-       'ADJ-'+Date.now().toString().slice(-6), (reason||'')+(note?' | '+note:''), req.user.id]).catch(()=>{});
-    await client.query('COMMIT');
-    res.json({ message: 'ปรับยอดเรียบร้อย', before, after, change });
-  } catch(e) { await client.query('ROLLBACK'); res.status(400).json({ error: e.message }); }
-  finally { client.release(); }
-});
-
-// ประวัติการเคลื่อนไหวสต๊อกแยกสินค้า
-app.get('/api/stock/movements/product/:id', auth, async (req, res) => {
-  const { branch_id } = req.query;
-  try {
-    let q = `SELECT sm.*, b.name AS branch_name, b.code AS branch_code,
-      u.full_name AS created_by_name
-      FROM stock_movements sm
-      JOIN branches b ON sm.branch_id=b.id
-      LEFT JOIN users u ON sm.created_by=u.id
-      WHERE sm.product_id=$1`;
-    const params = [req.params.id];
-    if (branch_id) { params.push(branch_id); q += ` AND sm.branch_id=$${params.length}`; }
-    q += ' ORDER BY sm.created_at DESC LIMIT 100';
-    const r = await pool.query(q, params);
-    res.json(r.rows);
-  } catch(e) { res.json([]); }
-});
-
-// แก้ราคาสินค้าแต่ละ SKU (upsert)
-app.put('/api/products/:id/prices', auth, role('owner','admin','manager'), async (req, res) => {
-  const { prices } = req.body; // [{branch_id, customer_type, qty, price}]
-  if (!prices || !prices.length) return res.status(400).json({ error: 'ไม่มีราคา' });
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    for (const p of prices) {
-      const { branch_id, customer_type, qty, price } = p;
-      if (!branch_id || !customer_type || !qty || price === undefined) continue;
-      const ex = await client.query(
-        'SELECT id FROM product_prices WHERE product_id=$1 AND branch_id=$2 AND customer_type=$3 AND qty=$4',
-        [req.params.id, branch_id, customer_type, qty]);
-      if (ex.rows.length) {
-        await client.query('UPDATE product_prices SET price=$1 WHERE id=$2', [price, ex.rows[0].id]);
-      } else {
-        await client.query('INSERT INTO product_prices (product_id,branch_id,customer_type,qty,price) VALUES ($1,$2,$3,$4,$5)',
-          [req.params.id, branch_id, customer_type, qty, price]);
-      }
-    }
-    await client.query('COMMIT');
-    res.json({ message: 'บันทึกราคาเรียบร้อย' });
-  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
-  finally { client.release(); }
-});
-
-// ลบราคา SKU
-app.delete('/api/products/:id/prices/:priceId', auth, role('owner','admin','manager'), async (req, res) => {
-  try {
-    await pool.query('DELETE FROM product_prices WHERE id=$1 AND product_id=$2', [req.params.priceId, req.params.id]);
-    res.json({ message: 'ลบราคาเรียบร้อย' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-
-initSchema().then(() => {
-  const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.error(`Port ${PORT} already in use, retrying in 1s...`);
-      setTimeout(() => server.listen(PORT), 1000);
-    } else {
-      throw err;
-    }
-  });
-});
+</html>
