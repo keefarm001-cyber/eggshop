@@ -1315,7 +1315,6 @@ async function loadContacts(){
 
 
 
-var _invN=0;
 
 
 
@@ -4753,6 +4752,89 @@ function showBranchSwitcherMenu() {
 // ============================================================
 // UNIVERSAL DOCUMENT PRINT — A4 FlowAccount style
 // ============================================================
+// ============================================================
+// QUOTATIONS
+// ============================================================
+
+
+
+
+
+
+
+
+// ============================================================
+// INVOICES
+// ============================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// CREDITS
+// ============================================================
+
+
+
+
+
+
+// ============================================================
+// SAVE EXPENSE
+// ============================================================
+
+
+
+// ============================================================
+// SAVE PROMO
+// ============================================================
+
+
+
+// ============================================================
+// SAVE DEBT NOTE
+// ============================================================
+
+
+
+
+// ============================================================
+// PAYROLL DETAIL + PRINT SLIP
+// ============================================================
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// SAVE EMPLOYEE
+// ============================================================
+
+
+// ============================================================
+// SAVE PERMISSIONS
+// ============================================================
 async function printDocument(opts) {
   // opts = {
   //   docType: 'quotation'|'invoice'|'receipt'|'billing'|'credit_note'|'debit_note'|'purchase_order'|'goods_receipt',
@@ -4791,8 +4873,8 @@ async function printDocument(opts) {
 
   const html = [
     '<!DOCTYPE html>',
-    '\\x3chtml lang="th">',
-    '\\x3chead><meta charset="UTF-8"><title>'+opts.docTitle+' '+(opts.docNo||'')+'<\\/title>',
+    '\x3chtml lang="th">',
+    '\x3chead><meta charset="UTF-8"><title>'+opts.docTitle+' '+(opts.docNo||'')+'<\\/title>',
     '<style>',
     '@page{size:A4;margin:0}',
     '*{box-sizing:border-box;margin:0;padding:0}',
@@ -4837,7 +4919,7 @@ async function printDocument(opts) {
     '.footer-note{margin-top:auto;padding-top:16px;border-top:1px solid #f0f0f0;font-size:9px;color:#9ca3af;text-align:center}',
     '.status-stamp{position:absolute;top:80px;right:60px;border:4px solid;padding:6px 20px;font-size:24px;font-weight:700;transform:rotate(-12deg);border-radius:8px;opacity:.7}',
     '<\\/style><\\/head>',
-    '\\x3cbody>',
+    '\x3cbody>',
     '<div class="toolbar">',
     '<button onclick="window.print()" style="background:#e67e00;color:#fff">🖨️ พิมพ์ / PDF<\\/button>',
     '<button onclick="window.close()" style="background:#374151;color:#fff">✕ ปิด<\\/button>',
@@ -4943,7 +5025,11 @@ async function loadQuotations() {
         <td>${q.business_name||q.contact_name||'ลูกค้าทั่วไป'}</td>
         <td class="c-right">${fmt.b(q.total)}</td>
         <td><span class="badge ${q.status==='draft'?'bw':q.status==='accepted'?'bs':'bi'}">${q.status==='draft'?'ฉบับร่าง':q.status==='accepted'?'ยอมรับแล้ว':q.status}</span></td>
-        <td><button class="btn btn-secondary btn-sm" onclick="printQuotation(${q.id})">🖨️ พิมพ์</button></td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-secondary btn-sm" onclick="printQuotation(${q.id})">🖨️</button>
+          ${q.status!=='cancelled' ? `<button class="btn btn-secondary btn-sm" onclick="cancelQt(${q.id})" style="margin-left:4px">❌ ยกเลิก</button>` : ''}
+          <button class="btn btn-danger btn-sm" onclick="deleteQt(${q.id})" style="margin-left:4px">🗑️</button>
+        </td>
       </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ยังไม่มีใบเสนอราคา</td></tr>';
   } catch(e) { toast(e.message,'error'); }
 }
@@ -5082,10 +5168,12 @@ async function saveQt() {
 
 async function printQuotation(id) {
   try {
-    const [qt, items] = await Promise.all([
-      api.get('/quotations').then(list=>list.find(q=>q.id===id)),
-      api.get('/quotations/'+id+'/items').catch(()=>[])
+    const [qtList, items] = await Promise.all([
+      api.get('/quotations'),
+      api.get('/quotations/'+id+'/items')
     ]);
+    const qt = safeArray(qtList).find(q=>q.id===id);
+    const itemsArr = safeArray(items);
     if (!qt) { toast('ไม่พบเอกสาร','error'); return; }
     let contact = null;
     if (qt.contact_id) {
@@ -5100,7 +5188,7 @@ async function printQuotation(id) {
       dueDate: qt.valid_until,
       branchName: qt.branch_code,
       contact: contact,
-      items: items.map(it=>({
+      items: itemsArr.map(it=>({
         name: it.product_name||'สินค้า',
         qty: it.qty, unit: 'ฟอง', price: it.unit_price||it.price, amount: it.qty*(it.unit_price||it.price)
       })),
@@ -5133,7 +5221,11 @@ async function loadInvoices() {
         <td class="c-right">${fmt.b(inv.total)}</td>
         <td class="c-right">${fmt.b(inv.paid_amount)}</td>
         <td><span class="badge ${statusBadge[inv.status]||'bi'}">${statusMap[inv.status]||inv.status}</span></td>
-        <td><button class="btn btn-secondary btn-sm" onclick="printInvoice(${inv.id})">🖨️</button></td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-secondary btn-sm" onclick="printInvoice(${inv.id})">🖨️</button>
+          ${inv.status!=='cancelled'&&inv.status!=='paid' ? `<button class="btn btn-secondary btn-sm" onclick="cancelInv(${inv.id})" style="margin-left:4px">❌ ยกเลิก</button>` : ''}
+          ${parseFloat(inv.paid_amount||0)===0 ? `<button class="btn btn-danger btn-sm" onclick="deleteInv(${inv.id})" style="margin-left:4px">🗑️</button>` : ''}
+        </td>
       </tr>`).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">ยังไม่มีใบแจ้งหนี้</td></tr>';
   } catch(e) { toast(e.message,'error'); }
 }
@@ -5274,7 +5366,7 @@ async function printInvoice(id) {
     const list = safeArray(await api.get('/invoices'));
     const inv = list.find(i=>i.id===id);
     if (!inv) { toast('ไม่พบเอกสาร','error'); return; }
-    const items = safeArray(await api.get('/invoices/'+id+'/items').catch(()=>[]));
+    const items = safeArray(await api.get('/invoices/'+id+'/items'));
     await printDocument({
       docType: 'invoice',
       docTitle: 'ใบแจ้งหนี้ / Invoice',
@@ -5284,7 +5376,7 @@ async function printInvoice(id) {
       branchName: inv.branch_code,
       contact: { business_name: inv.business_name, contact_name: inv.contact_name, address: inv.contact_address, tax_id: inv.contact_tax_id },
       items: items.length ? items.map(it=>({
-        name: it.name||it.product_name||'สินค้า',
+        name: it.product_name||it.description||'สินค้า',
         qty: it.qty, unit: 'ฟอง', price: it.unit_price, amount: it.qty*it.unit_price
       })) : [{ name:'สินค้า/บริการ', qty:1, unit:'', price: inv.total, amount: inv.total }],
       subtotal: inv.total + (inv.discount||0) - (inv.vat||0),
@@ -5296,6 +5388,43 @@ async function printInvoice(id) {
       statusColor: inv.status==='paid' ? '#16a34a' : '#dc2626',
       signLabels: ['ผู้รับเงิน','ผู้ชำระเงิน']
     });
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+async function cancelQt(id) {
+  if (!confirm('ยกเลิกใบเสนอราคานี้?')) return;
+  try {
+    await api.put('/quotations/'+id+'/cancel', {});
+    toast('ยกเลิกเรียบร้อย','success');
+    loadQuotations();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function deleteQt(id) {
+  if (!confirm('ลบใบเสนอราคานี้? ไม่สามารถกู้คืนได้')) return;
+  try {
+    await api.del('/quotations/'+id);
+    toast('ลบเรียบร้อย','success');
+    loadQuotations();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function cancelInv(id) {
+  if (!confirm('ยกเลิกใบแจ้งหนี้นี้?')) return;
+  try {
+    await api.put('/invoices/'+id+'/cancel', {});
+    toast('ยกเลิกเรียบร้อย','success');
+    loadInvoices();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function deleteInv(id) {
+  if (!confirm('ลบใบแจ้งหนี้นี้? ระบบจะคืนสต๊อกที่ตัดไปให้อัตโนมัติ')) return;
+  try {
+    const result = await api.del('/invoices/'+id);
+    toast(result.message||'ลบเรียบร้อย','success');
+    loadInvoices();
   } catch(e) { toast(e.message,'error'); }
 }
 
