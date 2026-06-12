@@ -404,6 +404,7 @@ async function initSchema() {
     await pool.query('ALTER TABLE role_permissions ADD COLUMN IF NOT EXISTS granted BOOLEAN DEFAULT true').catch(()=>{});
     await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(10,4) DEFAULT 0`).catch(()=>{});
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER').catch(()=>{});
+    await pool.query('UPDATE member_tiers SET active=true WHERE active IS NULL').catch(()=>{});
     // price_qty_tiers — กำหนด qty ที่ใช้ตั้งราคา แยกตาม customer_type
     await pool.query(`CREATE TABLE IF NOT EXISTS price_qty_tiers (
       id SERIAL PRIMARY KEY,
@@ -2284,7 +2285,7 @@ app.get('/api/daily-close', auth, async (req, res) => {
 // ============================================================
 app.get('/api/member-tiers', auth, async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM member_tiers WHERE active=true ORDER BY sort_order, id');
+    const r = await pool.query('SELECT * FROM member_tiers WHERE active IS NOT FALSE ORDER BY sort_order, id');
     res.json(r.rows);
   } catch(e) { res.json([]); }
 });
