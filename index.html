@@ -693,6 +693,8 @@ var PAGE_LOADERS={
   users:loadUsers,
   permissions:()=>{const fb=document.querySelector('#page-permissions .perm-role-btn');selectPermRole('manager',fb);},
   company:loadCompanySettings,
+  quotations:loadQuotations,
+  invoices:loadInvoices,
   employees:loadEmployees,
   expenses:()=>{const t=new Date().toISOString().slice(0,10);document.getElementById('expFrom').value=t;document.getElementById('expTo').value=t;loadExpenses();},
   promotions:loadPromos,
@@ -2122,27 +2124,9 @@ async function loadQt(){
   }catch(e){}
 }
 
-async function showQtModal(){
-  const [contacts,brs]=await Promise.all([api.get('/contacts').catch(()=>[]),api.get('/branches')]);
-  const customers=contacts.filter(c=>c.is_customer);
-  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:560px"><div class="mh"><div class="mt">📝 สร้างใบเสนอราคา</div><button class="mc" onclick="CM()">✕</button></div>
-  <div style="display:grid;gap:10px">
-    <div class="g2">
-      <div><label class="lbl">ลูกค้า</label><select class="ctrl" id="qtCt" style="margin-top:4px"><option value="">— เลือกลูกค้า —</option>${customers.map(c=>`<option value="${c.id}">${c.business_name||c.contact_name}</option>`).join('')}</select></div>
-      <div><label class="lbl">สาขา</label><select class="ctrl" id="qtBr" style="margin-top:4px">${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
-    </div>
-    <div><label class="lbl">วันที่</label><input type="date" class="ctrl" id="qtDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px"></div>
-    <div><label class="lbl">ยอดรวม (บาท) *</label><input type="number" class="ctrl" id="qtTotal" value="0" min="0" step="0.01" style="margin-top:4px"></div>
-    <div><label class="lbl">หมายเหตุ</label><input type="text" class="ctrl" id="qtNote" style="margin-top:4px"></div>
-  </div>
-  <button class="btn btn-primary" onclick="saveQt()" style="width:100%;margin-top:14px">สร้างใบเสนอราคา</button>
-  </div></div>`;
-}
 
-async function saveQt(){
-  const body={contact_id:document.getElementById('qtCt').value?parseInt(document.getElementById('qtCt').value):null,branch_id:parseInt(document.getElementById('qtBr').value),issue_date:document.getElementById('qtDate').value,total:parseFloat(document.getElementById('qtTotal').value)||0,note:document.getElementById('qtNote').value};
-  try{const r=await api.post('/quotations',body);toast('สร้างใบเสนอราคา '+r.quotation_no+' เรียบร้อย','success');CM();loadQt();}catch(e){toast(e.message,'error');}
-}
+
+
 
 async function showQtDetail(id){
   try{
@@ -2175,48 +2159,7 @@ async function loadInv(){
   }catch(e){}
 }
 
-async function showCreateInvoiceModal(){
-  try{
-    const [contacts,brs]=await Promise.all([api.get('/contacts').catch(()=>[]),api.get('/branches')]);
-    const customers=contacts.filter(c=>c.is_customer);
-    document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()">
-    <div class="modal" style="max-width:660px;padding:0">
-      <div style="background:var(--accent);color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
-        <div><div style="font-size:15px;font-weight:700">📄 สร้างใบแจ้งหนี้</div><div style="font-size:12px;opacity:.8">เลขที่จะสร้างอัตโนมัติ เช่น INV-2606-0001</div></div>
-        <button onclick="CM()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:16px">✕</button>
-      </div>
-      <div style="padding:18px">
-        <div class="g2" style="margin-bottom:12px">
-          <div><label class="lbl">ลูกค้า</label><select class="ctrl" id="invCt" style="margin-top:4px" onchange="onInvCtCh(${JSON.stringify(customers).replace(/'/g,'&#39;').replace(/"/g,'&quot;')})"><option value="">— เลือกลูกค้า (ถ้ามี) —</option>${customers.map(c=>`<option value="${c.id}" data-credit="${c.credit_days||7}">${c.business_name||c.contact_name}</option>`).join('')}</select></div>
-          <div><label class="lbl">สาขา *</label><select class="ctrl" id="invBr" style="margin-top:4px">${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}</select></div>
-          <div><label class="lbl">วันที่ออก</label><input type="date" class="ctrl" id="invDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px" onchange="calcInvDue()"></div>
-          <div><label class="lbl">เครดิต (วัน)</label><div style="display:flex;gap:6px;margin-top:4px"><input type="number" class="ctrl" id="invCredit" value="7" min="0" style="width:70px" onchange="calcInvDue()"><input type="date" class="ctrl" id="invDue"></div></div>
-        </div>
-        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px">
-          <div style="background:var(--surface2);padding:7px 12px;font-size:11px;font-weight:700;color:var(--text-muted);display:grid;grid-template-columns:1fr 70px 90px 100px 80px 28px;gap:8px"><span>รายการ</span><span style="text-align:right">จำนวน</span><span>หน่วย</span><span style="text-align:right">ราคา/หน่วย</span><span style="text-align:right">รวม</span><span></span></div>
-          <div id="invBody"></div>
-          <div style="padding:7px 12px;border-top:1px solid var(--border)"><button class="btn btn-secondary btn-sm" onclick="addInvRow()">+ เพิ่มรายการ</button></div>
-        </div>
-        <div class="g2">
-          <div><label class="lbl">หมายเหตุ</label><textarea class="ctrl" id="invNote" rows="2" style="margin-top:4px;resize:none"></textarea></div>
-          <div style="background:var(--surface2);border-radius:8px;padding:12px">
-            <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span>รวมเงิน</span><span id="invSub" style="font-weight:600">฿0.00</span></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:13px">
-              <span>ส่วนลด</span>
-              <div style="display:flex;align-items:center;gap:4px">
-                <input type="number" id="invDisc" value="0" min="0" style="width:70px;text-align:right;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="calcInvTot()">
-                <select id="invDiscType" style="padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:12px" onchange="calcInvTot()"><option value="baht">บาท</option><option value="percent">%</option></select>
-              </div>
-            </div>
-            <div style="border-top:2px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:var(--accent)"><span>ยอดสุทธิ</span><span id="invTot">฿0.00</span></div>
-          </div>
-        </div>
-        <button class="btn btn-primary" onclick="saveManualInv()" style="width:100%;margin-top:14px;padding:12px">✅ สร้างใบแจ้งหนี้</button>
-      </div>
-    </div></div>`;
-    addInvRow();calcInvDue();
-  }catch(e){toast('เกิดข้อผิดพลาด: '+e.message,'error');}
-}
+
 
 function onInvCtCh(contacts){const sel=document.getElementById('invCt');const opt=sel.options[sel.selectedIndex];if(opt&&opt.dataset.credit){document.getElementById('invCredit').value=opt.dataset.credit||7;calcInvDue();}}
 function calcInvDue(){const d=parseInt(document.getElementById('invCredit')?.value||7);const dt=document.getElementById('invDate')?.value;if(dt){const due=new Date(dt);due.setDate(due.getDate()+d);document.getElementById('invDue').value=due.toISOString().slice(0,10);}}
@@ -4339,7 +4282,7 @@ async function showPriceEditorModal() {
 
 async function loadCompanySettings() {
   try {
-    const data = await api.get('/company').catch(()=>null);
+    const data = await api.get('/company-settings').catch(()=>null);
     if (!data) return;
     if (document.getElementById('coName')) document.getElementById('coName').value = data.name||'';
     if (document.getElementById('coTax')) document.getElementById('coTax').value = data.tax_id||'';
@@ -4378,7 +4321,7 @@ async function saveCompanySettings() {
       address: document.getElementById('coAddr')?.value||'',
       phone: document.getElementById('coPhone')?.value||'',
     };
-    await api.post('/company', body);
+    await api.put('/company-settings', body);
     toast('บันทึกข้อมูลบริษัทเรียบร้อย','success');
   } catch(e) { toast(e.message,'error'); }
 }
@@ -4804,6 +4747,556 @@ function showBranchSwitcherMenu() {
       }).join('')}
     </div>
   </div></div>`;
+}
+
+
+// ============================================================
+// UNIVERSAL DOCUMENT PRINT — A4 FlowAccount style
+// ============================================================
+async function printDocument(opts) {
+  // opts = {
+  //   docType: 'quotation'|'invoice'|'receipt'|'billing'|'credit_note'|'debit_note'|'purchase_order'|'goods_receipt',
+  //   docTitle: 'ใบเสนอราคา',
+  //   docNo, docDate, dueDate, refNo,
+  //   contact: {business_name, address, tax_id, contact_name, phone},
+  //   items: [{name, qty, unit, price, amount}],
+  //   subtotal, discount, vatRate, vat, total,
+  //   note, paymentTerms,
+  //   signLabels: ['ผู้รับสินค้า','ผู้ส่งสินค้า'] หรือ ['ผู้อนุมัติ','ผู้จัดทำ']
+  // }
+  const co = await api.get('/company-settings').catch(()=>({}));
+
+  const fmtMoney = n => (parseFloat(n)||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'}) : '-';
+
+  const itemRows = (opts.items||[]).map((it,i) => `
+    <tr>
+      <td class="c-center">${i+1}</td>
+      <td>${it.name}${it.detail?'<div class="item-detail">'+it.detail+'</div>':''}</td>
+      <td class="c-center">${fmtMoney(it.qty).replace('.00','')}</td>
+      <td class="c-center">${it.unit||''}</td>
+      <td class="c-right">${fmtMoney(it.price)}</td>
+      <td class="c-right">${fmtMoney(it.amount)}</td>
+    </tr>`).join('');
+
+  // เติมแถวเปล่าให้ครบ (อย่างน้อย 8 แถว)
+  const minRows = 8;
+  const emptyRows = Math.max(0, minRows - (opts.items||[]).length);
+  const emptyRowsHtml = Array(emptyRows).fill('<tr><td class="c-center">&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>').join('');
+
+  const vat = opts.vat || 0;
+  const total = opts.total || 0;
+
+  const signLabels = opts.signLabels || ['ผู้รับเงิน / ผู้ส่งมอบสินค้า','ผู้สั่งซื้อ / ผู้รับสินค้า'];
+
+  const html = [
+    '<!DOCTYPE html>',
+    '\\x3chtml lang="th">',
+    '\\x3chead><meta charset="UTF-8"><title>'+opts.docTitle+' '+(opts.docNo||'')+'<\\/title>',
+    '<style>',
+    '@page{size:A4;margin:0}',
+    '*{box-sizing:border-box;margin:0;padding:0}',
+    'body{font-family:"Sarabun",sans-serif;font-size:12px;color:#1f2937;background:#e5e7eb}',
+    '.toolbar{position:sticky;top:0;background:#1f2937;padding:10px 20px;display:flex;gap:10px;z-index:100;justify-content:center}',
+    '.toolbar button{padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-family:"Sarabun",sans-serif;font-size:13px;font-weight:600}',
+    '@media print{.toolbar{display:none}body{background:#fff}.page{box-shadow:none!important;margin:0!important}}',
+    '.page{width:210mm;min-height:297mm;margin:16px auto;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.15);padding:14mm 14mm;display:flex;flex-direction:column}',
+    '.doc-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid var(--accentColor,#e67e00);padding-bottom:14px;margin-bottom:16px}',
+    '.company-info{max-width:60%}',
+    '.company-name{font-size:18px;font-weight:700;color:#111827;margin-bottom:4px}',
+    '.company-detail{font-size:11px;color:#6b7280;line-height:1.6}',
+    '.doc-title-box{text-align:right}',
+    '.doc-title{font-size:22px;font-weight:700;color:var(--accentColor,#e67e00);margin-bottom:4px}',
+    '.doc-no{font-size:13px;color:#374151;font-weight:600}',
+    '.doc-meta{display:flex;justify-content:space-between;margin-bottom:16px;gap:20px}',
+    '.meta-box{flex:1;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px}',
+    '.meta-box-title{font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}',
+    '.meta-row{display:flex;justify-content:space-between;font-size:11px;padding:2px 0}',
+    '.meta-row .lbl{color:#6b7280}',
+    '.meta-row .val{font-weight:600;color:#111827}',
+    '.cust-name{font-size:14px;font-weight:700;margin-bottom:4px}',
+    '.cust-detail{font-size:11px;color:#6b7280;line-height:1.6}',
+    'table.items{width:100%;border-collapse:collapse;margin-bottom:16px;flex:1}',
+    'table.items thead th{background:var(--accentColor,#e67e00);color:#fff;padding:8px 10px;font-size:11px;font-weight:600;text-align:left}',
+    'table.items tbody td{padding:7px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;vertical-align:top}',
+    'table.items tbody tr:last-child td{border-bottom:1px solid #e5e7eb}',
+    '.c-center{text-align:center}.c-right{text-align:right}',
+    '.item-detail{font-size:10px;color:#9ca3af;margin-top:2px}',
+    '.summary-section{display:flex;justify-content:space-between;align-items:flex-start;margin-top:8px}',
+    '.note-box{flex:1;max-width:55%}',
+    '.note-title{font-size:11px;font-weight:700;color:#374151;margin-bottom:4px}',
+    '.note-text{font-size:11px;color:#6b7280;line-height:1.7;white-space:pre-line}',
+    '.totals{width:260px}',
+    '.total-row{display:flex;justify-content:space-between;padding:5px 0;font-size:12px}',
+    '.total-row.grand{border-top:2px solid var(--accentColor,#e67e00);margin-top:4px;padding-top:8px;font-size:16px;font-weight:700;color:var(--accentColor,#e67e00)}',
+    '.total-row .lbl{color:#6b7280}',
+    '.signatures{display:flex;justify-content:space-around;margin-top:50px;padding-top:8px}',
+    '.sign-box{text-align:center;width:200px}',
+    '.sign-line{border-top:1px dashed #9ca3af;margin-top:50px;padding-top:6px;font-size:11px;color:#6b7280}',
+    '.sign-date{font-size:10px;color:#9ca3af;margin-top:4px}',
+    '.footer-note{margin-top:auto;padding-top:16px;border-top:1px solid #f0f0f0;font-size:9px;color:#9ca3af;text-align:center}',
+    '.status-stamp{position:absolute;top:80px;right:60px;border:4px solid;padding:6px 20px;font-size:24px;font-weight:700;transform:rotate(-12deg);border-radius:8px;opacity:.7}',
+    '<\\/style><\\/head>',
+    '\\x3cbody>',
+    '<div class="toolbar">',
+    '<button onclick="window.print()" style="background:#e67e00;color:#fff">🖨️ พิมพ์ / PDF<\\/button>',
+    '<button onclick="window.close()" style="background:#374151;color:#fff">✕ ปิด<\\/button>',
+    '<\\/div>',
+    '<div class="page" style="--accentColor:'+(opts.accentColor||'#e67e00')+'">',
+    opts.statusStamp ? '<div class="status-stamp" style="color:'+(opts.statusColor||'#dc2626')+';border-color:'+(opts.statusColor||'#dc2626')+'">'+opts.statusStamp+'<\\/div>' : '',
+
+    // HEADER
+    '<div class="doc-header">',
+    '<div class="company-info">',
+    '<div class="company-name">'+(co.company_name||'Egg Station')+'<\\/div>',
+    '<div class="company-detail">',
+    (co.address||'')+'<br>',
+    'เลขประจำตัวผู้เสียภาษี: '+(co.tax_id||'-')+'<br>',
+    'โทร: '+(co.phone||'-')+(co.email?' | อีเมล: '+co.email:''),
+    '<\\/div><\\/div>',
+    '<div class="doc-title-box">',
+    '<div class="doc-title">'+opts.docTitle+'<\\/div>',
+    '<div class="doc-no">เลขที่: '+(opts.docNo||'-')+'<\\/div>',
+    '<\\/div>',
+    '<\\/div>',
+
+    // META — ลูกค้า + วันที่
+    '<div class="doc-meta">',
+    '<div class="meta-box" style="flex:1.3">',
+    '<div class="meta-box-title">ลูกค้า / Customer<\\/div>',
+    '<div class="cust-name">'+(opts.contact?.business_name||opts.contact?.contact_name||'ลูกค้าทั่วไป')+'<\\/div>',
+    '<div class="cust-detail">',
+    (opts.contact?.address?opts.contact.address+'<br>':''),
+    (opts.contact?.tax_id?'เลขผู้เสียภาษี: '+opts.contact.tax_id+'<br>':''),
+    (opts.contact?.phone||opts.contact?.mobile?'โทร: '+(opts.contact.phone||opts.contact.mobile):''),
+    '<\\/div><\\/div>',
+    '<div class="meta-box">',
+    '<div class="meta-box-title">รายละเอียดเอกสาร<\\/div>',
+    '<div class="meta-row"><span class="lbl">วันที่ออกเอกสาร<\\/span><span class="val">'+fmtDate(opts.docDate)+'<\\/span><\\/div>',
+    opts.dueDate ? '<div class="meta-row"><span class="lbl">วันครบกำหนด<\\/span><span class="val">'+fmtDate(opts.dueDate)+'<\\/span><\\/div>' : '',
+    opts.refNo ? '<div class="meta-row"><span class="lbl">อ้างอิง<\\/span><span class="val">'+opts.refNo+'<\\/span><\\/div>' : '',
+    opts.branchName ? '<div class="meta-row"><span class="lbl">สาขา<\\/span><span class="val">'+opts.branchName+'<\\/span><\\/div>' : '',
+    '<\\/div>',
+    '<\\/div>',
+
+    // ITEMS TABLE
+    '<table class="items"><thead><tr>',
+    '<th style="width:36px" class="c-center">#<\\/th>',
+    '<th>รายการ<\\/th>',
+    '<th style="width:60px" class="c-center">จำนวน<\\/th>',
+    '<th style="width:60px" class="c-center">หน่วย<\\/th>',
+    '<th style="width:90px" class="c-right">ราคา/หน่วย<\\/th>',
+    '<th style="width:100px" class="c-right">จำนวนเงิน<\\/th>',
+    '<\\/tr><\\/thead><tbody>',
+    itemRows,
+    emptyRowsHtml,
+    '<\\/tbody><\\/table>',
+
+    // SUMMARY
+    '<div class="summary-section">',
+    '<div class="note-box">',
+    opts.note ? '<div class="note-title">หมายเหตุ<\\/div><div class="note-text">'+opts.note+'<\\/div>' : '',
+    opts.paymentTerms ? '<div class="note-title" style="margin-top:10px">เงื่อนไขการชำระเงิน<\\/div><div class="note-text">'+opts.paymentTerms+'<\\/div>' : '',
+    (co.bank_name && (opts.docType==='invoice'||opts.docType==='billing'||opts.docType==='quotation')) ?
+      '<div class="note-title" style="margin-top:10px">ข้อมูลการโอนเงิน<\\/div><div class="note-text">'+
+      co.bank_name+' '+(co.bank_account||'')+'<br>ชื่อบัญชี: '+(co.bank_account_name||co.company_name||'')+'<\\/div>' : '',
+    '<\\/div>',
+    '<div class="totals">',
+    '<div class="total-row"><span class="lbl">รวมเป็นเงิน<\\/span><span>'+fmtMoney(opts.subtotal)+'<\\/span><\\/div>',
+    (opts.discount>0) ? '<div class="total-row"><span class="lbl">ส่วนลด<\\/span><span>-'+fmtMoney(opts.discount)+'<\\/span><\\/div>' : '',
+    (opts.vatRate) ? '<div class="total-row"><span class="lbl">ภาษีมูลค่าเพิ่ม '+opts.vatRate+'%<\\/span><span>'+fmtMoney(vat)+'<\\/span><\\/div>' : '',
+    '<div class="total-row grand"><span>จำนวนเงินรวมทั้งสิ้น<\\/span><span>฿'+fmtMoney(total)+'<\\/span><\\/div>',
+    '<\\/div>',
+    '<\\/div>',
+
+    // SIGNATURES
+    '<div class="signatures">',
+    '<div class="sign-box"><div class="sign-line">'+signLabels[0]+'<\\/div><div class="sign-date">วันที่ ............/............/............<\\/div><\\/div>',
+    '<div class="sign-box"><div class="sign-line">'+signLabels[1]+'<\\/div><div class="sign-date">วันที่ ............/............/............<\\/div><\\/div>',
+    '<\\/div>',
+
+    // FOOTER
+    '<div class="footer-note">'+(co.invoice_note||'ขอบคุณที่ใช้บริการ')+' | จัดทำโดยระบบ Egg Station<\\/div>',
+
+    '<\\/div>', // .page
+  ].join('\\n');
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
+
+// ============================================================
+// QUOTATIONS — ใบเสนอราคา
+// ============================================================
+async function loadQuotations() {
+  try {
+    const data = safeArray(await api.get('/quotations'));
+    const el = document.getElementById('qtT');
+    if (!el) return;
+    el.innerHTML = data.length ? data.map(q => `
+      <tr>
+        <td style="font-family:'IBM Plex Mono',monospace">${q.doc_no}</td>
+        <td>${fmt.d(q.issue_date)}</td>
+        <td>${q.branch_code||'-'}</td>
+        <td>${q.business_name||q.contact_name||'ลูกค้าทั่วไป'}</td>
+        <td class="c-right">${fmt.b(q.total)}</td>
+        <td><span class="badge ${q.status==='draft'?'bw':q.status==='accepted'?'bs':'bi'}">${q.status==='draft'?'ฉบับร่าง':q.status==='accepted'?'ยอมรับแล้ว':q.status}</span></td>
+        <td><button class="btn btn-secondary btn-sm" onclick="printQuotation(${q.id})">🖨️ พิมพ์</button></td>
+      </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">ยังไม่มีใบเสนอราคา</td></tr>';
+  } catch(e) { toast(e.message,'error'); }
+}
+
+let _qtItems = [];
+
+async function showQtModal() {
+  _qtItems = [];
+  const [contacts, prods] = await Promise.all([
+    api.get('/contacts').catch(()=>[]),
+    api.get('/products').catch(()=>[])
+  ]);
+  window._qtContacts = safeArray(contacts);
+  window._qtProds = safeArray(prods);
+
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:720px;max-height:90vh;overflow-y:auto">
+    <div class="mh"><div class="mt">📝 สร้างใบเสนอราคา</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div><label class="lbl">สาขา</label>
+        <select class="ctrl" id="qtBranch" style="margin-top:4px"></select></div>
+      <div><label class="lbl">ลูกค้า</label>
+        <select class="ctrl" id="qtContact" style="margin-top:4px">
+          <option value="">— ลูกค้าทั่วไป —</option>
+          ${window._qtContacts.map(c=>`<option value="${c.id}">${c.business_name||c.contact_name}</option>`).join('')}
+        </select></div>
+      <div><label class="lbl">วันที่ออกเอกสาร</label>
+        <input type="date" class="ctrl" id="qtDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px"></div>
+      <div><label class="lbl">ใช้ได้ถึง</label>
+        <input type="date" class="ctrl" id="qtValid" style="margin-top:4px"></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <label class="lbl">รายการสินค้า</label>
+      <button class="btn btn-secondary btn-sm" onclick="addQtItem()">+ เพิ่มรายการ</button>
+    </div>
+    <div id="qtItemsBox" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--surface2)">
+          <th style="padding:6px 8px;text-align:left;font-size:11px">สินค้า</th>
+          <th style="padding:6px 8px;width:70px;font-size:11px">จำนวน</th>
+          <th style="padding:6px 8px;width:90px;font-size:11px">ราคา</th>
+          <th style="padding:6px 8px;width:90px;font-size:11px">รวม</th>
+          <th style="width:36px"></th>
+        </tr></thead>
+        <tbody id="qtItemRows"><tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:12px">กด + เพิ่มรายการ</td></tr></tbody>
+      </table>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div><label class="lbl">ส่วนลด (บาท)</label>
+        <input type="number" class="ctrl" id="qtDiscount" value="0" min="0" oninput="updateQtTotal()" style="margin-top:4px"></div>
+      <div style="text-align:right;align-self:end">
+        <div style="font-size:12px;color:var(--text-muted)">ยอดรวมทั้งสิ้น</div>
+        <div style="font-size:22px;font-weight:700;color:var(--accent)" id="qtTotalDisplay">฿0.00</div>
+      </div>
+    </div>
+
+    <div><label class="lbl">หมายเหตุ</label>
+      <textarea class="ctrl" id="qtNote" rows="2" style="margin-top:4px"></textarea></div>
+
+    <button class="btn btn-primary" onclick="saveQt()" style="width:100%;margin-top:14px">💾 บันทึกใบเสนอราคา</button>
+  </div></div>`;
+
+  // populate branches
+  const bSel = document.getElementById('qtBranch');
+  branches.forEach(b => bSel.innerHTML += `<option value="${b.id}">${b.name}</option>`);
+  if (CU.branch_id) bSel.value = CU.branch_id;
+}
+
+function addQtItem() {
+  _qtItems.push({ product_id:'', name:'', qty:1, price:0 });
+  renderQtItems();
+}
+
+function renderQtItems() {
+  const tbody = document.getElementById('qtItemRows');
+  if (!_qtItems.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:12px">กด + เพิ่มรายการ</td></tr>';
+    updateQtTotal();
+    return;
+  }
+  tbody.innerHTML = _qtItems.map((it,i) => `
+    <tr>
+      <td style="padding:4px 6px">
+        <select class="ctrl" style="font-size:12px;padding:4px 6px" onchange="setQtItem(${i},'product_id',this.value);setQtItem(${i},'name',this.options[this.selectedIndex].text);setQtItem(${i},'price',parseFloat(this.options[this.selectedIndex].dataset.price||0))">
+          <option value="">— เลือกสินค้า —</option>
+          ${window._qtProds.map(p=>`<option value="${p.id}" data-price="0" ${it.product_id==p.id?'selected':''}>${p.name}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:4px 6px"><input type="number" class="ctrl" style="font-size:12px;padding:4px 6px" value="${it.qty}" min="0" oninput="setQtItem(${i},'qty',parseFloat(this.value)||0)"></td>
+      <td style="padding:4px 6px"><input type="number" class="ctrl" style="font-size:12px;padding:4px 6px" value="${it.price}" min="0" step="0.01" oninput="setQtItem(${i},'price',parseFloat(this.value)||0)"></td>
+      <td style="padding:4px 6px;text-align:right;font-weight:600">${fmt.b(it.qty*it.price)}</td>
+      <td style="padding:4px 6px;text-align:center"><button onclick="removeQtItem(${i})" style="border:none;background:none;color:var(--error);cursor:pointer">✕</button></td>
+    </tr>`).join('');
+  updateQtTotal();
+}
+
+function setQtItem(i, key, val) {
+  _qtItems[i][key] = val;
+  renderQtItems();
+}
+
+function removeQtItem(i) {
+  _qtItems.splice(i,1);
+  renderQtItems();
+}
+
+function updateQtTotal() {
+  const subtotal = _qtItems.reduce((s,it)=>s+(it.qty*it.price),0);
+  const discount = parseFloat(document.getElementById('qtDiscount')?.value)||0;
+  const total = Math.max(0, subtotal - discount);
+  const disp = document.getElementById('qtTotalDisplay');
+  if (disp) disp.textContent = '฿' + fmt.b(total).replace('฿','');
+}
+
+async function saveQt() {
+  const items = _qtItems.filter(it => it.product_id && it.qty>0);
+  if (!items.length) { toast('กรุณาเพิ่มรายการสินค้า','error'); return; }
+  const body = {
+    branch_id: parseInt(document.getElementById('qtBranch').value),
+    contact_id: document.getElementById('qtContact').value || null,
+    valid_until: document.getElementById('qtValid').value || null,
+    items: items.map(it=>({product_id:it.product_id, qty:it.qty, price:it.price})),
+    discount: parseFloat(document.getElementById('qtDiscount').value)||0,
+    note: document.getElementById('qtNote').value||''
+  };
+  try {
+    const result = await api.post('/quotations', body);
+    toast('✅ บันทึกใบเสนอราคา '+(result.doc_no||'')+' เรียบร้อย','success');
+    CM();
+    loadQuotations();
+    if (result.id) printQuotation(result.id);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function printQuotation(id) {
+  try {
+    const [qt, items] = await Promise.all([
+      api.get('/quotations').then(list=>list.find(q=>q.id===id)),
+      api.get('/quotations/'+id+'/items').catch(()=>[])
+    ]);
+    if (!qt) { toast('ไม่พบเอกสาร','error'); return; }
+    let contact = null;
+    if (qt.contact_id) {
+      const contacts = await api.get('/contacts').catch(()=>[]);
+      contact = contacts.find(c=>c.id===qt.contact_id);
+    }
+    await printDocument({
+      docType: 'quotation',
+      docTitle: 'ใบเสนอราคา',
+      docNo: qt.doc_no,
+      docDate: qt.issue_date,
+      dueDate: qt.valid_until,
+      branchName: qt.branch_code,
+      contact: contact,
+      items: items.map(it=>({
+        name: it.product_name||'สินค้า',
+        qty: it.qty, unit: 'ฟอง', price: it.unit_price||it.price, amount: it.qty*(it.unit_price||it.price)
+      })),
+      subtotal: qt.subtotal,
+      discount: qt.discount,
+      total: qt.total,
+      note: qt.note,
+      signLabels: ['ผู้เสนอราคา','ผู้อนุมัติ/ลูกค้า']
+    });
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// INVOICES — ใบแจ้งหนี้
+// ============================================================
+async function loadInvoices() {
+  try {
+    const data = safeArray(await api.get('/invoices'));
+    const el = document.getElementById('invT');
+    if (!el) return;
+    const statusMap = {unpaid:'ค้างชำระ', paid:'ชำระแล้ว', partial:'ชำระบางส่วน', overdue:'เกินกำหนด'};
+    const statusBadge = {unpaid:'bw', paid:'bs', partial:'bi', overdue:'be'};
+    el.innerHTML = data.length ? data.map(inv => `
+      <tr>
+        <td style="font-family:'IBM Plex Mono',monospace">${inv.invoice_no}</td>
+        <td>${inv.business_name||inv.contact_name||'ลูกค้าทั่วไป'}</td>
+        <td>${inv.branch_code||'-'}</td>
+        <td>${fmt.d(inv.issue_date)}</td>
+        <td>${fmt.d(inv.due_date)}</td>
+        <td class="c-right">${fmt.b(inv.total)}</td>
+        <td class="c-right">${fmt.b(inv.paid_amount)}</td>
+        <td><span class="badge ${statusBadge[inv.status]||'bi'}">${statusMap[inv.status]||inv.status}</span></td>
+        <td><button class="btn btn-secondary btn-sm" onclick="printInvoice(${inv.id})">🖨️</button></td>
+      </tr>`).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">ยังไม่มีใบแจ้งหนี้</td></tr>';
+  } catch(e) { toast(e.message,'error'); }
+}
+
+let _invItems = [];
+
+async function showCreateInvoiceModal() {
+  _invItems = [];
+  const [contacts, prods] = await Promise.all([
+    api.get('/contacts').catch(()=>[]),
+    api.get('/products').catch(()=>[])
+  ]);
+  window._invContacts = safeArray(contacts);
+  window._invProds = safeArray(prods);
+
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:720px;max-height:90vh;overflow-y:auto">
+    <div class="mh"><div class="mt">📄 สร้างใบแจ้งหนี้</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div><label class="lbl">สาขา</label>
+        <select class="ctrl" id="invBranch" style="margin-top:4px"></select></div>
+      <div><label class="lbl">ลูกค้า</label>
+        <select class="ctrl" id="invContact" style="margin-top:4px">
+          <option value="">— ลูกค้าทั่วไป —</option>
+          ${window._invContacts.map(c=>`<option value="${c.id}">${c.business_name||c.contact_name}</option>`).join('')}
+        </select></div>
+      <div><label class="lbl">วันที่ออกเอกสาร</label>
+        <input type="date" class="ctrl" id="invDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px"></div>
+      <div><label class="lbl">ครบกำหนดชำระ</label>
+        <input type="date" class="ctrl" id="invDue" style="margin-top:4px"></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <label class="lbl">รายการสินค้า</label>
+      <button class="btn btn-secondary btn-sm" onclick="addInvItem()">+ เพิ่มรายการ</button>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--surface2)">
+          <th style="padding:6px 8px;text-align:left;font-size:11px">สินค้า</th>
+          <th style="padding:6px 8px;width:70px;font-size:11px">จำนวน</th>
+          <th style="padding:6px 8px;width:90px;font-size:11px">ราคา</th>
+          <th style="padding:6px 8px;width:90px;font-size:11px">รวม</th>
+          <th style="width:36px"></th>
+        </tr></thead>
+        <tbody id="invItemRows"><tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:12px">กด + เพิ่มรายการ</td></tr></tbody>
+      </table>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div><label class="lbl">ส่วนลด (บาท)</label>
+        <input type="number" class="ctrl" id="invDiscount" value="0" min="0" oninput="updateInvTotal()" style="margin-top:4px"></div>
+      <div style="text-align:right;align-self:end">
+        <div style="font-size:12px;color:var(--text-muted)">ยอดรวมทั้งสิ้น</div>
+        <div style="font-size:22px;font-weight:700;color:var(--accent)" id="invTotalDisplay">฿0.00</div>
+      </div>
+    </div>
+
+    <div><label class="lbl">หมายเหตุ</label>
+      <textarea class="ctrl" id="invNote" rows="2" style="margin-top:4px"></textarea></div>
+
+    <button class="btn btn-primary" onclick="saveInvoice()" style="width:100%;margin-top:14px">💾 บันทึกใบแจ้งหนี้</button>
+  </div></div>`;
+
+  const bSel = document.getElementById('invBranch');
+  branches.forEach(b => bSel.innerHTML += `<option value="${b.id}">${b.name}</option>`);
+  if (CU.branch_id) bSel.value = CU.branch_id;
+}
+
+function addInvItem() {
+  _invItems.push({ product_id:'', name:'', qty:1, unit_price:0 });
+  renderInvItems();
+}
+
+function renderInvItems() {
+  const tbody = document.getElementById('invItemRows');
+  if (!_invItems.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:12px">กด + เพิ่มรายการ</td></tr>';
+    updateInvTotal();
+    return;
+  }
+  tbody.innerHTML = _invItems.map((it,i) => `
+    <tr>
+      <td style="padding:4px 6px">
+        <select class="ctrl" style="font-size:12px;padding:4px 6px" onchange="setInvItem(${i},'product_id',this.value);setInvItem(${i},'name',this.options[this.selectedIndex].text)">
+          <option value="">— เลือกสินค้า —</option>
+          ${window._invProds.map(p=>`<option value="${p.id}" ${it.product_id==p.id?'selected':''}>${p.name}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:4px 6px"><input type="number" class="ctrl" style="font-size:12px;padding:4px 6px" value="${it.qty}" min="0" oninput="setInvItem(${i},'qty',parseFloat(this.value)||0)"></td>
+      <td style="padding:4px 6px"><input type="number" class="ctrl" style="font-size:12px;padding:4px 6px" value="${it.unit_price}" min="0" step="0.01" oninput="setInvItem(${i},'unit_price',parseFloat(this.value)||0)"></td>
+      <td style="padding:4px 6px;text-align:right;font-weight:600">${fmt.b(it.qty*it.unit_price)}</td>
+      <td style="padding:4px 6px;text-align:center"><button onclick="removeInvItem(${i})" style="border:none;background:none;color:var(--error);cursor:pointer">✕</button></td>
+    </tr>`).join('');
+  updateInvTotal();
+}
+
+function setInvItem(i, key, val) {
+  _invItems[i][key] = val;
+  renderInvItems();
+}
+
+function removeInvItem(i) {
+  _invItems.splice(i,1);
+  renderInvItems();
+}
+
+function updateInvTotal() {
+  const subtotal = _invItems.reduce((s,it)=>s+(it.qty*it.unit_price),0);
+  const discount = parseFloat(document.getElementById('invDiscount')?.value)||0;
+  const total = Math.max(0, subtotal - discount);
+  const disp = document.getElementById('invTotalDisplay');
+  if (disp) disp.textContent = '฿' + fmt.b(total).replace('฿','');
+}
+
+async function saveInvoice() {
+  const items = _invItems.filter(it => it.product_id && it.qty>0);
+  if (!items.length) { toast('กรุณาเพิ่มรายการสินค้า','error'); return; }
+  const body = {
+    branch_id: parseInt(document.getElementById('invBranch').value),
+    contact_id: document.getElementById('invContact').value || null,
+    due_date: document.getElementById('invDue').value || null,
+    items: items.map(it=>({product_id:it.product_id, qty:it.qty, unit_price:it.unit_price, name:it.name})),
+    discount: parseFloat(document.getElementById('invDiscount').value)||0,
+    note: document.getElementById('invNote').value||''
+  };
+  try {
+    const result = await api.post('/invoices/manual', body);
+    toast('✅ บันทึกใบแจ้งหนี้ '+(result.invoice_no||'')+' เรียบร้อย','success');
+    CM();
+    loadInvoices();
+    if (result.id) printInvoice(result.id);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function printInvoice(id) {
+  try {
+    const list = safeArray(await api.get('/invoices'));
+    const inv = list.find(i=>i.id===id);
+    if (!inv) { toast('ไม่พบเอกสาร','error'); return; }
+    const items = safeArray(await api.get('/invoices/'+id+'/items').catch(()=>[]));
+    await printDocument({
+      docType: 'invoice',
+      docTitle: 'ใบแจ้งหนี้ / Invoice',
+      docNo: inv.invoice_no,
+      docDate: inv.issue_date,
+      dueDate: inv.due_date,
+      branchName: inv.branch_code,
+      contact: { business_name: inv.business_name, contact_name: inv.contact_name, address: inv.contact_address, tax_id: inv.contact_tax_id },
+      items: items.length ? items.map(it=>({
+        name: it.name||it.product_name||'สินค้า',
+        qty: it.qty, unit: 'ฟอง', price: it.unit_price, amount: it.qty*it.unit_price
+      })) : [{ name:'สินค้า/บริการ', qty:1, unit:'', price: inv.total, amount: inv.total }],
+      subtotal: inv.total + (inv.discount||0) - (inv.vat||0),
+      discount: inv.discount||0,
+      total: inv.total,
+      note: inv.note,
+      paymentTerms: inv.due_date ? 'กรุณาชำระภายในวันที่ '+new Date(inv.due_date).toLocaleDateString('th-TH') : '',
+      statusStamp: inv.status==='paid' ? 'ชำระแล้ว' : (inv.status==='overdue'?'เกินกำหนด':null),
+      statusColor: inv.status==='paid' ? '#16a34a' : '#dc2626',
+      signLabels: ['ผู้รับเงิน','ผู้ชำระเงิน']
+    });
+  } catch(e) { toast(e.message,'error'); }
 }
 
 </script>
