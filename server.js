@@ -405,6 +405,17 @@ async function initSchema() {
     await pool.query(`ALTER TABLE stock_receipt_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(10,4) DEFAULT 0`).catch(()=>{});
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER').catch(()=>{});
     await pool.query('UPDATE member_tiers SET active=true WHERE active IS NULL').catch(()=>{});
+    await pool.query('ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount NUMERIC(10,2) DEFAULT 0').catch(()=>{});
+    await pool.query(`CREATE TABLE IF NOT EXISTS invoice_items (
+      id SERIAL PRIMARY KEY,
+      invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
+      product_id INTEGER REFERENCES products(id),
+      description TEXT,
+      qty NUMERIC(10,2) NOT NULL,
+      unit VARCHAR(20),
+      unit_price NUMERIC(10,2) NOT NULL,
+      subtotal NUMERIC(10,2) NOT NULL
+    )`).catch(()=>{});
     // price_qty_tiers — กำหนด qty ที่ใช้ตั้งราคา แยกตาม customer_type
     await pool.query(`CREATE TABLE IF NOT EXISTS price_qty_tiers (
       id SERIAL PRIMARY KEY,
@@ -1421,9 +1432,16 @@ app.post('/api/invoices/manual', auth, role('owner','admin','manager'), async (r
     (items||[]).forEach(it => subtotal += parseFloat(it.qty||1) * parseFloat(it.unit_price||0));
     const discAmt = parseFloat(discount||0);
     const total = subtotal - discAmt;
-    const r = await client.query(`INSERT INTO invoices (invoice_no,contact_id,branch_id,due_date,total,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [docNo, contact_id||null, branch_id, due_date||null, total, note||null, req.user.id]);
+    const r = await client.query(`INSERT INTO invoices (invoice_no,contact_id,branch_id,due_date,total,discount,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [docNo, contact_id||null, branch_id, due_date||null, total, discAmt, note||null, req.user.id]);
     const invId = r.rows[0].id;
+    // บันทึก line items
+    for (const item of (items||[])) {
+      await client.query(
+        `INSERT INTO invoice_items (invoice_id,product_id,description,qty,unit,unit_price,subtotal) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [invId, item.product_id||null, item.name||item.description||'', item.qty||1, item.unit||'', item.unit_price||0, (item.qty||1)*(item.unit_price||0)]
+      );
+    }
     // ตัดสต๊อกสินค้าที่เป็น egg ตามหน่วย
     for (const item of (items||[])) {
       if (!item.product_id) continue;
@@ -2363,6 +2381,21 @@ app.delete('/api/member-tiers/:id', auth, role('owner','admin','manager'), async
 
 
 
+
+
+
+// ============================================================
+// DELETE / VOID DOCUMENTS
+// ============================================================
+
+
+
+
+
+
+
+
+
 initSchema().then(() => {
   const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
   server.on('error', (err) => {
@@ -2740,6 +2773,72 @@ app.post('/api/price-qty-tiers', auth, role('owner','admin'), async (req, res) =
 app.delete('/api/price-qty-tiers/:id', auth, role('owner','admin'), async (req, res) => {
   await pool.query('UPDATE price_qty_tiers SET active=false WHERE id=$1', [req.params.id]);
   res.json({ message: 'ลบเรียบร้อย' });
+});
+
+
+app.get('/api/invoices/:id/items', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT ii.*,p.name AS product_name FROM invoice_items ii LEFT JOIN products p ON ii.product_id=p.id WHERE ii.invoice_id=$1`, [req.params.id]);
+    res.json(r.rows);
+  } catch(e) { res.json([]); }
+});
+
+
+// ============================================================
+// DELETE / VOID DOCUMENTS
+// ============================================================
+app.delete('/api/quotations/:id', auth, role('owner','admin','manager'), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM quotations WHERE id=$1', [req.params.id]);
+    res.json({ message: 'ลบใบเสนอราคาเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/quotations/:id/cancel', auth, role('owner','admin','manager'), async (req, res) => {
+  try {
+    await pool.query("UPDATE quotations SET status='cancelled' WHERE id=$1", [req.params.id]);
+    res.json({ message: 'ยกเลิกใบเสนอราคาเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/invoices/:id', auth, role('owner','admin','manager'), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // ตรวจว่าชำระแล้วหรือยัง — ถ้าชำระแล้วห้ามลบ
+    const inv = await client.query('SELECT * FROM invoices WHERE id=$1', [req.params.id]);
+    if (!inv.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({error:'ไม่พบเอกสาร'}); }
+    if (parseFloat(inv.rows[0].paid_amount||0) > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'ไม่สามารถลบใบแจ้งหนี้ที่มีการชำระเงินแล้ว' });
+    }
+    // คืนสต๊อกที่ตัดไป
+    const items = await client.query('SELECT * FROM invoice_items WHERE invoice_id=$1', [req.params.id]);
+    for (const item of items.rows) {
+      if (!item.product_id) continue;
+      const mult = (item.unit||'').includes('แผง') ? 30 : (item.unit||'').includes('ลัง') ? 300 : 1;
+      const qtyEggs = parseFloat(item.qty||1) * mult;
+      await client.query('UPDATE stock SET qty_unit=qty_unit+$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3',
+        [qtyEggs, item.product_id, inv.rows[0].branch_id]);
+      await client.query(
+        `INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note) VALUES ($1,$2,'in',$3,$4,$5)`,
+        [item.product_id, inv.rows[0].branch_id, qtyEggs, inv.rows[0].invoice_no, 'คืนสต๊อกจากการลบใบแจ้งหนี้']
+      ).catch(()=>{});
+    }
+    await client.query('DELETE FROM invoices WHERE id=$1', [req.params.id]);
+    await client.query('COMMIT');
+    res.json({ message: 'ลบใบแจ้งหนี้และคืนสต๊อกเรียบร้อย' });
+  } catch(e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: e.message });
+  } finally { client.release(); }
+});
+
+app.put('/api/invoices/:id/cancel', auth, role('owner','admin','manager'), async (req, res) => {
+  try {
+    await pool.query("UPDATE invoices SET status='cancelled' WHERE id=$1", [req.params.id]);
+    res.json({ message: 'ยกเลิกใบแจ้งหนี้เรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 
