@@ -407,6 +407,10 @@ async function initSchema() {
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER').catch(()=>{});
     await pool.query('UPDATE member_tiers SET active=true WHERE active IS NULL').catch(()=>{});
     await pool.query('ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount NUMERIC(10,2) DEFAULT 0').catch(()=>{});
+    // stock_receipts source_type
+    await pool.query("ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS source_type VARCHAR(20) DEFAULT 'outside'").catch(()=>{});
+    // stock_movements source_type  
+    await pool.query("ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS source_type VARCHAR(20)").catch(()=>{});
 
     // LINE CRM — mall loyalty
     await pool.query(`CREATE TABLE IF NOT EXISTS line_users (
@@ -1228,14 +1232,14 @@ app.get('/api/stock/receipts/:id/items', auth, async (req, res) => {
 });
 
 app.post('/api/stock/receive', auth, role('owner','admin','manager','stock'), async (req, res) => {
-  const { branch_id, supplier_id, supplier_name, note, items } = req.body;
+  const { branch_id, supplier_id, supplier_name, note, items, source_type } = req.body; // source_type: 'banglane'|'farm'|'outside'
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const branchR = await client.query('SELECT code FROM branches WHERE id=$1', [branch_id]);
     const branchCode = branchR.rows[0]?.code || '';
     const docNo = await genDocNo('receipt_pre', branchCode);
-    const receipt = await client.query('INSERT INTO stock_receipts (doc_no,branch_id,supplier_id,supplier_name,note,created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id', [docNo, branch_id, supplier_id||null, supplier_name||null, note, req.user.id]);
+    const receipt = await client.query('INSERT INTO stock_receipts (doc_no,branch_id,supplier_id,supplier_name,note,source_type,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id', [docNo, branch_id, supplier_id||null, supplier_name||null, note, source_type||'outside', req.user.id]);
     const receiptId = receipt.rows[0].id;
     for (const item of items) {
       await client.query('INSERT INTO stock_receipt_items (receipt_id,product_id,qty_unit,qty_tray) VALUES ($1,$2,$3,$4)', [receiptId, item.product_id, item.qty_unit, item.qty_tray||null]);
@@ -1517,7 +1521,7 @@ app.get('/api/sales/:id/items', auth, async (req, res) => {
 
 // INVOICES
 app.get('/api/invoices', auth, async (req, res) => {
-  const r = await pool.query(`SELECT i.*,c.contact_name,c.business_name,c.address AS contact_address,c.tax_id AS contact_tax_id,b.code AS branch_code,u.full_name AS created_by_name FROM invoices i LEFT JOIN contacts c ON i.contact_id=c.id JOIN branches b ON i.branch_id=b.id LEFT JOIN users u ON i.created_by=u.id ORDER BY i.created_at DESC`);
+  const r = await pool.query(`SELECT i.*,c.contact_name,c.business_name,c.address AS contact_address,c.tax_id AS contact_tax_id,b.code AS branch_code,b.name AS branch_name,u.full_name AS created_by_name FROM invoices i LEFT JOIN contacts c ON i.contact_id=c.id LEFT JOIN branches b ON i.branch_id=b.id LEFT JOIN users u ON i.created_by=u.id ORDER BY i.created_at DESC`);
   res.json(r.rows);
 });
 app.post('/api/invoices/manual', auth, role('owner','admin','manager'), async (req, res) => {
@@ -2650,6 +2654,18 @@ function getMenuMessage() {
 
 
 
+// ============================================================
+// COPY PRODUCTS TO BRANCH
+// ============================================================
+
+
+
+// ============================================================
+// STOCK SUMMARY REPORT — สรุปสต๊อกรายวัน (ตามตาราง Excel)
+// ============================================================
+
+
+
 initSchema().then(() => {
   const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
   server.on('error', (err) => {
@@ -3641,6 +3657,200 @@ app.put('/api/mall-vouchers/:code/use', auth, async (req, res) => {
     });
     res.json({ message: 'ใช้ Voucher เรียบร้อย', voucher: r.rows[0] });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ============================================================
+// COPY PRODUCTS TO BRANCH
+// ============================================================
+app.post('/api/products/copy-to-branch', auth, role('owner','admin','manager'), async (req, res) => {
+  const { source_branch_id, target_branch_id } = req.body;
+  if (!source_branch_id || !target_branch_id) return res.status(400).json({ error: 'ระบุ source และ target branch' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // คัดลอกราคา (product_prices) จากสาขาต้นทาง
+    const priceResult = await client.query(`
+      INSERT INTO product_prices (product_id, branch_id, customer_type, qty, price)
+      SELECT product_id, $1, customer_type, qty, price
+      FROM product_prices
+      WHERE branch_id=$2
+      ON CONFLICT DO NOTHING
+    `, [target_branch_id, source_branch_id]);
+
+    // สร้าง stock record เปล่า (qty=0) สำหรับสินค้าทุกตัว
+    const stockResult = await client.query(`
+      INSERT INTO stock (product_id, branch_id, qty_unit)
+      SELECT DISTINCT product_id, $1, 0
+      FROM product_prices
+      WHERE branch_id=$2
+      ON CONFLICT DO NOTHING
+    `, [target_branch_id, source_branch_id]);
+
+    await client.query('COMMIT');
+
+    const copied = priceResult.rowCount || 0;
+    res.json({ message: 'คัดลอกสินค้าเรียบร้อย', copied });
+  } catch(e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: e.message });
+  } finally { client.release(); }
+});
+
+
+// ============================================================
+// STOCK SUMMARY REPORT — สรุปสต๊อกรายวัน (ตามตาราง Excel)
+// ============================================================
+app.get('/api/stock-summary', auth, async (req, res) => {
+  const { branch_id, date } = req.query;
+  if (!branch_id || !date) return res.status(400).json({ error: 'ระบุ branch_id และ date' });
+
+  try {
+    // D - ยอดยกมา: close count เมื่อวาน หรือ open count วันนี้
+    const yesterday = new Date(date);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yest = yesterday.toISOString().slice(0, 10);
+
+    const yestCloseR = await pool.query(`
+      SELECT product_id, qty_counted AS qty
+      FROM stock_counts WHERE branch_id=$1 AND count_date=$2 AND session_type='close'
+    `, [branch_id, yest]);
+    const carryMap = {};
+    yestCloseR.rows.forEach(r => { carryMap[r.product_id] = parseInt(r.qty||0); });
+
+    // fallback: open count วันนี้
+    const openR = await pool.query(`
+      SELECT product_id, qty_counted AS qty
+      FROM stock_counts WHERE branch_id=$1 AND count_date=$2 AND session_type='open'
+    `, [branch_id, date]);
+    openR.rows.forEach(r => {
+      if (carryMap[r.product_id] === undefined) carryMap[r.product_id] = parseInt(r.qty||0);
+    });
+
+    // B - บางเลน: stock_receipts source_type='banglane' วันนั้น
+    const banglaneR = await pool.query(`
+      SELECT sri.product_id, SUM(sri.qty_unit) AS qty
+      FROM stock_receipt_items sri
+      JOIN stock_receipts sr ON sri.receipt_id=sr.id
+      WHERE sr.branch_id=$1 AND sr.receipt_date=$2
+        AND sr.status IN ('confirmed','pre')
+        AND (sr.source_type='banglane' OR sr.supplier_name ILIKE '%บางเลน%')
+      GROUP BY sri.product_id
+    `, [branch_id, date]);
+    const banglaneMap = {};
+    banglaneR.rows.forEach(r => { banglaneMap[r.product_id] = parseInt(r.qty||0); });
+
+    // C - ฟาร์มตัวเอง: stock_receipts source_type='farm' วันนั้น
+    const farmR = await pool.query(`
+      SELECT sri.product_id, SUM(sri.qty_unit) AS qty
+      FROM stock_receipt_items sri
+      JOIN stock_receipts sr ON sri.receipt_id=sr.id
+      WHERE sr.branch_id=$1 AND sr.receipt_date=$2
+        AND sr.status IN ('confirmed','pre')
+        AND (sr.source_type='farm' OR sr.supplier_name ILIKE '%ฟาร์ม%')
+      GROUP BY sri.product_id
+    `, [branch_id, date]);
+    const farmMap = {};
+    farmR.rows.forEach(r => { farmMap[r.product_id] = parseInt(r.qty||0); });
+
+    // F - ขายส่ง: invoice_items วันนั้น
+    const invoiceR = await pool.query(`
+      SELECT ii.product_id, SUM(ii.qty) AS qty
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id=i.id
+      WHERE i.branch_id=$1 AND i.issue_date=$2
+        AND i.status != 'cancelled'
+      GROUP BY ii.product_id
+    `, [branch_id, date]);
+    const invoiceMap = {};
+    invoiceR.rows.forEach(r => { invoiceMap[r.product_id] = parseInt(r.qty||0); });
+
+    // I - ไข่บุบ: stock_movements type='adjust_out' / 'broken' วันนั้น
+    const brokenR = await pool.query(`
+      SELECT product_id, SUM(ABS(qty_change)) AS qty
+      FROM stock_movements
+      WHERE branch_id=$1 AND created_at::date=$2
+        AND movement_type IN ('adjust_out','broken','waste','damaged')
+      GROUP BY product_id
+    `, [branch_id, date]);
+    const brokenMap = {};
+    brokenR.rows.forEach(r => { brokenMap[r.product_id] = parseInt(r.qty||0); });
+
+    // J - ขายหน้าร้าน POS
+    const posR = await pool.query(`
+      SELECT si.product_id, SUM(si.qty_unit) AS qty
+      FROM sale_items si
+      JOIN sales s ON si.sale_id=s.id
+      WHERE s.branch_id=$1 AND s.sale_date=$2 AND s.status='completed'
+      GROUP BY si.product_id
+    `, [branch_id, date]);
+    const posMap = {};
+    posR.rows.forEach(r => { posMap[r.product_id] = parseInt(r.qty||0); });
+
+    // M - สต๊อกจริง (close count วันนี้)
+    const closeR = await pool.query(`
+      SELECT product_id, qty_counted AS qty
+      FROM stock_counts WHERE branch_id=$1 AND count_date=$2 AND session_type='close'
+    `, [branch_id, date]);
+    const closeMap = {};
+    closeR.rows.forEach(r => { closeMap[r.product_id] = parseInt(r.qty||0); });
+
+    // ราคาขาย retail
+    const priceR = await pool.query(`
+      SELECT product_id, MIN(price) AS price
+      FROM product_prices
+      WHERE (branch_id=$1 OR branch_id IS NULL) AND customer_type='retail' AND qty=1
+      GROUP BY product_id
+    `, [branch_id]);
+    const priceMap = {};
+    priceR.rows.forEach(r => { priceMap[r.product_id] = parseFloat(r.price||0); });
+
+    // products
+    const prodR = await pool.query(`
+      SELECT p.id, p.name, p.code FROM products p WHERE p.active=true ORDER BY p.code NULLS LAST, p.name
+    `);
+
+    const rows = prodR.rows.map(p => {
+      const D = carryMap[p.id] || 0;     // ยอดยกมา
+      const B = banglaneMap[p.id] || 0;  // บางเลน
+      const C = farmMap[p.id] || 0;      // ฟาร์ม
+      const E = B + C + D;               // รวมยอด
+      const F = invoiceMap[p.id] || 0;   // ขายส่ง (ใบแจ้งหนี้)
+      const I = brokenMap[p.id] || 0;    // ไข่บุบ
+      const J = posMap[p.id] || 0;       // ขายหน้าร้าน POS
+      const K = E - F - I - J;           // สต๊อกระบบ
+      const M = closeMap[p.id] ?? null;  // สต๊อกจริง
+      const P = M !== null ? M - K : null; // เกิน/ขาด
+      const price = priceMap[p.id] || 0;
+      const O = P !== null ? P * price : null; // คิดเป็นเงิน
+      const T = M !== null ? E - M : null;     // ยอดขายจริง
+
+      return { product_id:p.id, product_name:p.name, product_code:p.code,
+        D, B, C, E, F, I, J, K, M, P, O, T, price };
+    });
+
+    const summary = {
+      total_B: rows.reduce((s,r)=>s+r.B,0),
+      total_C: rows.reduce((s,r)=>s+r.C,0),
+      total_D: rows.reduce((s,r)=>s+r.D,0),
+      total_E: rows.reduce((s,r)=>s+r.E,0),
+      total_F: rows.reduce((s,r)=>s+r.F,0),
+      total_I: rows.reduce((s,r)=>s+r.I,0),
+      total_J: rows.reduce((s,r)=>s+r.J,0),
+      total_K: rows.reduce((s,r)=>s+r.K,0),
+      total_M: rows.filter(r=>r.M!==null).reduce((s,r)=>s+(r.M||0),0),
+      total_P: rows.filter(r=>r.P!==null).reduce((s,r)=>s+(r.P||0),0),
+      total_O: rows.filter(r=>r.O!==null).reduce((s,r)=>s+(r.O||0),0),
+      total_T: rows.filter(r=>r.T!==null).reduce((s,r)=>s+(r.T||0),0),
+    };
+
+    res.json({ date, branch_id, rows, summary });
+  } catch(e) {
+    console.error('stock-summary error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 
