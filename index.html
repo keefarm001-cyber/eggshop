@@ -213,6 +213,27 @@ tr:hover td{background:#fafafa}
       <div class="pb" id="dcContent"><div class="es"><div class="ei">📋</div><p>เลือกสาขาและวันที่เพื่อเริ่มปิดยอด</p></div></div>
     </div>
 
+    <!-- STOCK SUMMARY -->
+    <div class="page" id="page-stock-summary">
+      <div class="ph">
+        <div>
+          <div class="pt">📊 สรุปสต๊อก</div>
+          <div style="font-size:12px;color:var(--text-muted)">ยอดขาย / สต๊อก / ผลต่าง รายวัน</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select class="ctrl" id="ssBranch" onchange="loadStockSummary()" style="width:150px"></select>
+          <input type="date" class="ctrl" id="ssDate" onchange="loadStockSummary()" style="width:140px">
+          <button class="btn btn-secondary" onclick="exportStockSummary()">📥 Export Excel</button>
+        </div>
+      </div>
+      <div class="pb" style="overflow-x:auto">
+        <div id="ssSummaryCards" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
+        <div id="ssTableWrap">
+          <div style="text-align:center;color:var(--text-muted);padding:40px">เลือกสาขาและวันที่เพื่อดูข้อมูล</div>
+        </div>
+      </div>
+    </div>
+
     <!-- STOCK COUNT -->
     <div class="page" id="page-stock-count">
       <div class="ph">
@@ -687,6 +708,12 @@ let _curPermRole='manager', _curPerms=new Set(), _permSchema=[];
 
 
 'use strict';
+
+function memberDisplayName(m) {
+  const tag = m.branch_code ? ' ['+m.branch_code+']' : '';
+  return (m.name||'') + tag;
+}
+
 function safeArray(data) {
   return Array.isArray(data) ? data : (data ? [data] : []);
 }
@@ -810,6 +837,7 @@ var PAGE_LOADERS={
   permissions:()=>{const fb=document.querySelector('#page-permissions .perm-role-btn');selectPermRole('manager',fb);},
   company:loadCompanySettings,
   'stock-count':loadStockCount,
+  'stock-summary':initStockSummary,
   'mall-settlement':loadMallSettlement,
   'mall-crm':loadMallCRM,
   quotations:loadQuotations,
@@ -850,9 +878,13 @@ async function doLogin(){
     localStorage.setItem('es_token',data.token);
     localStorage.setItem('es_user',JSON.stringify(data.user));
     CU=data.user;
-    await initApp();
-    if(data.user.access_branches&&data.user.access_branches.length>1&&!['owner','admin'].includes(CU.role)){
-      showBranchSelector(data.user.access_branches);
+    branches=safeArray(await api.get('/branches').catch(()=>[]));
+    populateBranchSelects();
+    // Branch-first: owner/admin ที่มีหลายสาขา → เลือกสาขาก่อน
+    if (branches.length > 1) {
+      showBranchPickerScreen();
+    } else {
+      await initApp();
     }
   }catch(e){
     err.textContent=e.message;err.classList.add('show');
@@ -1360,7 +1392,7 @@ async function loadMembers(){
       <div class="sc"><div class="sl">รับส่วนลดได้</div><div class="sv" style="color:var(--success)">${ready}</div></div>
       <div class="sc"><div class="sl">สะสม ${mSet.eggs_required} ฟอง = ส่วนลด ${mSet.discount_amount} บาท</div><div class="sv" style="font-size:14px">⚙️ <button class="btn btn-secondary btn-sm" onclick="showMemSettings()">ตั้งค่า</button></div></div>`;
     document.getElementById('memT').innerHTML=data.map(m=>`<tr>
-      <td><strong>${m.name}</strong></td><td>${m.phone||'-'}</td>
+      <td><strong>${memberDisplayName(m)}</strong></td><td>${m.phone||'-'}</td>
       <td><span class="badge ${m.tier_name?'bi':'bg'}" style="font-size:11px">${m.tier_name||'ไม่ระบุ'}</span></td>
       <td>${m.branch_code||'-'}</td>
       <td style="font-weight:600">
@@ -6166,6 +6198,321 @@ async function saveLoyaltySetting(key) {
   try {
     await api.put('/loyalty-settings/'+key, { value: val });
     toast('✅ บันทึกเรียบร้อย','success');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+// ============================================================
+// BRANCH PICKER SCREEN — แสดงหลัง login
+// ============================================================
+function showBranchPickerScreen() {
+  // ซ่อน loginPage, ซ่อน appPage, แสดง branchPickerPage
+  document.getElementById('loginPage').style.display = 'none';
+  const app = document.getElementById('appPage');
+  if (app) app.classList.remove('active');
+
+  // สร้าง branch picker page ถ้ายังไม่มี
+  let picker = document.getElementById('branchPickerPage');
+  if (!picker) {
+    picker = document.createElement('div');
+    picker.id = 'branchPickerPage';
+    document.body.appendChild(picker);
+  }
+  picker.style.cssText = 'position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;padding:20px';
+
+  const userRole = CU.role === 'owner' ? '👑 Owner' : CU.role === 'admin' ? '🔧 Admin' : '👤 ' + fmt.role(CU.role);
+
+  picker.innerHTML = `
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:32px;margin-bottom:8px">🥚</div>
+      <div style="font-size:22px;font-weight:700;color:var(--text)">Egg Station</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:4px">${CU.full_name||CU.username} · ${userRole}</div>
+    </div>
+
+    <div style="font-size:14px;font-weight:600;color:var(--text-muted);margin-bottom:14px;text-align:center">เลือกสาขาที่ต้องการเข้าใช้งาน</div>
+
+    <div style="display:grid;gap:10px;width:100%;max-width:480px;max-height:60vh;overflow-y:auto;padding:2px">
+      ${branches.map(b => {
+        const isActive = CU.branch_id === b.id;
+        return `<div onclick="selectBranchAndEnter(${b.id},'${b.code}','${b.name.replace(/'/g,"\\'")}' )"
+          style="display:flex;align-items:center;gap:14px;padding:16px 20px;
+          border:2px solid ${isActive?'var(--accent)':'var(--border)'};
+          border-radius:14px;cursor:pointer;background:${isActive?'var(--accent-dim)':'var(--surface)'};
+          transition:all .15s"
+          onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--accent-dim)'"
+          onmouseout="this.style.borderColor='${isActive?'var(--accent)':'var(--border)'}';this.style.background='${isActive?'var(--accent-dim)':'var(--surface)'}'">
+          <div style="width:44px;height:44px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏪</div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:15px;color:var(--text)">${b.name}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${b.code}${b.address?' · '+b.address:''}</div>
+          </div>
+          ${isActive ? '<div style="color:var(--accent);font-size:18px;font-weight:700">✓</div>' : '<div style="color:var(--border);font-size:16px">›</div>'}
+        </div>`;
+      }).join('')}
+    </div>
+
+    <button onclick="logout()" style="margin-top:20px;background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;font-family:inherit">ออกจากระบบ</button>
+  `;
+}
+
+async function selectBranchAndEnter(branchId, branchCode, branchName) {
+  try {
+    // switch branch token
+    const res = await api.post('/auth/switch-branch', { branch_id: branchId });
+    if (res && res.token) {
+      localStorage.setItem('es_token', res.token);
+      CU = { ...CU, branch_id: res.branch_id, branch_code: res.branch_code, branch_name: res.branch_name };
+      localStorage.setItem('es_user', JSON.stringify(CU));
+    } else {
+      CU = { ...CU, branch_id: branchId, branch_code: branchCode, branch_name: branchName };
+      localStorage.setItem('es_user', JSON.stringify(CU));
+    }
+
+    // ซ่อน picker แสดง app
+    const picker = document.getElementById('branchPickerPage');
+    if (picker) picker.style.display = 'none';
+
+    await initApp();
+
+    // ตรวจสต๊อกสาขา — ถ้าไม่มีสินค้าเลย เสนอ copy
+    setTimeout(() => checkBranchHasProducts(branchId, branchName), 800);
+  } catch(e) {
+    toast(e.message || 'เปลี่ยนสาขาไม่ได้', 'error');
+  }
+}
+
+async function checkBranchHasProducts(branchId, branchName) {
+  try {
+    const data = safeArray(await api.get('/products?branch_id='+branchId));
+    const hasStock = data.some(p => parseInt(p.total_stock||0) > 0);
+    if (!hasStock) {
+      // ถามว่าจะ copy สินค้าจากสาขาอื่น
+      showCopyProductsModal(branchId, branchName);
+    }
+  } catch(e) { /* ไม่แสดง error */ }
+}
+
+async function showCopyProductsModal(targetBranchId, targetBranchName) {
+  const otherBranches = branches.filter(b => b.id !== targetBranchId);
+  if (!otherBranches.length) return;
+
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:480px">
+    <div class="mh">
+      <div>
+        <div class="mt">📋 คัดลอกสินค้า</div>
+        <div style="font-size:12px;color:var(--text-muted)">สาขา "${targetBranchName}" ยังไม่มีสต๊อกสินค้า</div>
+      </div>
+      <button class="mc" onclick="CM()">✕</button>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px">
+      📦 ต้องการคัดลอกรายการสินค้า (ไม่รวมสต๊อก) จากสาขาอื่นมาใช้ที่นี่?
+    </div>
+
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">เลือกสาขาต้นทาง:</div>
+    <div style="display:grid;gap:8px;margin-bottom:16px">
+      ${otherBranches.map(b => `
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer"
+          onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+          <input type="radio" name="srcBranch" value="${b.id}" style="accent-color:var(--accent)">
+          <div>
+            <div style="font-weight:600">${b.name}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${b.code}</div>
+          </div>
+        </label>`).join('')}
+    </div>
+
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
+      ✅ คัดลอก: รายชื่อสินค้า + หมวดหมู่ + ราคา<br>
+      ❌ ไม่คัดลอก: สต๊อกคงคลัง (ต้องรับสินค้าเข้าสต๊อกเอง)
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="CM()" style="flex:1">ข้ามไปก่อน</button>
+      <button class="btn btn-primary" onclick="doCopyProducts(${targetBranchId})" style="flex:1">📋 คัดลอกสินค้า</button>
+    </div>
+  </div></div>`;
+
+  // auto-select สาขาแรก
+  const firstRadio = document.querySelector('input[name="srcBranch"]');
+  if (firstRadio) firstRadio.checked = true;
+}
+
+async function doCopyProducts(targetBranchId) {
+  const srcRadio = document.querySelector('input[name="srcBranch"]:checked');
+  if (!srcRadio) { toast('กรุณาเลือกสาขาต้นทาง', 'error'); return; }
+  const srcBranchId = parseInt(srcRadio.value);
+
+  try {
+    const result = await api.post('/products/copy-to-branch', {
+      source_branch_id: srcBranchId,
+      target_branch_id: targetBranchId
+    });
+    toast(`✅ คัดลอกสินค้า ${result.copied} รายการเรียบร้อย`, 'success');
+    CM();
+    loadProds();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+
+// ============================================================
+// STOCK SUMMARY REPORT
+// ============================================================
+function initStockSummary() {
+  const bSel = document.getElementById('ssBranch');
+  if (bSel && bSel.options.length <= 1) {
+    branches.forEach(b => bSel.innerHTML += `<option value="${b.id}">${b.name}</option>`);
+    const myBranch = branches.find(b => b.id === CU.branch_id);
+    if (myBranch) bSel.value = myBranch.id;
+    else if (branches.length) bSel.value = branches[0].id;
+  }
+  const dateEl = document.getElementById('ssDate');
+  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0,10);
+  loadStockSummary();
+}
+
+async function loadStockSummary() {
+  const branchId = document.getElementById('ssBranch')?.value;
+  const date = document.getElementById('ssDate')?.value;
+  const wrap = document.getElementById('ssTableWrap');
+  const cards = document.getElementById('ssSummaryCards');
+  if (!branchId || !date || !wrap) return;
+
+  wrap.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)">⏳ กำลังโหลด...</div>';
+  if (cards) cards.innerHTML = '';
+
+  try {
+    const data = await api.get(`/stock-summary?branch_id=${branchId}&date=${date}`);
+    const rows = data.rows || [];
+    const sum = data.summary || {};
+    const dateLabel = new Date(date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'});
+    const branchName = branches.find(b=>b.id==branchId)?.name||'';
+
+    // Summary cards
+    if (cards) {
+      const O = sum.total_O || 0;
+      cards.innerHTML = `
+        <div class="card" style="text-align:center;padding:14px">
+          <div style="font-size:11px;color:var(--text-muted)">ยอดขายจริง (T)</div>
+          <div style="font-size:24px;font-weight:700;color:var(--accent)">${fmt.n(sum.total_T||0)} ฟ.</div>
+        </div>
+        <div class="card" style="text-align:center;padding:14px">
+          <div style="font-size:11px;color:var(--text-muted)">ขายหน้าร้าน POS (J)</div>
+          <div style="font-size:24px;font-weight:700">${fmt.n(sum.total_J||0)} ฟ.</div>
+        </div>
+        <div class="card" style="text-align:center;padding:14px">
+          <div style="font-size:11px;color:var(--text-muted)">ขายส่ง ใบแจ้งหนี้ (F)</div>
+          <div style="font-size:24px;font-weight:700;color:#2563eb">${fmt.n(sum.total_F||0)} ฟ.</div>
+        </div>
+        <div class="card" style="text-align:center;padding:14px;background:${O<0?'var(--error-dim)':O>0?'var(--success-dim)':'var(--surface)'}">
+          <div style="font-size:11px;color:var(--text-muted)">ผลต่าง (O)</div>
+          <div style="font-size:24px;font-weight:700;color:${O<0?'var(--error)':O>0?'var(--success)':'var(--text)'}">${O>=0?'+':''}${fmt.b(O)}</div>
+        </div>`;
+    }
+
+    wrap.innerHTML = `
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-muted)">
+        Stock ลดสต๊อก · ${branchName} · ${dateLabel}
+        <span style="float:right;font-size:11px">(หน่วย: ฟอง)</span>
+      </div>
+      <table id="ssTable" style="width:100%;border-collapse:collapse;font-size:12px;min-width:1000px">
+        <thead>
+          <tr style="background:#1f2937;color:#fff;white-space:nowrap">
+            <th style="padding:8px 10px;text-align:left;min-width:140px">รายการสินค้า</th>
+            <th style="padding:8px 10px;text-align:right;background:#065f46" title="เข้า/ล บางเลน">B<br><span style="font-size:10px;font-weight:400">บางเลน</span></th>
+            <th style="padding:8px 10px;text-align:right;background:#065f46" title="เข้า/ฟ ฟาร์มตัวเอง">C<br><span style="font-size:10px;font-weight:400">ฟาร์ม</span></th>
+            <th style="padding:8px 10px;text-align:right" title="ยอดยกมา (close เมื่อวาน)">D<br><span style="font-size:10px;font-weight:400">ยกมา</span></th>
+            <th style="padding:8px 10px;text-align:right;background:#374151;font-weight:700" title="รวมยอด B+C+D">E<br><span style="font-size:10px;font-weight:400">รวมยอด</span></th>
+            <th style="padding:8px 10px;text-align:right;background:#1e3a5f" title="ขายส่ง ใบแจ้งหนี้">F<br><span style="font-size:10px;font-weight:400">ขายส่ง</span></th>
+            <th style="padding:8px 10px;text-align:right;background:#7f1d1d" title="ไข่บุบ">I<br><span style="font-size:10px;font-weight:400">ไข่บุบ</span></th>
+            <th style="padding:8px 10px;text-align:right;background:#92400e" title="ขายหน้าร้าน POS">J<br><span style="font-size:10px;font-weight:400">หน้าร้าน</span></th>
+            <th style="padding:8px 10px;text-align:right;background:#374151" title="สต๊อกระบบ E-F-I-J">K<br><span style="font-size:10px;font-weight:400">สต๊อกระบบ</span></th>
+            <th style="padding:8px 10px;text-align:right;background:#4c1d95" title="สต๊อกจริง (นับปิด)">M<br><span style="font-size:10px;font-weight:400">สต๊อกจริง</span></th>
+            <th style="padding:8px 10px;text-align:right" title="เกิน/ขาด M-K">P<br><span style="font-size:10px;font-weight:400">เกิน/ขาด</span></th>
+            <th style="padding:8px 10px;text-align:right" title="คิดเป็นเงิน P×ราคา">O<br><span style="font-size:10px;font-weight:400">เป็นเงิน</span></th>
+            <th style="padding:8px 10px;text-align:right;background:#14532d" title="ยอดขายจริง E-M">T<br><span style="font-size:10px;font-weight:400">ขายจริง</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r,i) => {
+            const isEmpty = !r.B && !r.C && !r.D && !r.E && !r.F && !r.I && !r.J && !r.M;
+            if (isEmpty) return ''; // ซ่อน row ว่าง
+            const bg = i%2===0 ? 'var(--surface)' : 'var(--surface2)';
+            const Pcolor = r.P===null?'':r.P<0?'color:#dc2626;font-weight:700':r.P>0?'color:#16a34a':'';
+            const Ocolor = r.O===null?'':r.O<0?'color:#dc2626;font-weight:700':r.O>0?'color:#16a34a':'';
+            return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
+              <td style="padding:7px 10px;font-weight:600">${r.product_name}</td>
+              <td style="padding:7px 10px;text-align:right;color:${r.B?'#065f46':'var(--text-muted)'};font-weight:${r.B?'700':'400'}">${r.B||'–'}</td>
+              <td style="padding:7px 10px;text-align:right;color:${r.C?'#065f46':'var(--text-muted)'};font-weight:${r.C?'700':'400'}">${r.C||'–'}</td>
+              <td style="padding:7px 10px;text-align:right">${r.D||'–'}</td>
+              <td style="padding:7px 10px;text-align:right;font-weight:700;background:rgba(55,65,81,0.05)">${r.E||'–'}</td>
+              <td style="padding:7px 10px;text-align:right;color:${r.F?'#2563eb':'var(--text-muted)'};font-weight:${r.F?'700':'400'}">${r.F||'–'}</td>
+              <td style="padding:7px 10px;text-align:right;color:${r.I?'#dc2626':'var(--text-muted)'}">${r.I||'–'}</td>
+              <td style="padding:7px 10px;text-align:right;background:#fff3e0;color:#e67e00;font-weight:700">${r.J||'–'}</td>
+              <td style="padding:7px 10px;text-align:right;color:var(--text-muted)">${r.K}</td>
+              <td style="padding:7px 10px;text-align:right;background:#f5f3ff;font-weight:700;color:#6d28d9">${r.M!==null?r.M:'—'}</td>
+              <td style="padding:7px 10px;text-align:right;${Pcolor}">${r.P===null?'—':r.P>0?'+'+r.P:r.P}</td>
+              <td style="padding:7px 10px;text-align:right;${Ocolor}">${r.O===null?'—':(r.O>=0?'+':'')+fmt.b(r.O)}</td>
+              <td style="padding:7px 10px;text-align:right;background:#f0fdf4;font-weight:700;color:${r.T>0?'var(--accent)':'var(--text-muted)'}">${r.T!==null?r.T:'—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="background:#1f2937;color:#fff;font-weight:700">
+            <td style="padding:8px 10px">รวม</td>
+            <td style="padding:8px 10px;text-align:right;background:#065f46">${sum.total_B||0}</td>
+            <td style="padding:8px 10px;text-align:right;background:#065f46">${sum.total_C||0}</td>
+            <td style="padding:8px 10px;text-align:right">${sum.total_D||0}</td>
+            <td style="padding:8px 10px;text-align:right;background:#374151">${sum.total_E||0}</td>
+            <td style="padding:8px 10px;text-align:right;background:#1e3a5f">${sum.total_F||0}</td>
+            <td style="padding:8px 10px;text-align:right;background:#7f1d1d">${sum.total_I||0}</td>
+            <td style="padding:8px 10px;text-align:right;background:#92400e">${sum.total_J||0}</td>
+            <td style="padding:8px 10px;text-align:right">${sum.total_K||0}</td>
+            <td style="padding:8px 10px;text-align:right;background:#4c1d95">${sum.total_M||0}</td>
+            <td style="padding:8px 10px;text-align:right;color:${(sum.total_P||0)<0?'#fca5a5':(sum.total_P||0)>0?'#6ee7b7':'#fff'}">${(sum.total_P||0)>=0?'+':''}${sum.total_P||0}</td>
+            <td style="padding:8px 10px;text-align:right;color:${(sum.total_O||0)<0?'#fca5a5':(sum.total_O||0)>0?'#6ee7b7':'#fff'}">${(sum.total_O||0)>=0?'+':''}${fmt.b(sum.total_O||0)}</td>
+            <td style="padding:8px 10px;text-align:right;background:#14532d">${sum.total_T||0}</td>
+          </tr>
+        </tfoot>
+      </table>`;
+  } catch(e) {
+    if (wrap) wrap.innerHTML = `<div style="color:var(--error);padding:20px">${e.message}</div>`;
+  }
+}
+
+async function exportStockSummary() {
+  const branchId = document.getElementById('ssBranch')?.value;
+  const date = document.getElementById('ssDate')?.value;
+  if (!branchId || !date) { toast('เลือกสาขาและวันที่ก่อน','error'); return; }
+  try {
+    const data = await api.get(`/stock-summary?branch_id=${branchId}&date=${date}`);
+    const rows = data.rows || [];
+    const branchName = branches.find(b=>b.id==branchId)?.name||'';
+    const headers = ['รายการสินค้า','ยอดยกมา','IN/ฟ','รวมยอด','ขายหน้าร้าน','สต๊อคระบบ','สต๊อกจริง','เก็บ/ขาด','คิดเป็นเงิน','ยอดขายจริง'];
+    const csvRows = [
+      [`Stock สรุปสต๊อก ${branchName} วันที่ ${date}`],
+      headers,
+      ...rows.map(r => [
+        r.product_name,
+        r.open_qty||0,
+        r.in_qty||0,
+        r.total_qty||0,
+        r.pos_sales||0,
+        r.sys_stock||0,
+        r.close_qty??'',
+        r.diff??'',
+        r.money_diff??'',
+        r.sales_real??''
+      ])
+    ];
+    const csv = '\uFEFF' + csvRows.map(r => r.join('\t')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `stock-summary-${branchName}-${date}.csv`;
+    a.click();
+    toast('Export เรียบร้อย','success');
   } catch(e) { toast(e.message,'error'); }
 }
 
