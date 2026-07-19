@@ -1122,20 +1122,33 @@ function recvItemRow(n, prods) {
 
 async function loadRecv(){
   try{
-    const data=await api.get('/stock/receipts');
+    const data=safeArray(await api.get('/stock/receipts'));
     const isO=['owner','admin'].includes(CU.role);
-    document.getElementById('recvT').innerHTML=data.length?data.map(r=>`<tr>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${r.doc_no||'PRE-'+r.id}</td>
-      <td>${fmt.d(r.receipt_date)}</td><td>${r.branch_code}</td><td>${r.supplier_name||'-'}</td>
-      <td>${r.status==='pre'?'<span class="badge bw">⏳ รอใส่ราคา</span>':'<span class="badge bs">✅ อนุมัติ</span>'}</td>
-      <td>${isO&&r.total_cost?fmt.b(r.total_cost):isO?'-':'***'}</td>
-      <td>${r.photo_url?`<a href="${r.photo_url}" target="_blank" class="btn btn-info btn-sm">ดูรูป</a>`:'-'}</td>
-      <td style="display:flex;gap:4px">
-        <button class="btn btn-secondary btn-sm" onclick="showRecvDetail(${r.id})">ดู</button>
-        ${r.status==='pre'&&isO?`<button class="btn btn-primary btn-sm" onclick="showApprove(${r.id})">💰 ใส่ราคา</button>`:''}
-      </td>
-    </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">ยังไม่มีใบรับสินค้า</td></tr>';
-  }catch(e){}
+    document.getElementById('recvT').innerHTML=data.length?data.map(r=>{
+      const isCancelled = r.status==='cancelled';
+      const rowStyle = isCancelled ? 'opacity:0.45;background:var(--surface2)' : '';
+      const textStyle = isCancelled ? 'text-decoration:line-through;color:var(--text-muted)' : '';
+      const statusBadge = isCancelled
+        ? '<span class="badge" style="background:#fee2e2;color:#dc2626">❌ ยกเลิก</span>'
+        : r.status==='pre'
+          ? '<span class="badge bw">⏳ รอใส่ราคา</span>'
+          : '<span class="badge bs">✅ อนุมัติ</span>';
+      return `<tr style="${rowStyle}">
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;${textStyle}">${r.doc_no||'PRE-'+r.id}</td>
+        <td style="${textStyle}">${fmt.d(r.receipt_date)}</td>
+        <td style="${textStyle}">${r.branch_code||'-'}</td>
+        <td style="${textStyle}">${r.supplier_name||'-'}</td>
+        <td>${statusBadge}</td>
+        <td style="${textStyle}">${isO&&r.total_cost?fmt.b(r.total_cost):isO?'-':'***'}</td>
+        <td>${r.photo_url?`<a href="${r.photo_url}" target="_blank" class="btn btn-info btn-sm">ดูรูป</a>`:'-'}</td>
+        <td style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" onclick="showRecvDetail(${r.id})">ดู</button>
+          ${r.status==='pre'&&isO?`<button class="btn btn-primary btn-sm" onclick="showApprove(${r.id})">💰 ใส่ราคา</button>`:''}
+          ${!isCancelled&&isO?`<button class="btn btn-secondary btn-sm" style="color:var(--error);border-color:var(--error)" onclick="cancelReceipt(${r.id})">✕ ยกเลิก</button>`:''}
+        </td>
+      </tr>`;
+    }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">ยังไม่มีใบรับสินค้า</td></tr>';
+  }catch(e){ console.error('loadRecv:',e); }
 }
 
 
@@ -6422,20 +6435,20 @@ async function loadStockSummary() {
       </div>
       <table id="ssTable" style="width:100%;border-collapse:collapse;font-size:12px;min-width:1000px">
         <thead>
-          <tr style="background:#1f2937;color:#fff;white-space:nowrap">
-            <th style="padding:8px 10px;text-align:left;min-width:140px">รายการสินค้า</th>
-            <th style="padding:8px 10px;text-align:right;background:#065f46" title="เข้า/ล บางเลน">B<br><span style="font-size:10px;font-weight:400">บางเลน</span></th>
-            <th style="padding:8px 10px;text-align:right;background:#065f46" title="เข้า/ฟ ฟาร์มตัวเอง">C<br><span style="font-size:10px;font-weight:400">ฟาร์ม</span></th>
-            <th style="padding:8px 10px;text-align:right" title="ยอดยกมา (close เมื่อวาน)">D<br><span style="font-size:10px;font-weight:400">ยกมา</span></th>
-            <th style="padding:8px 10px;text-align:right;background:#374151;font-weight:700" title="รวมยอด B+C+D">E<br><span style="font-size:10px;font-weight:400">รวมยอด</span></th>
-            <th style="padding:8px 10px;text-align:right;background:#1e3a5f" title="ขายส่ง ใบแจ้งหนี้">F<br><span style="font-size:10px;font-weight:400">ขายส่ง</span></th>
-            <th style="padding:8px 10px;text-align:right;background:#7f1d1d" title="ไข่บุบ">I<br><span style="font-size:10px;font-weight:400">ไข่บุบ</span></th>
-            <th style="padding:8px 10px;text-align:right;background:#92400e" title="ขายหน้าร้าน POS">J<br><span style="font-size:10px;font-weight:400">หน้าร้าน</span></th>
-            <th style="padding:8px 10px;text-align:right;background:#374151" title="สต๊อกระบบ E-F-I-J">K<br><span style="font-size:10px;font-weight:400">สต๊อกระบบ</span></th>
-            <th style="padding:8px 10px;text-align:right;background:#4c1d95" title="สต๊อกจริง (นับปิด)">M<br><span style="font-size:10px;font-weight:400">สต๊อกจริง</span></th>
-            <th style="padding:8px 10px;text-align:right" title="เกิน/ขาด M-K">P<br><span style="font-size:10px;font-weight:400">เกิน/ขาด</span></th>
-            <th style="padding:8px 10px;text-align:right" title="คิดเป็นเงิน P×ราคา">O<br><span style="font-size:10px;font-weight:400">เป็นเงิน</span></th>
-            <th style="padding:8px 10px;text-align:right;background:#14532d" title="ยอดขายจริง E-M">T<br><span style="font-size:10px;font-weight:400">ขายจริง</span></th>
+          <tr style="white-space:nowrap">
+            <th style="padding:8px 10px;text-align:left;min-width:140px;background:#1e293b;color:#f8fafc">รายการสินค้า</th>
+            <th style="padding:8px 10px;text-align:center;background:#166534;color:#bbf7d0" title="เข้า/ล บางเลน"><div style="font-size:14px;font-weight:800">B</div><div style="font-size:10px;font-weight:500;margin-top:2px">บางเลน</div></th>
+            <th style="padding:8px 10px;text-align:center;background:#14532d;color:#bbf7d0" title="เข้า/ฟ ฟาร์มตัวเอง"><div style="font-size:14px;font-weight:800">C</div><div style="font-size:10px;font-weight:500;margin-top:2px">ฟาร์ม</div></th>
+            <th style="padding:8px 10px;text-align:center;background:#334155;color:#e2e8f0" title="ยอดยกมา"><div style="font-size:14px;font-weight:800">D</div><div style="font-size:10px;font-weight:500;margin-top:2px">ยกมา</div></th>
+            <th style="padding:8px 10px;text-align:center;background:#1e293b;color:#ffffff" title="รวมยอด B+C+D"><div style="font-size:14px;font-weight:800">E</div><div style="font-size:10px;font-weight:500;margin-top:2px">รวมยอด</div></th>
+            <th style="padding:8px 10px;text-align:center;background:#1e40af;color:#bfdbfe" title="ขายส่ง ใบแจ้งหนี้"><div style="font-size:14px;font-weight:800">F</div><div style="font-size:10px;font-weight:500;margin-top:2px">ขายส่ง</div></th>
+            <th style="padding:8px 10px;text-align:center;background:#991b1b;color:#fecaca" title="ไข่บุบ"><div style="font-size:14px;font-weight:800">I</div><div style="font-size:10px;font-weight:500;margin-top:2px">ไข่บุบ</div></th>
+            <th style="padding:8px 10px;text-align:center;background:#c2410c;color:#fed7aa" title="ขายหน้าร้าน POS"><div style="font-size:14px;font-weight:800">J</div><div style="font-size:10px;font-weight:500;margin-top:2px">หน้าร้าน</div></th>
+            <th style="padding:8px 10px;text-align:center;background:#475569;color:#e2e8f0" title="สต๊อกระบบ E-F-I-J"><div style="font-size:14px;font-weight:800">K</div><div style="font-size:10px;font-weight:500;margin-top:2px">สต๊อกระบบ</div></th>
+            <th style="padding:8px 10px;text-align:center;background:#6d28d9;color:#ede9fe" title="สต๊อกจริง (นับปิด)"><div style="font-size:14px;font-weight:800">M</div><div style="font-size:10px;font-weight:500;margin-top:2px">สต๊อกจริง</div></th>
+            <th style="padding:8px 10px;text-align:center;background:#374151;color:#f9fafb" title="เกิน/ขาด M-K"><div style="font-size:14px;font-weight:800">P</div><div style="font-size:10px;font-weight:500;margin-top:2px">เกิน/ขาด</div></th>
+            <th style="padding:8px 10px;text-align:center;background:#1f2937;color:#f9fafb" title="คิดเป็นเงิน P×ราคา"><div style="font-size:14px;font-weight:800">O</div><div style="font-size:10px;font-weight:500;margin-top:2px">เป็นเงิน</div></th>
+            <th style="padding:8px 10px;text-align:center;background:#065f46;color:#d1fae5" title="ยอดขายจริง E-M"><div style="font-size:14px;font-weight:800">T</div><div style="font-size:10px;font-weight:500;margin-top:2px">ขายจริง</div></th>
           </tr>
         </thead>
         <tbody>
@@ -6463,20 +6476,20 @@ async function loadStockSummary() {
           }).join('')}
         </tbody>
         <tfoot>
-          <tr style="background:#1f2937;color:#fff;font-weight:700">
-            <td style="padding:8px 10px">รวม</td>
-            <td style="padding:8px 10px;text-align:right;background:#065f46">${sum.total_B||0}</td>
-            <td style="padding:8px 10px;text-align:right;background:#065f46">${sum.total_C||0}</td>
-            <td style="padding:8px 10px;text-align:right">${sum.total_D||0}</td>
-            <td style="padding:8px 10px;text-align:right;background:#374151">${sum.total_E||0}</td>
-            <td style="padding:8px 10px;text-align:right;background:#1e3a5f">${sum.total_F||0}</td>
-            <td style="padding:8px 10px;text-align:right;background:#7f1d1d">${sum.total_I||0}</td>
-            <td style="padding:8px 10px;text-align:right;background:#92400e">${sum.total_J||0}</td>
-            <td style="padding:8px 10px;text-align:right">${sum.total_K||0}</td>
-            <td style="padding:8px 10px;text-align:right;background:#4c1d95">${sum.total_M||0}</td>
-            <td style="padding:8px 10px;text-align:right;color:${(sum.total_P||0)<0?'#fca5a5':(sum.total_P||0)>0?'#6ee7b7':'#fff'}">${(sum.total_P||0)>=0?'+':''}${sum.total_P||0}</td>
-            <td style="padding:8px 10px;text-align:right;color:${(sum.total_O||0)<0?'#fca5a5':(sum.total_O||0)>0?'#6ee7b7':'#fff'}">${(sum.total_O||0)>=0?'+':''}${fmt.b(sum.total_O||0)}</td>
-            <td style="padding:8px 10px;text-align:right;background:#14532d">${sum.total_T||0}</td>
+          <tr style="font-weight:700;font-size:13px">
+            <td style="padding:9px 10px;background:#0f172a;color:#f8fafc">รวม</td>
+            <td style="padding:9px 10px;text-align:right;background:#166534;color:#bbf7d0">${sum.total_B||0}</td>
+            <td style="padding:9px 10px;text-align:right;background:#14532d;color:#bbf7d0">${sum.total_C||0}</td>
+            <td style="padding:9px 10px;text-align:right;background:#334155;color:#e2e8f0">${sum.total_D||0}</td>
+            <td style="padding:9px 10px;text-align:right;background:#1e293b;color:#ffffff">${sum.total_E||0}</td>
+            <td style="padding:9px 10px;text-align:right;background:#1e40af;color:#bfdbfe">${sum.total_F||0}</td>
+            <td style="padding:9px 10px;text-align:right;background:#991b1b;color:#fecaca">${sum.total_I||0}</td>
+            <td style="padding:9px 10px;text-align:right;background:#c2410c;color:#fed7aa">${sum.total_J||0}</td>
+            <td style="padding:9px 10px;text-align:right;background:#475569;color:#e2e8f0">${sum.total_K||0}</td>
+            <td style="padding:9px 10px;text-align:right;background:#6d28d9;color:#ede9fe">${sum.total_M||0}</td>
+            <td style="padding:9px 10px;text-align:right;background:#374151;color:${(sum.total_P||0)<0?'#fca5a5':(sum.total_P||0)>0?'#86efac':'#f9fafb'}">${(sum.total_P||0)>=0?'+':''}${sum.total_P||0}</td>
+            <td style="padding:9px 10px;text-align:right;background:#1f2937;color:${(sum.total_O||0)<0?'#fca5a5':(sum.total_O||0)>0?'#86efac':'#f9fafb'}">${(sum.total_O||0)>=0?'+':''}${fmt.b(sum.total_O||0)}</td>
+            <td style="padding:9px 10px;text-align:right;background:#065f46;color:#d1fae5">${sum.total_T||0}</td>
           </tr>
         </tfoot>
       </table>`;
@@ -6520,6 +6533,15 @@ async function exportStockSummary() {
   } catch(e) { toast(e.message,'error'); }
 }
 
+
+async function cancelReceipt(id) {
+  if (!confirm('ยกเลิกใบรับสินค้านี้?\nถ้าอนุมัติแล้วระบบจะ reverse stock คืนให้อัตโนมัติ')) return;
+  try {
+    await api.put('/stock/receipts/'+id+'/cancel', {});
+    toast('ยกเลิกเรียบร้อย','success');
+    loadRecv();
+  } catch(e) { toast(e.message,'error'); }
+}
 </script>
 </body>
 </html>
