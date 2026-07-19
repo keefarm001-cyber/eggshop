@@ -949,10 +949,10 @@ app.get('/api/members', auth, async (req, res) => { const r = await pool.query(`
 app.post('/api/members', auth, async (req, res) => {
   const { name, phone, branch_id } = req.body;
   if (!name) return res.status(400).json({ error: 'กรุณากรอกชื่อ' });
-  try { const code = 'M' + Date.now().toString().slice(-6); const r = await pool.query('INSERT INTO members (code,name,phone,line_id,note,branch_id,tier_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *', [code, name, phone||null, req.body.line_id||null, req.body.note||null, branch_id||null, req.body.tier_id||null]); res.status(201).json({ message: 'เพิ่มสมาชิกเรียบร้อย', member: r.rows[0] }); }
+  try { const code = 'M' + Date.now().toString().slice(-6); const r = await pool.query('INSERT INTO members (code,name,phone,line_id,note,branch_id,tier_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *', [code, name, phone||null, req.body.line_id||null, req.body.note||null, branch_id ? parseInt(branch_id) : null, req.body.tier_id ? parseInt(req.body.tier_id) : null]); res.status(201).json({ message: 'เพิ่มสมาชิกเรียบร้อย', member: r.rows[0] }); }
   catch(e) { res.status(500).json({ error: 'เกิดข้อผิดพลาด' }); }
 });
-app.put('/api/members/:id', auth, async (req, res) => { const { name, phone, branch_id, active } = req.body; await pool.query('UPDATE members SET name=$1,phone=$2,branch_id=$3,active=$4,tier_id=$5 WHERE id=$6', [name, phone, branch_id||null, active, req.body.tier_id||null, req.params.id]); res.json({ message: 'แก้ไขเรียบร้อย' }); });
+app.put('/api/members/:id', auth, async (req, res) => { const { name, phone, branch_id, active } = req.body; await pool.query('UPDATE members SET name=$1,phone=$2,branch_id=$3,active=$4,tier_id=$5 WHERE id=$6', [name, phone, branch_id ? parseInt(branch_id) : null, active, req.body.tier_id ? parseInt(req.body.tier_id) : null, req.params.id]); res.json({ message: 'แก้ไขเรียบร้อย' }); });
 
 // PRODUCTS
 app.get('/api/products', auth, async (req, res) => {
@@ -1278,8 +1278,8 @@ app.post('/api/stock/receipts/:id/approve', auth, role('owner','admin'), async (
         await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [it.product_id, rec.branch_id, it.qty_unit]);
       }
       // log movement
-      await client.query('INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note) VALUES ($1,$2,$3,$4,$5,$6)',
-        [it.product_id, rec.branch_id, 'in', it.qty_unit, grDocNo, rec.supplier_name||'รับสินค้า']).catch(()=>{});
+      await client.query('INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note) VALUES ($1,$2,$3,$4,$5,$6)',
+        [it.product_id, rec.branch_id, 'in', it.qty_unit, 'receipt', rec.supplier_name||'รับสินค้า']).catch(()=>{});
     }
     await client.query("UPDATE stock_receipts SET status='approved',doc_no=$1,total_cost=$2 WHERE id=$3", [grDocNo, totalCost, req.params.id]);
     await client.query('COMMIT');
@@ -1560,7 +1560,7 @@ app.post('/api/invoices/manual', auth, role('owner','admin','manager'), async (r
       );
       // บันทึก movement
       await client.query(
-        `INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note)
+        `INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note)
          VALUES ($1,$2,'out',$3,$4,$5)`,
         [item.product_id, parseInt(branch_id), qtyEggs, docNo, `ใบแจ้งหนี้ ${item.description||''}`]
       ).catch(()=>{});
@@ -2666,6 +2666,9 @@ function getMenuMessage() {
 
 
 
+
+
+
 initSchema().then(() => {
   const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
   server.on('error', (err) => {
@@ -2748,7 +2751,7 @@ app.post('/api/stock/receipts', auth, async (req, res) => {
           await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [item.product_id, branch_id, item.qty_unit]);
         }
         await client.query(
-          'INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note) VALUES ($1,$2,$3,$4,$5,$6)',
+          'INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note) VALUES ($1,$2,$3,$4,$5,$6)',
           [item.product_id, branch_id, 'in', item.qty_unit, docNo, supplier_name||'รับสินค้า']
         ).catch(()=>{});
       }
@@ -2928,10 +2931,10 @@ app.post('/api/stock/adjust', auth, role('owner','admin','manager','stock'), asy
     }
     // log movement
     const moveType = adjust_type === 'add' ? 'adjust_in' : 'adjust_out';
-    await client.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note,created_by)
+    await client.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note,created_by)
       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [product_id, branch_id, moveType, Math.abs(change),
-       'ADJ-'+Date.now().toString().slice(-6), (reason||'')+(note?' | '+note:''), req.user.id]).catch(()=>{});
+       'adjust', (reason||'')+(note?' | '+note:''), req.user.id]).catch(()=>{});
     await client.query('COMMIT');
     res.json({ message: 'ปรับยอดเรียบร้อย', before, after, change });
   } catch(e) { await client.query('ROLLBACK'); res.status(400).json({ error: e.message }); }
@@ -3091,7 +3094,7 @@ app.delete('/api/invoices/:id', auth, role('owner','admin','manager'), async (re
       await client.query('UPDATE stock SET qty_unit=qty_unit+$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3',
         [qtyEggs, item.product_id, inv.rows[0].branch_id]);
       await client.query(
-        `INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note) VALUES ($1,$2,'in',$3,$4,$5)`,
+        `INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note) VALUES ($1,$2,'in',$3,$4,$5)`,
         [item.product_id, inv.rows[0].branch_id, qtyEggs, inv.rows[0].invoice_no, 'คืนสต๊อกจากการลบใบแจ้งหนี้']
       ).catch(()=>{});
     }
@@ -3250,8 +3253,8 @@ app.post('/api/stock-counts/auto-deduct', auth, async (req, res) => {
 
       // บันทึก movement
       await client.query(`
-        INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note)
-        VALUES ($1,$2,'out',$3,'STOCK-COUNT','Auto deduct จากการนับสต๊อก '||$4)`,
+        INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note)
+        VALUES ($1,$2,'out',$3,'stock_count','Auto deduct จากการนับสต๊อก '||$4)`,
         [row.product_id, branch_id, remaining, date]);
 
       // mark stock_count ว่า deducted แล้ว
@@ -3664,7 +3667,8 @@ app.put('/api/mall-vouchers/:code/use', auth, async (req, res) => {
 // COPY PRODUCTS TO BRANCH
 // ============================================================
 app.post('/api/products/copy-to-branch', auth, role('owner','admin','manager'), async (req, res) => {
-  const { source_branch_id, target_branch_id } = req.body;
+  const source_branch_id = parseInt(req.body.source_branch_id);
+  const target_branch_id = parseInt(req.body.target_branch_id);
   if (!source_branch_id || !target_branch_id) return res.status(400).json({ error: 'ระบุ source และ target branch' });
 
   const client = await pool.connect();
@@ -3851,6 +3855,36 @@ app.get('/api/stock-summary', auth, async (req, res) => {
     console.error('stock-summary error:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+
+app.put('/api/stock/receipts/:id/cancel', auth, role('owner','admin'), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const rec = await client.query('SELECT * FROM stock_receipts WHERE id=$1', [req.params.id]);
+    if (!rec.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'ไม่พบเอกสาร' }); }
+    const r = rec.rows[0];
+    if (r.status === 'cancelled') { await client.query('ROLLBACK'); return res.status(400).json({ error: 'ยกเลิกแล้ว' }); }
+
+    // ถ้าอนุมัติแล้ว → reverse stock
+    if (r.status === 'approved') {
+      const items = await client.query('SELECT * FROM stock_receipt_items WHERE receipt_id=$1', [r.id]);
+      for (const it of items.rows) {
+        await client.query('UPDATE stock SET qty_unit=qty_unit-$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3',
+          [it.qty_unit, it.product_id, r.branch_id]);
+        await client.query('INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note) VALUES ($1,$2,$3,$4,$5,$6)',
+          [it.product_id, r.branch_id, 'out', it.qty_unit, 'cancel', 'ยกเลิกใบรับสินค้า '+r.doc_no]);
+      }
+    }
+
+    await client.query("UPDATE stock_receipts SET status='cancelled' WHERE id=$1", [r.id]);
+    await client.query('COMMIT');
+    res.json({ message: 'ยกเลิกเรียบร้อย' });
+  } catch(e) {
+    try { await client.query('ROLLBACK'); } catch(_) {}
+    res.status(500).json({ error: e.message });
+  } finally { client.release(); }
 });
 
 
