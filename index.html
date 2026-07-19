@@ -213,6 +213,122 @@ tr:hover td{background:#fafafa}
       <div class="pb" id="dcContent"><div class="es"><div class="ei">📋</div><p>เลือกสาขาและวันที่เพื่อเริ่มปิดยอด</p></div></div>
     </div>
 
+    <!-- STOCK COUNT -->
+    <div class="page" id="page-stock-count">
+      <div class="ph">
+        <div>
+          <div class="pt">📦 นับสต๊อก</div>
+          <div style="font-size:12px;color:var(--text-muted)">บันทึกการนับสต๊อกเช้า/เย็น</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select class="ctrl" id="scBranch" onchange="loadStockCount()" style="width:160px"></select>
+          <input type="date" class="ctrl" id="scDate" onchange="loadStockCountSummary()" style="width:140px">
+          <button class="btn btn-primary" onclick="startStockCount('open')">🌅 นับเปิด</button>
+          <button class="btn btn-primary" onclick="startStockCount('close')">🌇 นับปิด</button>
+          <button class="btn btn-secondary" onclick="doAutoDeduct()" title="ตัด stock ส่วนที่ยังขาดอยู่ (จาก stock count)">⚡ Auto Deduct</button>
+        </div>
+      </div>
+      <div class="pb">
+        <!-- Summary today -->
+        <div class="card" style="margin-bottom:12px" id="scSummaryCard">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px">📊 สรุปการนับวันนี้</div>
+          <div id="scSummaryTable">
+            <div style="text-align:center;color:var(--text-muted);padding:20px">เลือกสาขาและวันที่เพื่อดูสรุป</div>
+          </div>
+        </div>
+        <!-- History -->
+        <div class="card">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px">📋 ประวัติการนับ</div>
+          <table><thead><tr>
+            <th>วันที่</th><th>เวลา</th><th>สินค้า</th><th>รอบ</th>
+            <th>นับได้</th><th>ระบบ</th><th>ต่าง</th><th>หมายเหตุ</th>
+          </tr></thead><tbody id="scHistoryT"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MALL CRM -->
+    <div class="page" id="page-mall-crm">
+      <div class="ph">
+        <div>
+          <div class="pt">👥 CRM เดอะมอลล์</div>
+          <div style="font-size:12px;color:var(--text-muted)">จัดการสมาชิก Line OA + ยอดสะสม + Voucher</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" class="ctrl" id="crmSearch" placeholder="ค้นหาชื่อ/เบอร์..." oninput="searchMallCRM()" style="width:200px">
+          <button class="btn btn-secondary" onclick="showLoyaltySettings()">⚙️ ตั้งค่า</button>
+        </div>
+      </div>
+      <div class="pb">
+        <!-- Add points panel -->
+        <div class="card" style="margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px">➕ เพิ่มยอดสะสม (จากใบเสร็จ)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
+            <div>
+              <label class="lbl">Line User ID / เบอร์โทร</label>
+              <input type="text" class="ctrl" id="crmLineId" placeholder="Uxxxxxxx หรือ 08x-xxx-xxxx" style="margin-top:4px">
+            </div>
+            <div>
+              <label class="lbl">จำนวนเซ็ท (1 เซ็ท = 30 ฟอง)</label>
+              <input type="number" class="ctrl" id="crmSets" min="1" max="100" placeholder="เช่น 3" style="margin-top:4px">
+            </div>
+            <div>
+              <label class="lbl">เลขใบเสร็จ</label>
+              <input type="text" class="ctrl" id="crmReceipt" placeholder="เลขใบเสร็จห้าง" style="margin-top:4px">
+            </div>
+            <button class="btn btn-primary" onclick="addMallPoints()">+ เพิ่มยอด</button>
+          </div>
+        </div>
+
+        <!-- Voucher check panel -->
+        <div class="card" style="margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px">🎟️ ตรวจสอบ/ใช้ Voucher</div>
+          <div style="display:flex;gap:10px;align-items:end">
+            <div style="flex:1">
+              <label class="lbl">รหัส Voucher</label>
+              <input type="text" class="ctrl" id="crmVoucherCode" placeholder="EGGxxxxxxx" style="margin-top:4px;text-transform:uppercase">
+            </div>
+            <button class="btn btn-secondary" onclick="checkVoucher()">🔍 ตรวจสอบ</button>
+            <button class="btn btn-primary" onclick="useVoucher()">✅ ใช้ Voucher</button>
+          </div>
+          <div id="voucherResult" style="margin-top:10px"></div>
+        </div>
+
+        <!-- Members list -->
+        <div class="card">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px">📋 รายชื่อสมาชิก</div>
+          <table><thead><tr>
+            <th>ชื่อ / เบอร์</th>
+            <th>เซ็ทสะสม</th>
+            <th>ฟองรวม</th>
+            <th>Voucher คงเหลือ</th>
+            <th>ลงทะเบียน</th>
+            <th></th>
+          </tr></thead><tbody id="crmMembersT"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MALL SETTLEMENT -->
+    <div class="page" id="page-mall-settlement">
+      <div class="ph">
+        <div>
+          <div class="pt">🏬 ยอดห้าง (16KA)</div>
+          <div style="font-size:12px;color:var(--text-muted)">บันทึกยอดที่ห้างแจ้งมาและติดตามการรับเงิน</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select class="ctrl" id="msMonth" onchange="loadMallSettlement()" style="width:140px"></select>
+          <button class="btn btn-secondary" onclick="createMallDraft()">📋 สร้าง Draft</button>
+          <button class="btn btn-primary" onclick="showMallSummary()">📊 สรุปเดือน</button>
+        </div>
+      </div>
+      <div class="pb">
+        <div class="card" id="msCard">
+          <div style="text-align:center;color:var(--text-muted);padding:30px">เลือกเดือนเพื่อดูข้อมูล</div>
+        </div>
+      </div>
+    </div>
+
     <!-- QUOTATIONS -->
     <div class="page" id="page-quotations">
       <div class="ph"><div class="pt">📝 ใบเสนอราคา</div><button class="btn btn-primary" onclick="showQtModal()">+ สร้างใบเสนอราคา</button></div>
@@ -693,6 +809,9 @@ var PAGE_LOADERS={
   users:loadUsers,
   permissions:()=>{const fb=document.querySelector('#page-permissions .perm-role-btn');selectPermRole('manager',fb);},
   company:loadCompanySettings,
+  'stock-count':loadStockCount,
+  'mall-settlement':loadMallSettlement,
+  'mall-crm':loadMallCRM,
   quotations:loadQuotations,
   invoices:loadInvoices,
   employees:loadEmployees,
@@ -5425,6 +5544,628 @@ async function deleteInv(id) {
     const result = await api.del('/invoices/'+id);
     toast(result.message||'ลบเรียบร้อย','success');
     loadInvoices();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+// ============================================================
+// STOCK COUNT — นับสต๊อกเช้า/เย็น
+// ============================================================
+async function loadStockCount() {
+  // populate branch selector
+  const bSel = document.getElementById('scBranch');
+  if (bSel && bSel.options.length <= 1) {
+    branches.forEach(b => bSel.innerHTML += `<option value="${b.id}">${b.name}</option>`);
+    // default เดอะมอลล์ถ้ามี
+    const mall = branches.find(b => b.code==='16KA' || b.name.includes('มอลล์'));
+    if (mall) bSel.value = mall.id;
+    else if (CU.branch_id) bSel.value = CU.branch_id;
+  }
+  // set today's date
+  const dateEl = document.getElementById('scDate');
+  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0,10);
+
+  await loadStockCountSummary();
+  await loadStockCountHistory();
+}
+
+async function loadStockCountSummary() {
+  const branchId = document.getElementById('scBranch')?.value;
+  const date = document.getElementById('scDate')?.value;
+  if (!branchId || !date) return;
+
+  const summaryEl = document.getElementById('scSummaryTable');
+  if (!summaryEl) return;
+  summaryEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:12px">⏳ กำลังโหลด...</div>';
+
+  try {
+    const rows = safeArray(await api.get('/stock-counts/summary?branch_id='+branchId+'&date='+date));
+    const withData = rows.filter(r => r.open_count!==null || r.close_count!==null);
+
+    if (!withData.length) {
+      summaryEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">ยังไม่มีการนับสต๊อกวันนี้</div>';
+      return;
+    }
+
+    const totalSold = withData.reduce((s,r) => s + (r.sold_count||0), 0);
+    const hasDiscrepancy = withData.some(r => r.stock_diff !== null && r.stock_diff !== 0);
+
+    summaryEl.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px">
+        <div class="card" style="text-align:center;padding:12px">
+          <div style="font-size:11px;color:var(--text-muted)">สินค้าที่นับ</div>
+          <div style="font-size:22px;font-weight:700">${withData.length}</div>
+          <div style="font-size:11px;color:var(--text-muted)">รายการ</div>
+        </div>
+        <div class="card" style="text-align:center;padding:12px">
+          <div style="font-size:11px;color:var(--text-muted)">ยอดขาย (นับได้)</div>
+          <div style="font-size:22px;font-weight:700;color:var(--accent)">${totalSold}</div>
+          <div style="font-size:11px;color:var(--text-muted)">ฟอง</div>
+        </div>
+        <div class="card" style="text-align:center;padding:12px;background:${hasDiscrepancy?'var(--error-dim)':'var(--success-dim)'}">
+          <div style="font-size:11px;color:var(--text-muted)">ความคลาดเคลื่อน</div>
+          <div style="font-size:22px;font-weight:700;color:${hasDiscrepancy?'var(--error)':'var(--success)'}">${hasDiscrepancy?'⚠️ มี':'✅ ไม่มี'}</div>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--surface2)">
+          <th style="padding:6px 10px;text-align:left;font-size:11px">สินค้า</th>
+          <th style="padding:6px 10px;text-align:center;font-size:11px">นับเปิด</th>
+          <th style="padding:6px 10px;text-align:center;font-size:11px">นับปิด</th>
+          <th style="padding:6px 10px;text-align:center;font-size:11px">ขายได้ (นับ)</th>
+          <th style="padding:6px 10px;text-align:center;font-size:11px">ระบบปิด</th>
+          <th style="padding:6px 10px;text-align:center;font-size:11px">คลาดเคลื่อน</th>
+        </tr></thead>
+        <tbody>
+          ${withData.map(r => {
+            const diff = r.stock_diff;
+            const diffColor = diff === null ? '' : diff > 0 ? 'color:var(--success)' : diff < 0 ? 'color:var(--error);font-weight:700' : '';
+            const diffText = diff === null ? '-' : diff > 0 ? '+'+diff+' (เกิน)' : diff < 0 ? diff+' (ขาด)' : '✅ ตรง';
+            return `<tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">${r.product_name}<br><span style="font-size:10px;color:var(--text-muted)">${r.product_code||''}</span></td>
+              <td style="text-align:center;padding:8px">${r.open_count ?? '-'}</td>
+              <td style="text-align:center;padding:8px">${r.close_count ?? '-'}</td>
+              <td style="text-align:center;padding:8px;font-weight:700;color:var(--accent)">${r.sold_count ?? '-'}</td>
+              <td style="text-align:center;padding:8px;color:var(--text-muted)">${r.close_system ?? '-'}</td>
+              <td style="text-align:center;padding:8px;${diffColor}">${diffText}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) {
+    if (summaryEl) summaryEl.innerHTML = `<div style="color:var(--error);padding:12px">${e.message}</div>`;
+  }
+}
+
+async function loadStockCountHistory() {
+  const branchId = document.getElementById('scBranch')?.value;
+  const el = document.getElementById('scHistoryT');
+  if (!el || !branchId) return;
+  try {
+    const rows = safeArray(await api.get('/stock-counts?branch_id='+branchId));
+    el.innerHTML = rows.length ? rows.slice(0,50).map(r => {
+      const diff = (r.qty_counted !== null && r.qty_system !== null)
+        ? r.qty_counted - r.qty_system : null;
+      const diffStyle = diff === null ? '' : diff < 0 ? 'color:var(--error);font-weight:700' : diff > 0 ? 'color:var(--success)' : '';
+      return `<tr>
+        <td>${fmt.d(r.count_date)}</td>
+        <td style="font-size:11px;color:var(--text-muted)">${new Date(r.created_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</td>
+        <td><strong>${r.product_name}</strong></td>
+        <td><span class="badge ${r.session_type==='open'?'bi':'bw'}">${r.session_type==='open'?'🌅 เปิด':'🌇 ปิด'}</span></td>
+        <td style="text-align:center;font-weight:700">${r.qty_counted}</td>
+        <td style="text-align:center;color:var(--text-muted)">${r.qty_system ?? '-'}</td>
+        <td style="text-align:center;${diffStyle}">${diff === null ? '-' : diff > 0 ? '+'+diff : diff}</td>
+        <td style="font-size:11px;color:var(--text-muted)">${r.note||''}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:16px">ยังไม่มีประวัติการนับ</td></tr>';
+  } catch(e) { console.error('loadStockCountHistory:', e); }
+}
+
+let _scItems = [];
+
+async function startStockCount(sessionType) {
+  const branchId = parseInt(document.getElementById('scBranch')?.value);
+  const date = document.getElementById('scDate')?.value || new Date().toISOString().slice(0,10);
+  if (!branchId) { toast('กรุณาเลือกสาขาก่อน','error'); return; }
+
+  const prods = safeArray(await api.get('/products'));
+  _scItems = prods.map(p => ({ product_id: p.id, name: p.name, code: p.code, qty_counted: '', note: '' }));
+
+  const sessionLabel = sessionType === 'open' ? '🌅 นับเปิด' : '🌇 นับปิด';
+  const branchName = branches.find(b=>b.id===branchId)?.name || '';
+
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto">
+    <div class="mh" style="position:sticky;top:0;background:var(--surface);z-index:10">
+      <div>
+        <div class="mt">${sessionLabel}</div>
+        <div style="font-size:12px;color:var(--text-muted)">${branchName} — ${new Date(date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'})}</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="saveStockCount('${sessionType}',${branchId},'${date}')">💾 บันทึก</button>
+        <button class="mc" onclick="CM()">✕</button>
+      </div>
+    </div>
+
+    <div style="padding:4px 0">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--surface2)">
+          <th style="padding:8px 10px;text-align:left;font-size:11px">สินค้า</th>
+          <th style="padding:8px 10px;width:120px;font-size:11px;text-align:center">จำนวนที่นับได้ (ฟอง)</th>
+          <th style="padding:8px 10px;font-size:11px">หมายเหตุ</th>
+        </tr></thead>
+        <tbody id="scItemsBody">
+          ${_scItems.map((it,i) => `
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 10px">
+              <div style="font-weight:600">${it.name}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${it.code||''}</div>
+            </td>
+            <td style="padding:4px 8px">
+              <input type="number" min="0" class="ctrl sc-qty-input" style="text-align:center;font-size:16px;font-weight:700"
+                data-idx="${i}" value="" placeholder="0"
+                oninput="_scItems[${i}].qty_counted=this.value">
+            </td>
+            <td style="padding:4px 8px">
+              <input type="text" class="ctrl" style="font-size:12px" placeholder="หมายเหตุ"
+                oninput="_scItems[${i}].note=this.value">
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div></div>`;
+
+  // focus first input
+  setTimeout(() => document.querySelector('.sc-qty-input')?.focus(), 100);
+}
+
+async function saveStockCount(sessionType, branchId, date) {
+  const items = _scItems
+    .filter(it => it.qty_counted !== '' && it.qty_counted !== null)
+    .map(it => ({ product_id: it.product_id, qty_counted: parseInt(it.qty_counted)||0, note: it.note }));
+
+  if (!items.length) { toast('กรุณากรอกจำนวนอย่างน้อย 1 รายการ','error'); return; }
+
+  try {
+    const result = await api.post('/stock-counts', { branch_id: branchId, session_type: sessionType, count_date: date, items });
+    toast(`✅ บันทึก${sessionType==='open'?'เปิด':'ปิด'}สต๊อก ${items.length} รายการเรียบร้อย`, 'success');
+    CM();
+    await loadStockCountSummary();
+    await loadStockCountHistory();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+
+// ============================================================
+// STOCK COUNT — AUTO DEDUCT
+// ============================================================
+async function doAutoDeduct() {
+  const branchId = document.getElementById('scBranch')?.value;
+  const date = document.getElementById('scDate')?.value;
+  if (!branchId || !date) { toast('กรุณาเลือกสาขาและวันที่','error'); return; }
+
+  const branchName = branches.find(b=>b.id==branchId)?.name || '';
+  const dateStr = new Date(date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+
+  if (!confirm(`Auto Deduct สต๊อก ${branchName} วันที่ ${dateStr}?\n\nระบบจะคำนวณส่วนต่างระหว่าง\nยอดนับ (เปิด-ปิด) กับ ยอด POS\nแล้วตัด stock ส่วนที่ขาดอัตโนมัติ`)) return;
+
+  try {
+    const result = await api.post('/stock-counts/auto-deduct', { branch_id: parseInt(branchId), date });
+    const deducted = result.results.filter(r => r.deducted > 0);
+    const skipped = result.results.filter(r => r.deducted === 0);
+
+    if (!result.results.length) {
+      toast('ไม่มีข้อมูลการนับสต๊อกวันนี้', 'error');
+      return;
+    }
+
+    // แสดง result modal
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:520px">
+      <div class="mh"><div class="mt">⚡ ผลการ Auto Deduct</div><button class="mc" onclick="CM()">✕</button></div>
+
+      ${deducted.length ? `
+      <div style="margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">ตัด stock แล้ว ${deducted.length} รายการ</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:var(--surface2)">
+            <th style="padding:6px 10px;text-align:left;font-size:11px">สินค้า</th>
+            <th style="padding:6px 10px;text-align:center;font-size:11px">นับได้</th>
+            <th style="padding:6px 10px;text-align:center;font-size:11px">POS ตัดแล้ว</th>
+            <th style="padding:6px 10px;text-align:center;font-size:11px;color:var(--accent)">ตัดเพิ่ม</th>
+          </tr></thead>
+          <tbody>
+            ${deducted.map(r=>`<tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:7px 10px">${r.name}</td>
+              <td style="text-align:center;padding:7px">${r.sold_count}</td>
+              <td style="text-align:center;padding:7px;color:var(--text-muted)">${r.pos_sold}</td>
+              <td style="text-align:center;padding:7px;font-weight:700;color:var(--accent)">-${r.deducted}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : '<div style="color:var(--success);padding:12px;text-align:center">✅ POS ครอบคลุมยอดขายทั้งหมดแล้ว ไม่ต้องตัดเพิ่ม</div>'}
+
+      ${skipped.length ? `<div style="font-size:11px;color:var(--text-muted)">ข้าม ${skipped.length} รายการ (POS ครอบคลุมแล้ว)</div>` : ''}
+
+      <button class="btn btn-primary" onclick="CM();loadStockCountSummary();" style="width:100%;margin-top:14px">✅ รับทราบ</button>
+    </div></div>`;
+
+    toast(`Auto Deduct เสร็จ — ตัด ${deducted.length} รายการ`, 'success');
+    await loadStockCountHistory();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// MALL SETTLEMENT — ยอดห้าง 16KA
+// ============================================================
+async function loadMallSettlement() {
+  // populate month selector
+  const sel = document.getElementById('msMonth');
+  if (sel && sel.options.length === 0) {
+    // สร้างตัวเลือก 12 เดือนย้อนหลัง
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = d.toISOString().slice(0,7);
+      const label = d.toLocaleDateString('th-TH',{month:'long',year:'numeric'});
+      sel.innerHTML += `<option value="${val}">${label}</option>`;
+    }
+  }
+  const month = sel?.value;
+  if (!month) return;
+
+  // หา branch_id ของ 16KA
+  const mallBranch = branches.find(b => b.code==='16KA' || b.name.includes('มอลล์') || b.name.includes('mall'));
+  if (!mallBranch) {
+    document.getElementById('msCard').innerHTML = '<div style="color:var(--error);padding:20px;text-align:center">ไม่พบสาขา 16KA ในระบบ</div>';
+    return;
+  }
+
+  try {
+    const data = safeArray(await api.get('/mall-settlements?branch_id='+mallBranch.id+'&month='+month));
+    const el = document.getElementById('msCard');
+    if (!el) return;
+
+    if (!data.length) {
+      el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted)">
+        <div style="font-size:40px;margin-bottom:12px">📋</div>
+        <div>ยังไม่มีข้อมูลเดือน ${month}</div>
+        <div style="font-size:12px;margin-top:8px">กด "สร้าง Draft" เพื่อดึงยอดขายจากระบบมาเป็นตั้งต้น</div>
+      </div>`;
+      return;
+    }
+
+    const totalSystem = data.reduce((s,r)=>s+(parseFloat(r.amount_system)||0),0);
+    const totalMall = data.reduce((s,r)=>s+(parseFloat(r.amount_mall)||0),0);
+    const totalDiff = totalMall - totalSystem;
+    const allPaid = data.every(r=>r.status==='paid');
+    const anyConfirmed = data.some(r=>r.status==='confirmed'||r.status==='paid');
+
+    el.innerHTML = `
+      <!-- Summary Cards -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+        <div style="text-align:center;padding:14px;background:var(--surface2);border-radius:10px">
+          <div style="font-size:11px;color:var(--text-muted)">ยอดระบบ</div>
+          <div style="font-size:20px;font-weight:700">${fmt.b(totalSystem)}</div>
+        </div>
+        <div style="text-align:center;padding:14px;background:var(--surface2);border-radius:10px">
+          <div style="font-size:11px;color:var(--text-muted)">ยอดห้างแจ้ง</div>
+          <div style="font-size:20px;font-weight:700;color:var(--accent)">${totalMall ? fmt.b(totalMall) : '-'}</div>
+        </div>
+        <div style="text-align:center;padding:14px;background:${totalDiff<0?'var(--error-dim)':totalDiff>0?'var(--success-dim)':'var(--surface2)'};border-radius:10px">
+          <div style="font-size:11px;color:var(--text-muted)">ส่วนต่าง</div>
+          <div style="font-size:20px;font-weight:700;color:${totalDiff<0?'var(--error)':totalDiff>0?'var(--success)':'var(--text)'}">${totalMall ? (totalDiff>=0?'+':'')+fmt.b(totalDiff) : '-'}</div>
+        </div>
+      </div>
+
+      <!-- Status bar -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span class="badge ${allPaid?'bs':anyConfirmed?'bi':'bw'}">${allPaid?'✅ รับเงินแล้ว':anyConfirmed?'📋 ยืนยันแล้ว รอรับเงิน':'⏳ รอห้างแจ้งยอด'}</span>
+        ${!allPaid && anyConfirmed ? `<button class="btn btn-primary btn-sm" onclick="markAllPaid('${month}',${mallBranch.id})">💰 บันทึกรับเงินทั้งหมด</button>` : ''}
+      </div>
+
+      <!-- Items table -->
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--surface2)">
+          <th style="padding:7px 10px;text-align:left;font-size:11px">สินค้า</th>
+          <th style="padding:7px 10px;text-align:center;font-size:11px">ยอดระบบ (ฟอง)</th>
+          <th style="padding:7px 10px;text-align:center;font-size:11px">ยอดห้าง (ฟอง)</th>
+          <th style="padding:7px 10px;text-align:center;font-size:11px">ราคา/ฟอง</th>
+          <th style="padding:7px 10px;text-align:right;font-size:11px">ยอดห้าง (บาท)</th>
+          <th style="padding:7px 10px;text-align:center;font-size:11px">ต่าง</th>
+          <th style="padding:7px 10px;text-align:center;font-size:11px">สถานะ</th>
+          <th style="padding:7px 10px;width:80px"></th>
+        </tr></thead>
+        <tbody>
+          ${data.map(r => {
+            const diff = r.diff_qty;
+            const diffStyle = diff===null?'':diff>0?'color:var(--success)':diff<0?'color:var(--error);font-weight:700':'';
+            return `<tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">${r.product_name}</td>
+              <td style="text-align:center;padding:8px;color:var(--text-muted)">${r.qty_sold_system??'-'}</td>
+              <td style="text-align:center;padding:8px;font-weight:600">${r.qty_sold_mall??'—'}</td>
+              <td style="text-align:center;padding:8px">฿${parseFloat(r.unit_price||0).toFixed(2)}</td>
+              <td style="text-align:right;padding:8px;font-weight:600">${r.amount_mall?fmt.b(r.amount_mall):'—'}</td>
+              <td style="text-align:center;padding:8px;${diffStyle}">${diff===null?'—':diff>0?'+'+diff:diff}</td>
+              <td style="text-align:center;padding:8px">
+                <span class="badge ${r.status==='paid'?'bs':r.status==='confirmed'?'bi':'bw'}">${r.status==='paid'?'รับเงินแล้ว':r.status==='confirmed'?'ยืนยัน':'รอ'}</span>
+              </td>
+              <td style="padding:4px 8px;text-align:center">
+                ${r.status==='pending'?`<button class="btn btn-secondary btn-sm" onclick="editMallItem(${r.id},${r.qty_sold_system})">แก้ไข</button>`:''}
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function createMallDraft() {
+  const month = document.getElementById('msMonth')?.value;
+  const mallBranch = branches.find(b => b.code==='16KA' || b.name.includes('มอลล์'));
+  if (!mallBranch) { toast('ไม่พบสาขา 16KA','error'); return; }
+  if (!confirm(`สร้าง Draft Settlement เดือน ${month} จากยอดขายในระบบ?`)) return;
+  try {
+    const r = await api.post('/mall-settlements/draft', { branch_id: mallBranch.id, month });
+    toast(`✅ สร้าง draft ${r.items?.length||0} รายการ`, 'success');
+    loadMallSettlement();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function editMallItem(id, systemQty) {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:420px">
+    <div class="mh"><div class="mt">✏️ บันทึกยอดที่ห้างแจ้ง</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px">
+      ยอดระบบของเรา: <strong>${systemQty} ฟอง</strong>
+    </div>
+    <div style="display:grid;gap:10px">
+      <div><label class="lbl">จำนวนที่ห้างแจ้ง (ฟอง)</label>
+        <input type="number" class="ctrl" id="msQtyMall" style="margin-top:4px" min="0" placeholder="0"></div>
+      <div><label class="lbl">ราคาต่อฟอง (บาท)</label>
+        <input type="number" class="ctrl" id="msPrice" style="margin-top:4px" step="0.01" min="0"></div>
+      <div><label class="lbl">วันที่ห้างจ่ายเงิน (ถ้ามี)</label>
+        <input type="date" class="ctrl" id="msPayDate" style="margin-top:4px"></div>
+      <div><label class="lbl">หมายเหตุ</label>
+        <input type="text" class="ctrl" id="msNote" style="margin-top:4px"></div>
+    </div>
+    <button class="btn btn-primary" onclick="saveMallItem(${id})" style="width:100%;margin-top:14px">💾 บันทึก</button>
+  </div></div>`;
+}
+
+async function saveMallItem(id) {
+  const qty = parseInt(document.getElementById('msQtyMall')?.value||0);
+  const price = parseFloat(document.getElementById('msPrice')?.value||0);
+  if (!qty || !price) { toast('กรุณากรอกจำนวนและราคา','error'); return; }
+  try {
+    await api.put('/mall-settlements/'+id, {
+      qty_sold_mall: qty,
+      amount_mall: qty * price,
+      unit_price: price,
+      payment_date: document.getElementById('msPayDate')?.value||null,
+      note: document.getElementById('msNote')?.value||''
+    });
+    toast('✅ บันทึกยอดห้างเรียบร้อย','success');
+    CM();
+    loadMallSettlement();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function markAllPaid(month, branchId) {
+  const payDate = prompt('วันที่รับเงิน (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
+  if (!payDate) return;
+  try {
+    const data = safeArray(await api.get('/mall-settlements?branch_id='+branchId+'&month='+month));
+    const confirmed = data.filter(r=>r.status==='confirmed');
+    for (const item of confirmed) {
+      await api.put('/mall-settlements/'+item.id+'/paid', { payment_date: payDate });
+    }
+    toast(`✅ บันทึกรับเงิน ${confirmed.length} รายการ`, 'success');
+    loadMallSettlement();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showMallSummary() {
+  const month = document.getElementById('msMonth')?.value;
+  toast('กำลังพัฒนา: สรุปรายเดือน '+month, 'info');
+}
+
+
+// ============================================================
+// MALL CRM — Line Loyalty Management
+// ============================================================
+async function loadMallCRM() {
+  await searchMallCRM();
+}
+
+async function searchMallCRM() {
+  const q = document.getElementById('crmSearch')?.value || '';
+  const el = document.getElementById('crmMembersT');
+  if (!el) return;
+  try {
+    const data = safeArray(await api.get('/mall-loyalty/search?q=' + encodeURIComponent(q)));
+    if (!data.length) {
+      el.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px">ยังไม่มีสมาชิก</td></tr>';
+      return;
+    }
+    el.innerHTML = data.map(m => `<tr>
+      <td>
+        <div style="font-weight:700">${m.full_name||'ยังไม่ลงทะเบียน'}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${m.phone||''} | ${m.line_user_id}</div>
+      </td>
+      <td style="text-align:center;font-weight:700;color:var(--accent)">${m.sets_count||0}</td>
+      <td style="text-align:center">${m.total_eggs||0}</td>
+      <td style="text-align:center" id="vc_${m.line_user_id}">-</td>
+      <td style="font-size:11px;color:var(--text-muted)">${m.registered_at?new Date(m.registered_at).toLocaleDateString('th-TH'):'-'}</td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick="showMemberDetail('${m.line_user_id}','${(m.full_name||'').replace(/'/g,'&apos;')}')">ดู</button>
+        ${!m.full_name?`<button class="btn btn-secondary btn-sm" onclick="showRegisterModal('${m.line_user_id}')" style="margin-left:4px">ลงทะเบียน</button>`:''}
+      </td>
+    </tr>`).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function addMallPoints() {
+  const lineId = document.getElementById('crmLineId')?.value?.trim();
+  const sets = parseInt(document.getElementById('crmSets')?.value||0);
+  const receipt = document.getElementById('crmReceipt')?.value?.trim();
+  if (!lineId) { toast('กรุณากรอก Line User ID หรือเบอร์โทร','error'); return; }
+  if (!sets || sets < 1) { toast('กรุณากรอกจำนวนเซ็ท','error'); return; }
+  if (!receipt) { toast('กรุณากรอกเลขใบเสร็จ','error'); return; }
+
+  // ค้นหาลูกค้าก่อน
+  const members = safeArray(await api.get('/mall-loyalty/search?q='+encodeURIComponent(lineId)).catch(()=>[]));
+  if (!members.length) { toast('ไม่พบลูกค้า กรุณาลงทะเบียนก่อน','error'); return; }
+
+  const member = members[0];
+  const mallBranch = branches.find(b => b.code==='16KA' || b.name.includes('มอลล์'));
+  if (!confirm(`เพิ่ม ${sets} เซ็ท ให้กับ "${member.full_name||member.line_user_id}"\nใบเสร็จ: ${receipt}?`)) return;
+
+  try {
+    const result = await api.post('/mall-loyalty/add', {
+      line_user_id: member.line_user_id,
+      sets,
+      receipt_no: receipt,
+      branch_id: mallBranch?.id,
+    });
+    toast(`✅ เพิ่ม ${sets} เซ็ท เรียบร้อย (รวม ${result.current_sets} เซ็ท)${result.new_vouchers?.length?' 🎉 ได้ Voucher '+result.new_vouchers.length+' ใบ':''}`, 'success');
+    document.getElementById('crmSets').value = '';
+    document.getElementById('crmReceipt').value = '';
+    await searchMallCRM();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function checkVoucher() {
+  const code = document.getElementById('crmVoucherCode')?.value?.trim().toUpperCase();
+  if (!code) { toast('กรุณากรอกรหัส Voucher','error'); return; }
+  const el = document.getElementById('voucherResult');
+  try {
+    // ตรวจจาก mall-loyalty search ไม่ได้ ต้องใช้ API ใหม่ — ตรวจ direct
+    const r = await api.get('/mall-loyalty/search?q='+encodeURIComponent(code)).catch(()=>[]);
+    // TODO: เพิ่ม GET /api/mall-vouchers/:code endpoint
+    el.innerHTML = `<div style="color:var(--text-muted);font-size:12px">กรุณากดปุ่ม "ใช้ Voucher" เพื่อยืนยัน</div>`;
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--error)">${e.message}</div>`;
+  }
+}
+
+async function useVoucher() {
+  const code = document.getElementById('crmVoucherCode')?.value?.trim().toUpperCase();
+  if (!code) { toast('กรุณากรอกรหัส Voucher','error'); return; }
+  if (!confirm(`ใช้ Voucher "${code}"?`)) return;
+  try {
+    const result = await api.put('/mall-vouchers/'+code+'/use', {});
+    toast('✅ ใช้ Voucher เรียบร้อย', 'success');
+    document.getElementById('crmVoucherCode').value = '';
+    document.getElementById('voucherResult').innerHTML = '';
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function showRegisterModal(lineUserId) {
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:400px">
+    <div class="mh"><div class="mt">📝 ลงทะเบียนสมาชิก</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="background:var(--surface2);border-radius:8px;padding:8px 12px;font-size:11px;margin-bottom:12px">
+      Line ID: <code>${lineUserId}</code>
+    </div>
+    <div style="display:grid;gap:10px">
+      <div><label class="lbl">ชื่อ-สกุล *</label>
+        <input type="text" class="ctrl" id="regName" style="margin-top:4px"></div>
+      <div><label class="lbl">เบอร์โทรศัพท์ *</label>
+        <input type="text" class="ctrl" id="regPhone" style="margin-top:4px" placeholder="08x-xxx-xxxx"></div>
+    </div>
+    <button class="btn btn-primary" onclick="saveMallRegister('${lineUserId}')" style="width:100%;margin-top:14px">✅ ลงทะเบียน</button>
+  </div></div>`;
+}
+
+async function saveMallRegister(lineUserId) {
+  const name = document.getElementById('regName')?.value?.trim();
+  const phone = document.getElementById('regPhone')?.value?.trim();
+  if (!name || !phone) { toast('กรุณากรอกชื่อและเบอร์โทร','error'); return; }
+  try {
+    await api.post('/mall-loyalty/register', { line_user_id: lineUserId, full_name: name, phone });
+    toast('✅ ลงทะเบียนเรียบร้อย','success');
+    CM();
+    await searchMallCRM();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showMemberDetail(lineUserId, name) {
+  try {
+    const members = safeArray(await api.get('/mall-loyalty/search?q='+encodeURIComponent(lineUserId)));
+    const m = members[0];
+    if (!m) { toast('ไม่พบข้อมูล','error'); return; }
+
+    const settings = safeArray(await api.get('/loyalty-settings'));
+    const setsPerVoucher = parseInt(settings.find(s=>s.key==='sets_per_voucher')?.value||15);
+    const voucherAmt = parseInt(settings.find(s=>s.key==='voucher_amount')?.value||50);
+    const sets = parseInt(m.sets_count||0);
+    const progress = Math.min(100, Math.round(sets/setsPerVoucher*100));
+
+    document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+    <div class="modal" style="max-width:460px">
+      <div class="mh"><div class="mt">👤 ${m.full_name||'ไม่ระบุชื่อ'}</div><button class="mc" onclick="CM()">✕</button></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div style="text-align:center;padding:12px;background:var(--surface2);border-radius:8px">
+          <div style="font-size:11px;color:var(--text-muted)">เซ็ทสะสม</div>
+          <div style="font-size:28px;font-weight:700;color:var(--accent)">${sets}</div>
+          <div style="font-size:11px;color:var(--text-muted)">เซ็ท</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--surface2);border-radius:8px">
+          <div style="font-size:11px;color:var(--text-muted)">ฟองรวม</div>
+          <div style="font-size:28px;font-weight:700">${m.total_eggs||0}</div>
+          <div style="font-size:11px;color:var(--text-muted)">ฟอง</div>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+          <span>ความคืบหน้า Voucher</span>
+          <span style="color:var(--accent);font-weight:700">${sets} / ${setsPerVoucher} เซ็ท</span>
+        </div>
+        <div style="background:var(--surface2);border-radius:20px;height:10px;overflow:hidden">
+          <div style="background:var(--accent);height:100%;width:${progress}%;border-radius:20px;transition:width .3s"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;text-align:right">
+          ${progress >= 100 ? '🎉 ครบแล้ว! รับ Voucher ฿'+voucherAmt+' ได้เลย' : 'อีก '+(setsPerVoucher-sets)+' เซ็ท ได้รับ Voucher ฿'+voucherAmt}
+        </div>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted)">
+        <div>📱 Line ID: <code>${m.line_user_id}</code></div>
+        <div>📞 เบอร์: ${m.phone||'-'}</div>
+        <div>📅 ลงทะเบียน: ${m.registered_at?new Date(m.registered_at).toLocaleDateString('th-TH'):'-'}</div>
+      </div>
+    </div></div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showLoyaltySettings() {
+  const data = safeArray(await api.get('/loyalty-settings'));
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:440px">
+    <div class="mh"><div class="mt">⚙️ ตั้งค่าระบบ Loyalty</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:12px">
+      ${data.map(s=>`<div>
+        <label class="lbl">${s.description||s.key}</label>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <input type="text" class="ctrl" value="${s.value}" id="ls_${s.key}" style="flex:1">
+          <button class="btn btn-secondary btn-sm" onclick="saveLoyaltySetting('${s.key}')">บันทึก</button>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div></div>`;
+}
+
+async function saveLoyaltySetting(key) {
+  const val = document.getElementById('ls_'+key)?.value?.trim();
+  if (!val) return;
+  try {
+    await api.put('/loyalty-settings/'+key, { value: val });
+    toast('✅ บันทึกเรียบร้อย','success');
   } catch(e) { toast(e.message,'error'); }
 }
 
