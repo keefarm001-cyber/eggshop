@@ -3739,7 +3739,7 @@ app.get('/api/stock-summary', auth, async (req, res) => {
       FROM stock_receipt_items sri
       JOIN stock_receipts sr ON sri.receipt_id=sr.id
       WHERE sr.branch_id=$1 AND sr.receipt_date=$2
-        AND sr.status IN ('confirmed','pre')
+        AND sr.status IN ('confirmed','pre','approved')
         AND (sr.source_type='banglane' OR sr.supplier_name ILIKE '%บางเลน%')
       GROUP BY sri.product_id
     `, [branch_id, date]);
@@ -3752,7 +3752,7 @@ app.get('/api/stock-summary', auth, async (req, res) => {
       FROM stock_receipt_items sri
       JOIN stock_receipts sr ON sri.receipt_id=sr.id
       WHERE sr.branch_id=$1 AND sr.receipt_date=$2
-        AND sr.status IN ('confirmed','pre')
+        AND sr.status IN ('confirmed','pre','approved')
         AND (sr.source_type='farm' OR sr.supplier_name ILIKE '%ฟาร์ม%')
       GROUP BY sri.product_id
     `, [branch_id, date]);
