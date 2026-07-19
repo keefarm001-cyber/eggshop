@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const crypto = require('crypto');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -406,6 +407,104 @@ async function initSchema() {
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER').catch(()=>{});
     await pool.query('UPDATE member_tiers SET active=true WHERE active IS NULL').catch(()=>{});
     await pool.query('ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount NUMERIC(10,2) DEFAULT 0').catch(()=>{});
+
+    // LINE CRM — mall loyalty
+    await pool.query(`CREATE TABLE IF NOT EXISTS line_users (
+      id SERIAL PRIMARY KEY,
+      line_user_id VARCHAR(100) UNIQUE NOT NULL,
+      display_name VARCHAR(200),
+      phone VARCHAR(20),
+      full_name VARCHAR(200),
+      branch_group VARCHAR(20) DEFAULT 'mall',
+      registered_at TIMESTAMPTZ DEFAULT NOW(),
+      active BOOLEAN DEFAULT true
+    )`).catch(()=>{});
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS mall_loyalty (
+      id SERIAL PRIMARY KEY,
+      line_user_id VARCHAR(100) REFERENCES line_users(line_user_id),
+      branch_id INTEGER REFERENCES branches(id),
+      sets_count INTEGER DEFAULT 0,
+      total_eggs INTEGER DEFAULT 0,
+      total_amount NUMERIC(10,2) DEFAULT 0,
+      lifetime_sets INTEGER DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS mall_vouchers (
+      id SERIAL PRIMARY KEY,
+      line_user_id VARCHAR(100) REFERENCES line_users(line_user_id),
+      voucher_code VARCHAR(20) UNIQUE NOT NULL,
+      amount NUMERIC(10,2) DEFAULT 50,
+      issued_at TIMESTAMPTZ DEFAULT NOW(),
+      expires_at DATE,
+      used_at TIMESTAMPTZ,
+      status VARCHAR(20) DEFAULT 'active'
+    )`).catch(()=>{});
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS mall_loyalty_logs (
+      id SERIAL PRIMARY KEY,
+      line_user_id VARCHAR(100),
+      branch_id INTEGER,
+      receipt_no VARCHAR(100),
+      sets_added INTEGER DEFAULT 0,
+      eggs_added INTEGER DEFAULT 0,
+      amount_added NUMERIC(10,2) DEFAULT 0,
+      added_by INTEGER REFERENCES users(id),
+      note TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
+
+    // loyalty settings
+    await pool.query(`CREATE TABLE IF NOT EXISTS loyalty_settings (
+      id SERIAL PRIMARY KEY,
+      key VARCHAR(50) UNIQUE NOT NULL,
+      value VARCHAR(200) NOT NULL,
+      description TEXT
+    )`).catch(()=>{});
+    await pool.query(`INSERT INTO loyalty_settings (key, value, description) VALUES
+      ('sets_per_voucher', '15', 'จำนวนเซ็ทที่ต้องซื้อเพื่อรับ voucher'),
+      ('voucher_amount', '50', 'มูลค่า voucher (บาท)'),
+      ('eggs_per_set', '30', 'จำนวนฟองต่อเซ็ท'),
+      ('voucher_validity_days', '90', 'อายุ voucher (วัน)'),
+      ('mall_branch_prefix', 'KA', 'prefix ของสาขา mall (16KA, 17KA...)')
+      ON CONFLICT (key) DO NOTHING
+    `).catch(()=>{});
+    // stock_counts — บันทึกการนับสต๊อกเช้า/เย็น
+        // mall_settlements — บันทึกยอดที่ห้างแจ้งมา vs ยอดระบบ
+    await pool.query(`CREATE TABLE IF NOT EXISTS mall_settlements (
+      id SERIAL PRIMARY KEY,
+      branch_id INTEGER REFERENCES branches(id),
+      settlement_month VARCHAR(7) NOT NULL,  -- YYYY-MM
+      product_id INTEGER REFERENCES products(id),
+      qty_sold_system INTEGER DEFAULT 0,     -- ยอดจาก POS+StockCount ในระบบ
+      qty_sold_mall INTEGER,                 -- ยอดที่ห้างแจ้ง
+      unit_price NUMERIC(10,2),
+      amount_system NUMERIC(10,2),           -- ยอดเงินตามระบบ
+      amount_mall NUMERIC(10,2),             -- ยอดเงินที่ห้างจ่าย
+      diff_qty INTEGER,                      -- qty_sold_mall - qty_sold_system
+      diff_amount NUMERIC(10,2),
+      status VARCHAR(20) DEFAULT 'pending',  -- pending/confirmed/paid
+      payment_date DATE,
+      note TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
+    // เพิ่ม auto_deduct column ใน stock_counts
+    await pool.query('ALTER TABLE stock_counts ADD COLUMN IF NOT EXISTS auto_deducted BOOLEAN DEFAULT false').catch(()=>{});
+    await pool.query('ALTER TABLE stock_counts ADD COLUMN IF NOT EXISTS deduct_qty INTEGER').catch(()=>{});
+    await pool.query(`CREATE TABLE IF NOT EXISTS stock_counts (
+      id SERIAL PRIMARY KEY,
+      branch_id INTEGER REFERENCES branches(id),
+      product_id INTEGER REFERENCES products(id),
+      session_type VARCHAR(10) NOT NULL CHECK (session_type IN ('open','close')),
+      count_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      qty_counted INTEGER NOT NULL DEFAULT 0,
+      qty_system INTEGER,
+      note TEXT,
+      counted_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
     await pool.query(`CREATE TABLE IF NOT EXISTS invoice_items (
       id SERIAL PRIMARY KEY,
       invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
@@ -2396,6 +2495,161 @@ app.delete('/api/member-tiers/:id', auth, role('owner','admin','manager'), async
 
 
 
+// ============================================================
+// STOCK COUNT — นับสต๊อกเช้า/เย็น (สำหรับเดอะมอลล์)
+// ============================================================
+
+
+
+
+// Summary: เปรียบเทียบเปิด-ปิด วันเดียวกัน
+
+
+
+// ============================================================
+// STOCK COUNT — AUTO DEDUCT (นับปิดแล้วตัด stock ส่วนต่าง)
+// ============================================================
+
+
+// ============================================================
+// MALL SETTLEMENTS — ยอดห้างสิ้นเดือน
+// ============================================================
+
+
+// สร้าง settlement draft จากข้อมูลระบบ
+
+
+// บันทึกยอดจริงที่ห้างแจ้งมา
+
+
+// บันทึกว่าได้รับเงินแล้ว
+
+
+
+// ============================================================
+// LINE WEBHOOK — ต้องรับ raw body สำหรับ verify signature
+// ============================================================
+
+
+// ============================================================
+// LINE HELPER FUNCTIONS
+// ============================================================
+async function sendLineMessage(userId, messages) {
+  const token = process.env.LINE_CHANNEL_TOKEN || '';
+  if (!token) return;
+  const msgs = Array.isArray(messages) ? messages : [messages];
+  await fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ to: userId, messages: msgs })
+  }).catch(e => console.error('Line send error:', e.message));
+}
+
+async function getSetting(key) {
+  const r = await pool.query('SELECT value FROM loyalty_settings WHERE key=$1', [key]);
+  return r.rows[0]?.value;
+}
+
+async function getLoyaltyMessage(lineUserId) {
+  const loyalty = await pool.query(
+    'SELECT * FROM mall_loyalty WHERE line_user_id=$1', [lineUserId]);
+  const settings = {
+    setsPerVoucher: parseInt(await getSetting('sets_per_voucher') || '15'),
+    voucherAmount: parseInt(await getSetting('voucher_amount') || '50')
+  };
+
+  if (!loyalty.rows.length) {
+    return { type: 'text', text: '❗ ยังไม่มีข้อมูลสะสม\nกรุณาลงทะเบียนก่อนนะคะ\nพิมพ์ "ลงทะเบียน" หรือกด เมนู > ลงทะเบียน' };
+  }
+
+  const row = loyalty.rows[0];
+  const sets = parseInt(row.sets_count || 0);
+  const remaining = settings.setsPerVoucher - sets;
+  const percent = Math.min(100, Math.round((sets / settings.setsPerVoucher) * 100));
+  const bar = '█'.repeat(Math.floor(percent/10)) + '░'.repeat(10 - Math.floor(percent/10));
+
+  return {
+    type: 'flex',
+    altText: `ยอดสะสม: ${sets} เซ็ท`,
+    contents: {
+      type: 'bubble',
+      header: { type: 'box', layout: 'vertical', backgroundColor: '#e67e00', contents: [
+        { type: 'text', text: '🥚 ยอดสะสมของคุณ', color: '#ffffff', weight: 'bold', size: 'lg' }
+      ]},
+      body: { type: 'box', layout: 'vertical', spacing: 'md', contents: [
+        { type: 'text', text: `เซ็ทที่ซื้อ: ${sets} เซ็ท`, size: 'xl', weight: 'bold', color: '#e67e00' },
+        { type: 'text', text: `ฟองรวม: ${row.total_eggs || 0} ฟอง`, size: 'sm', color: '#666666' },
+        { type: 'separator' },
+        { type: 'text', text: `${bar} ${percent}%`, size: 'sm', color: '#333333', wrap: true },
+        { type: 'text', text: remaining > 0 ? `อีก ${remaining} เซ็ท ได้รับ Voucher ฿${settings.voucherAmount}!` : '🎉 ครบแล้ว! รอรับ Voucher ได้เลย', size: 'sm', color: remaining > 0 ? '#666666' : '#e67e00', weight: 'bold' }
+      ]},
+      footer: { type: 'box', layout: 'vertical', contents: [
+        { type: 'button', action: { type: 'postback', label: '🎟️ ดู Voucher', data: 'action=voucher' }, style: 'primary', color: '#e67e00' }
+      ]}
+    }
+  };
+}
+
+async function getVoucherMessage(lineUserId) {
+  const vouchers = await pool.query(
+    "SELECT * FROM mall_vouchers WHERE line_user_id=$1 ORDER BY issued_at DESC LIMIT 5",
+    [lineUserId]);
+
+  if (!vouchers.rows.length) {
+    return { type: 'text', text: '🎟️ ยังไม่มี Voucher\nสะสมให้ครบ 15 เซ็ทเพื่อรับ Voucher \u0e3f50 นะคะ!' };
+  }
+
+  const active = vouchers.rows.filter(v => v.status === 'active');
+  const used = vouchers.rows.filter(v => v.status === 'used').length;
+  const lines = [`🎟️ Voucher ของคุณ
+`];
+  lines.push(`✅ ใช้ได้: ${active.length} ใบ`);
+  lines.push(`✓ ใช้แล้ว: ${used} ใบ`);
+  if (active.length) {
+    lines.push(`
+Voucher ล่าสุด:`);
+    active.slice(0,2).forEach(v => {
+      const exp = v.expires_at ? new Date(v.expires_at).toLocaleDateString('th-TH') : 'ไม่มีวันหมดอายุ';
+      lines.push(`🔖 ${v.voucher_code} — ฿${v.amount} (หมดอายุ: ${exp})`);
+    });
+  }
+  return { type: 'text', text: lines.join('\n') };
+}
+
+function getWelcomeMessage() {
+  return { type: 'text', text: '🥚 ยินดีต้อนรับสู่ Egg Station Mall!\n\nกดเมนูด้านล่างเพื่อ:\n• ดูยอดสะสม\n• ดู Voucher ของคุณ\n• ลงทะเบียนสมาชิก\n\nหรือพิมพ์ "ยอดสะสม" / "voucher" / "ลงทะเบียน"' };
+}
+
+function getRegisterMessage() {
+  return { type: 'text', text: '📝 ลงทะเบียนสมาชิก\n\nกรุณาแจ้ง Staff ที่แผงพร้อมบอก:\n• ชื่อ-สกุล\n• เบอร์โทรศัพท์\n\nแสดง LINE นี้ให้ Staff สแกน QR หรือค้นหา User ID\nขอบคุณค่ะ 🙏' };
+}
+
+function getMenuMessage() {
+  return { type: 'text', text: 'พิมพ์คำสั่ง:\n• "ยอดสะสม" — ดูเซ็ทสะสมของคุณ\n• "voucher" — ดู Voucher\n• "ลงทะเบียน" — สมัครสมาชิก' };
+}
+
+// ============================================================
+// LOYALTY ADMIN APIs — Staff ใช้ใน POS
+// ============================================================
+// ค้นหาลูกค้าจาก Line ID หรือเบอร์โทร
+
+
+// Staff เพิ่มยอดสะสม (หลังลูกค้าเอาใบเสร็จมายืนยัน)
+
+
+// ลงทะเบียน / อัพเดตข้อมูลลูกค้า
+
+
+// GET loyalty settings (admin)
+
+
+// PUT loyalty settings
+
+
+// Redeem voucher
+
+
+
 initSchema().then(() => {
   const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
   server.on('error', (err) => {
@@ -2838,6 +3092,554 @@ app.put('/api/invoices/:id/cancel', auth, role('owner','admin','manager'), async
   try {
     await pool.query("UPDATE invoices SET status='cancelled' WHERE id=$1", [req.params.id]);
     res.json({ message: 'ยกเลิกใบแจ้งหนี้เรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ============================================================
+// STOCK COUNT — นับสต๊อกเช้า/เย็น (สำหรับเดอะมอลล์)
+// ============================================================
+app.get('/api/stock-counts', auth, async (req, res) => {
+  const { branch_id, date } = req.query;
+  try {
+    let q = `SELECT sc.*, p.name AS product_name, p.code AS product_code,
+      b.name AS branch_name, u.username AS counted_by_name
+      FROM stock_counts sc
+      LEFT JOIN products p ON sc.product_id=p.id
+      LEFT JOIN branches b ON sc.branch_id=b.id
+      LEFT JOIN users u ON sc.counted_by=u.id
+      WHERE 1=1`;
+    const params = [];
+    if (branch_id) { params.push(branch_id); q += ` AND sc.branch_id=$${params.length}`; }
+    if (date) { params.push(date); q += ` AND sc.count_date=$${params.length}`; }
+    q += ' ORDER BY sc.count_date DESC, sc.session_type, sc.created_at DESC';
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/stock-counts', auth, async (req, res) => {
+  const { branch_id, session_type, count_date, items } = req.body;
+  // items = [{product_id, qty_counted, note}]
+  if (!branch_id || !session_type || !items?.length)
+    return res.status(400).json({ error: 'ข้อมูลไม่ครบ' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const savedItems = [];
+    for (const item of items) {
+      // ดูสต๊อกระบบ ณ ตอนนั้น
+      const stockR = await client.query(
+        'SELECT qty_unit FROM stock WHERE product_id=$1 AND branch_id=$2',
+        [item.product_id, branch_id]);
+      const qtySystem = stockR.rows[0]?.qty_unit ?? null;
+      // ลบ session เก่าของวันนี้ (ถ้ามี)
+      await client.query(
+        'DELETE FROM stock_counts WHERE branch_id=$1 AND product_id=$2 AND session_type=$3 AND count_date=$4',
+        [branch_id, item.product_id, session_type, count_date || new Date().toISOString().slice(0,10)]);
+      const r = await client.query(
+        `INSERT INTO stock_counts (branch_id,product_id,session_type,count_date,qty_counted,qty_system,note,counted_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [branch_id, item.product_id, session_type,
+         count_date || new Date().toISOString().slice(0,10),
+         item.qty_counted, qtySystem, item.note||null, req.user.id]);
+      savedItems.push(r.rows[0]);
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ message: 'บันทึกการนับสต๊อกเรียบร้อย', items: savedItems });
+  } catch(e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: e.message });
+  } finally { client.release(); }
+});
+
+// Summary: เปรียบเทียบเปิด-ปิด วันเดียวกัน
+app.get('/api/stock-counts/summary', auth, async (req, res) => {
+  const { branch_id, date } = req.query;
+  if (!branch_id || !date) return res.status(400).json({ error: 'กรุณาระบุ branch_id และ date' });
+  try {
+    const r = await pool.query(`
+      SELECT p.id AS product_id, p.name AS product_name, p.code AS product_code,
+        MAX(CASE WHEN sc.session_type='open' THEN sc.qty_counted END) AS open_count,
+        MAX(CASE WHEN sc.session_type='close' THEN sc.qty_counted END) AS close_count,
+        MAX(CASE WHEN sc.session_type='open' THEN sc.qty_system END) AS open_system,
+        MAX(CASE WHEN sc.session_type='close' THEN sc.qty_system END) AS close_system
+      FROM products p
+      LEFT JOIN stock_counts sc ON sc.product_id=p.id AND sc.branch_id=$1 AND sc.count_date=$2
+      WHERE p.active=true
+      ORDER BY p.code`, [branch_id, date]);
+
+    const rows = r.rows.map(row => {
+      const sold = (row.open_count !== null && row.close_count !== null)
+        ? parseInt(row.open_count) - parseInt(row.close_count) : null;
+      const diff = (row.close_count !== null && row.close_system !== null)
+        ? parseInt(row.close_count) - parseInt(row.close_system) : null;
+      return { ...row, sold_count: sold, stock_diff: diff };
+    });
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ============================================================
+// STOCK COUNT — AUTO DEDUCT (นับปิดแล้วตัด stock ส่วนต่าง)
+// ============================================================
+app.post('/api/stock-counts/auto-deduct', auth, async (req, res) => {
+  // เปรียบเทียบ open vs close วันนั้น แล้วตัด stock ส่วนที่ยังไม่ถูกตัด
+  const { branch_id, date } = req.body;
+  if (!branch_id || !date) return res.status(400).json({ error: 'กรุณาระบุ branch_id และ date' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // ดู summary เปิด-ปิด
+    const summaryR = await client.query(`
+      SELECT p.id AS product_id, p.name AS product_name,
+        MAX(CASE WHEN sc.session_type='open' THEN sc.qty_counted END) AS open_count,
+        MAX(CASE WHEN sc.session_type='close' THEN sc.qty_counted END) AS close_count
+      FROM products p
+      JOIN stock_counts sc ON sc.product_id=p.id AND sc.branch_id=$1 AND sc.count_date=$2
+      GROUP BY p.id, p.name`, [branch_id, date]);
+
+    const results = [];
+    for (const row of summaryR.rows) {
+      if (row.open_count === null || row.close_count === null) continue;
+
+      const soldByCount = parseInt(row.open_count) - parseInt(row.close_count);
+      if (soldByCount <= 0) continue;
+
+      // ดู stock movement วันนี้ — ยอดที่ตัดผ่าน POS แล้ว
+      const posR = await client.query(`
+        SELECT COALESCE(SUM(ABS(qty_unit)),0) AS pos_sold
+        FROM stock_movements
+        WHERE product_id=$1 AND branch_id=$2
+          AND movement_type='out'
+          AND created_at::date=$3`,
+        [row.product_id, branch_id, date]);
+
+      const posSold = parseInt(posR.rows[0]?.pos_sold || 0);
+      const remaining = soldByCount - posSold;
+
+      if (remaining <= 0) {
+        results.push({ product_id: row.product_id, name: row.product_name,
+          sold_count: soldByCount, pos_sold: posSold, deducted: 0, note: 'POS ครอบคลุมแล้ว' });
+        continue;
+      }
+
+      // ตัด stock ส่วนที่ขาด
+      await client.query(
+        'UPDATE stock SET qty_unit=qty_unit-$1, updated_at=NOW() WHERE product_id=$2 AND branch_id=$3',
+        [remaining, row.product_id, branch_id]);
+
+      // บันทึก movement
+      await client.query(`
+        INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_unit,ref_doc,note)
+        VALUES ($1,$2,'out',$3,'STOCK-COUNT','Auto deduct จากการนับสต๊อก '||$4)`,
+        [row.product_id, branch_id, remaining, date]);
+
+      // mark stock_count ว่า deducted แล้ว
+      await client.query(`
+        UPDATE stock_counts SET auto_deducted=true, deduct_qty=$1
+        WHERE product_id=$2 AND branch_id=$3 AND count_date=$4 AND session_type='close'`,
+        [remaining, row.product_id, branch_id, date]);
+
+      results.push({ product_id: row.product_id, name: row.product_name,
+        sold_count: soldByCount, pos_sold: posSold, deducted: remaining });
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Auto deduct เรียบร้อย', results });
+  } catch(e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: e.message });
+  } finally { client.release(); }
+});
+
+// ============================================================
+// MALL SETTLEMENTS — ยอดห้างสิ้นเดือน
+// ============================================================
+app.get('/api/mall-settlements', auth, async (req, res) => {
+  const { branch_id, month } = req.query;
+  try {
+    let q = `SELECT ms.*, p.name AS product_name, b.name AS branch_name
+      FROM mall_settlements ms
+      LEFT JOIN products p ON ms.product_id=p.id
+      LEFT JOIN branches b ON ms.branch_id=b.id
+      WHERE 1=1`;
+    const params = [];
+    if (branch_id) { params.push(branch_id); q += ` AND ms.branch_id=$${params.length}`; }
+    if (month) { params.push(month); q += ` AND ms.settlement_month=$${params.length}`; }
+    q += ' ORDER BY ms.settlement_month DESC, p.name';
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// สร้าง settlement draft จากข้อมูลระบบ
+app.post('/api/mall-settlements/draft', auth, async (req, res) => {
+  const { branch_id, month } = req.body; // month = YYYY-MM
+  if (!branch_id || !month) return res.status(400).json({ error: 'ระบุ branch_id และ month' });
+
+  const [year, mon] = month.split('-');
+  const startDate = `${month}-01`;
+  const endDate = new Date(parseInt(year), parseInt(mon), 0).toISOString().slice(0,10);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // ลบ draft เก่า
+    await client.query(
+      "DELETE FROM mall_settlements WHERE branch_id=$1 AND settlement_month=$2 AND status='pending'",
+      [branch_id, month]);
+
+    // คำนวณยอดขายจากระบบ (POS + auto deduct)
+    const salesR = await client.query(`
+      SELECT sm.product_id, p.name AS product_name,
+        SUM(sm.qty_unit) AS total_sold
+      FROM stock_movements sm
+      JOIN products p ON sm.product_id=p.id
+      WHERE sm.branch_id=$1
+        AND sm.movement_type='out'
+        AND sm.created_at::date BETWEEN $2 AND $3
+      GROUP BY sm.product_id, p.name`, [branch_id, startDate, endDate]);
+
+    const inserted = [];
+    for (const row of salesR.rows) {
+      // หาราคาเฉลี่ยจาก product_prices
+      const priceR = await client.query(
+        'SELECT price FROM product_prices WHERE product_id=$1 AND branch_id=$2 ORDER BY qty LIMIT 1',
+        [row.product_id, branch_id]);
+      const unitPrice = parseFloat(priceR.rows[0]?.price || 0);
+      const amtSystem = parseInt(row.total_sold) * unitPrice;
+
+      const r = await client.query(`
+        INSERT INTO mall_settlements
+          (branch_id, settlement_month, product_id, qty_sold_system, unit_price, amount_system, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [branch_id, month, row.product_id, row.total_sold, unitPrice, amtSystem, req.user.id]);
+      inserted.push(r.rows[0]);
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: `สร้าง draft settlement เดือน ${month} เรียบร้อย`, items: inserted });
+  } catch(e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: e.message });
+  } finally { client.release(); }
+});
+
+// บันทึกยอดจริงที่ห้างแจ้งมา
+app.put('/api/mall-settlements/:id', auth, async (req, res) => {
+  const { qty_sold_mall, amount_mall, unit_price, payment_date, note } = req.body;
+  try {
+    const r = await pool.query(`
+      UPDATE mall_settlements SET
+        qty_sold_mall=$1, amount_mall=$2, unit_price=$3,
+        diff_qty=$1 - qty_sold_system,
+        diff_amount=$2 - COALESCE(amount_system,0),
+        payment_date=$4, note=$5, status='confirmed'
+      WHERE id=$6 RETURNING *`,
+      [qty_sold_mall, amount_mall, unit_price||null, payment_date||null, note||null, req.params.id]);
+    res.json(r.rows[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// บันทึกว่าได้รับเงินแล้ว
+app.put('/api/mall-settlements/:id/paid', auth, async (req, res) => {
+  const { payment_date } = req.body;
+  try {
+    await pool.query(
+      "UPDATE mall_settlements SET status='paid', payment_date=$1 WHERE id=$2",
+      [payment_date || new Date().toISOString().slice(0,10), req.params.id]);
+    res.json({ message: 'บันทึกการรับเงินเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ============================================================
+// LINE WEBHOOK — ต้องรับ raw body สำหรับ verify signature
+// ============================================================
+app.post('/api/line/webhook', express.raw({type:'application/json'}), async (req, res) => {
+  const LINE_SECRET = process.env.LINE_CHANNEL_SECRET || '';
+  const signature = req.headers['x-line-signature'];
+  if (LINE_SECRET) {
+    const hash = crypto.createHmac('sha256', LINE_SECRET).update(req.body).digest('base64');
+    if (hash !== signature) return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  const body = JSON.parse(req.body);
+  const events = body.events || [];
+
+  for (const event of events) {
+    const lineUserId = event.source?.userId;
+    if (!lineUserId) continue;
+
+    // auto-save user เมื่อ follow หรือ message ครั้งแรก
+    await pool.query(
+      `INSERT INTO line_users (line_user_id, display_name) VALUES ($1, $2)
+       ON CONFLICT (line_user_id) DO NOTHING`,
+      [lineUserId, event.source?.displayName || 'ไม่ระบุชื่อ']
+    ).catch(()=>{});
+
+    if (event.type === 'message' && event.message?.type === 'text') {
+      const text = event.message.text.trim().toLowerCase();
+
+      if (text === 'ยอดสะสม' || text === 'point' || text === 'แต้ม') {
+        await sendLineMessage(lineUserId, await getLoyaltyMessage(lineUserId));
+      } else if (text === 'voucher' || text === 'วูเชอร์') {
+        await sendLineMessage(lineUserId, await getVoucherMessage(lineUserId));
+      } else if (text === 'ลงทะเบียน' || text === 'register') {
+        await sendLineMessage(lineUserId, getRegisterMessage());
+      } else {
+        await sendLineMessage(lineUserId, getMenuMessage());
+      }
+    }
+
+    if (event.type === 'follow') {
+      await sendLineMessage(lineUserId, getWelcomeMessage());
+    }
+
+    if (event.type === 'postback') {
+      const data = event.postback?.data || '';
+      if (data === 'action=loyalty') {
+        await sendLineMessage(lineUserId, await getLoyaltyMessage(lineUserId));
+      } else if (data === 'action=voucher') {
+        await sendLineMessage(lineUserId, await getVoucherMessage(lineUserId));
+      }
+    }
+  }
+  res.json({ message: 'OK' });
+});
+
+// ============================================================
+// LINE HELPER FUNCTIONS
+// ============================================================
+async function sendLineMessage(userId, messages) {
+  const token = process.env.LINE_CHANNEL_TOKEN || '';
+  if (!token) return;
+  const msgs = Array.isArray(messages) ? messages : [messages];
+  await fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ to: userId, messages: msgs })
+  }).catch(e => console.error('Line send error:', e.message));
+}
+
+async function getSetting(key) {
+  const r = await pool.query('SELECT value FROM loyalty_settings WHERE key=$1', [key]);
+  return r.rows[0]?.value;
+}
+
+async function getLoyaltyMessage(lineUserId) {
+  const loyalty = await pool.query(
+    'SELECT * FROM mall_loyalty WHERE line_user_id=$1', [lineUserId]);
+  const settings = {
+    setsPerVoucher: parseInt(await getSetting('sets_per_voucher') || '15'),
+    voucherAmount: parseInt(await getSetting('voucher_amount') || '50')
+  };
+
+  if (!loyalty.rows.length) {
+    return { type: 'text', text: '❗ ยังไม่มีข้อมูลสะสม\nกรุณาลงทะเบียนก่อนนะคะ\nพิมพ์ "ลงทะเบียน" หรือกด เมนู > ลงทะเบียน' };
+  }
+
+  const row = loyalty.rows[0];
+  const sets = parseInt(row.sets_count || 0);
+  const remaining = settings.setsPerVoucher - sets;
+  const percent = Math.min(100, Math.round((sets / settings.setsPerVoucher) * 100));
+  const bar = '█'.repeat(Math.floor(percent/10)) + '░'.repeat(10 - Math.floor(percent/10));
+
+  return {
+    type: 'flex',
+    altText: `ยอดสะสม: ${sets} เซ็ท`,
+    contents: {
+      type: 'bubble',
+      header: { type: 'box', layout: 'vertical', backgroundColor: '#e67e00', contents: [
+        { type: 'text', text: '🥚 ยอดสะสมของคุณ', color: '#ffffff', weight: 'bold', size: 'lg' }
+      ]},
+      body: { type: 'box', layout: 'vertical', spacing: 'md', contents: [
+        { type: 'text', text: `เซ็ทที่ซื้อ: ${sets} เซ็ท`, size: 'xl', weight: 'bold', color: '#e67e00' },
+        { type: 'text', text: `ฟองรวม: ${row.total_eggs || 0} ฟอง`, size: 'sm', color: '#666666' },
+        { type: 'separator' },
+        { type: 'text', text: `${bar} ${percent}%`, size: 'sm', color: '#333333', wrap: true },
+        { type: 'text', text: remaining > 0 ? `อีก ${remaining} เซ็ท ได้รับ Voucher ฿${settings.voucherAmount}!` : '🎉 ครบแล้ว! รอรับ Voucher ได้เลย', size: 'sm', color: remaining > 0 ? '#666666' : '#e67e00', weight: 'bold' }
+      ]},
+      footer: { type: 'box', layout: 'vertical', contents: [
+        { type: 'button', action: { type: 'postback', label: '🎟️ ดู Voucher', data: 'action=voucher' }, style: 'primary', color: '#e67e00' }
+      ]}
+    }
+  };
+}
+
+async function getVoucherMessage(lineUserId) {
+  const vouchers = await pool.query(
+    "SELECT * FROM mall_vouchers WHERE line_user_id=$1 ORDER BY issued_at DESC LIMIT 5",
+    [lineUserId]);
+
+  if (!vouchers.rows.length) {
+    return { type: 'text', text: '🎟️ ยังไม่มี Voucher\nสะสมให้ครบ 15 เซ็ทเพื่อรับ Voucher \u0e3f50 นะคะ!' };
+  }
+
+  const active = vouchers.rows.filter(v => v.status === 'active');
+  const used = vouchers.rows.filter(v => v.status === 'used').length;
+  const lines = [`🎟️ Voucher ของคุณ
+`];
+  lines.push(`✅ ใช้ได้: ${active.length} ใบ`);
+  lines.push(`✓ ใช้แล้ว: ${used} ใบ`);
+  if (active.length) {
+    lines.push(`
+Voucher ล่าสุด:`);
+    active.slice(0,2).forEach(v => {
+      const exp = v.expires_at ? new Date(v.expires_at).toLocaleDateString('th-TH') : 'ไม่มีวันหมดอายุ';
+      lines.push(`🔖 ${v.voucher_code} — ฿${v.amount} (หมดอายุ: ${exp})`);
+    });
+  }
+  return { type: 'text', text: lines.join('\n') };
+}
+
+function getWelcomeMessage() {
+  return { type: 'text', text: '🥚 ยินดีต้อนรับสู่ Egg Station Mall!\n\nกดเมนูด้านล่างเพื่อ:\n• ดูยอดสะสม\n• ดู Voucher ของคุณ\n• ลงทะเบียนสมาชิก\n\nหรือพิมพ์ "ยอดสะสม" / "voucher" / "ลงทะเบียน"' };
+}
+
+function getRegisterMessage() {
+  return { type: 'text', text: '📝 ลงทะเบียนสมาชิก\n\nกรุณาแจ้ง Staff ที่แผงพร้อมบอก:\n• ชื่อ-สกุล\n• เบอร์โทรศัพท์\n\nแสดง LINE นี้ให้ Staff สแกน QR หรือค้นหา User ID\nขอบคุณค่ะ 🙏' };
+}
+
+function getMenuMessage() {
+  return { type: 'text', text: 'พิมพ์คำสั่ง:\n• "ยอดสะสม" — ดูเซ็ทสะสมของคุณ\n• "voucher" — ดู Voucher\n• "ลงทะเบียน" — สมัครสมาชิก' };
+}
+
+// ============================================================
+// LOYALTY ADMIN APIs — Staff ใช้ใน POS
+// ============================================================
+// ค้นหาลูกค้าจาก Line ID หรือเบอร์โทร
+app.get('/api/mall-loyalty/search', auth, async (req, res) => {
+  const { q } = req.query;
+  try {
+    const r = await pool.query(
+      `SELECT lu.*, ml.sets_count, ml.total_eggs, ml.total_amount, ml.lifetime_sets
+       FROM line_users lu
+       LEFT JOIN mall_loyalty ml ON ml.line_user_id=lu.line_user_id
+       WHERE lu.phone ILIKE $1 OR lu.full_name ILIKE $1 OR lu.line_user_id=$2
+       LIMIT 10`,
+      ['%'+(q||'')+'%', q||'']);
+    res.json(r.rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Staff เพิ่มยอดสะสม (หลังลูกค้าเอาใบเสร็จมายืนยัน)
+app.post('/api/mall-loyalty/add', auth, async (req, res) => {
+  const { line_user_id, sets, receipt_no, branch_id, note } = req.body;
+  if (!line_user_id || !sets) return res.status(400).json({ error: 'ระบุ line_user_id และ sets' });
+
+  const eggsPerSet = parseInt(await getSetting('eggs_per_set') || '30');
+  const setsPerVoucher = parseInt(await getSetting('sets_per_voucher') || '15');
+  const voucherAmount = parseFloat(await getSetting('voucher_amount') || '50');
+  const validityDays = parseInt(await getSetting('voucher_validity_days') || '90');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // upsert loyalty record
+    await client.query(
+      `INSERT INTO mall_loyalty (line_user_id, branch_id, sets_count, total_eggs, lifetime_sets)
+       VALUES ($1, $2, $3, $4, $3)
+       ON CONFLICT (line_user_id) DO UPDATE SET
+         sets_count = mall_loyalty.sets_count + $3,
+         total_eggs = mall_loyalty.total_eggs + $4,
+         lifetime_sets = mall_loyalty.lifetime_sets + $3,
+         updated_at = NOW()`,
+      [line_user_id, branch_id, sets, sets * eggsPerSet]);
+
+    // log
+    await client.query(
+      `INSERT INTO mall_loyalty_logs (line_user_id, branch_id, receipt_no, sets_added, eggs_added, added_by, note)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [line_user_id, branch_id, receipt_no||null, sets, sets*eggsPerSet, req.user.id, note||null]);
+
+    // ตรวจว่าครบ voucher ไหม
+    const cur = await client.query(
+      'SELECT sets_count FROM mall_loyalty WHERE line_user_id=$1', [line_user_id]);
+    const currentSets = parseInt(cur.rows[0]?.sets_count || 0);
+    const vouchersEarned = Math.floor(currentSets / setsPerVoucher);
+    const existingVouchers = await client.query(
+      "SELECT COUNT(*) AS cnt FROM mall_vouchers WHERE line_user_id=$1",
+      [line_user_id]);
+    const existingCount = parseInt(existingVouchers.rows[0]?.cnt || 0);
+
+    const newVouchers = [];
+    for (let i = existingCount; i < vouchersEarned; i++) {
+      const code = 'EGG' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2,5).toUpperCase();
+      const expDate = new Date(Date.now() + validityDays * 86400000).toISOString().slice(0,10);
+      const v = await client.query(
+        `INSERT INTO mall_vouchers (line_user_id, voucher_code, amount, expires_at)
+         VALUES ($1,$2,$3,$4) RETURNING *`,
+        [line_user_id, code, voucherAmount, expDate]);
+      newVouchers.push(v.rows[0]);
+    }
+
+    await client.query('COMMIT');
+
+    // แจ้ง Line ว่าเพิ่มยอดแล้ว
+    const confirmMsg = `✅ เพิ่มยอดสะสม ${sets} เซ็ท (${sets*eggsPerSet} ฟอง)\nรวมสะสม: ${currentSets} เซ็ท${newVouchers.length ? '\n\n🎉 ยินดีด้วย! คุณได้รับ Voucher ฿'+voucherAmount+' จำนวน '+newVouchers.length+' ใบ!\nรหัส: '+newVouchers.map(v=>v.voucher_code).join(', ') : ''}`;
+    await sendLineMessage(line_user_id, { type: 'text', text: confirmMsg });
+
+    res.json({ message: 'เพิ่มยอดเรียบร้อย', current_sets: currentSets, new_vouchers: newVouchers });
+  } catch(e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: e.message });
+  } finally { client.release(); }
+});
+
+// ลงทะเบียน / อัพเดตข้อมูลลูกค้า
+app.post('/api/mall-loyalty/register', auth, async (req, res) => {
+  const { line_user_id, full_name, phone } = req.body;
+  if (!line_user_id) return res.status(400).json({ error: 'ระบุ line_user_id' });
+  try {
+    await pool.query(
+      `INSERT INTO line_users (line_user_id, full_name, phone)
+       VALUES ($1,$2,$3)
+       ON CONFLICT (line_user_id) DO UPDATE SET full_name=$2, phone=$3`,
+      [line_user_id, full_name||null, phone||null]);
+    // init loyalty record
+    await pool.query(
+      `INSERT INTO mall_loyalty (line_user_id) VALUES ($1)
+       ON CONFLICT DO NOTHING`, [line_user_id]);
+    res.json({ message: 'ลงทะเบียนเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET loyalty settings (admin)
+app.get('/api/loyalty-settings', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM loyalty_settings ORDER BY key');
+    res.json(r.rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT loyalty settings
+app.put('/api/loyalty-settings/:key', auth, role('owner','admin'), async (req, res) => {
+  try {
+    await pool.query('UPDATE loyalty_settings SET value=$1 WHERE key=$2', [req.body.value, req.params.key]);
+    res.json({ message: 'บันทึกเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Redeem voucher
+app.put('/api/mall-vouchers/:code/use', auth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `UPDATE mall_vouchers SET status='used', used_at=NOW()
+       WHERE voucher_code=$1 AND status='active' RETURNING *`,
+      [req.params.code]);
+    if (!r.rows.length) return res.status(400).json({ error: 'Voucher ไม่ถูกต้องหรือใช้แล้ว' });
+    // แจ้ง Line
+    await sendLineMessage(r.rows[0].line_user_id, {
+      type: 'text', text: `✅ ใช้ Voucher ${req.params.code} มูลค่า ฿${r.rows[0].amount} เรียบร้อยแล้วค่ะ
+ขอบคุณที่ใช้บริการ Egg Station! 🥚`
+    });
+    res.json({ message: 'ใช้ Voucher เรียบร้อย', voucher: r.rows[0] });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
