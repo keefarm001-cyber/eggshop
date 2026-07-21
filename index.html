@@ -2179,6 +2179,7 @@ async function submitTr(){
 async function showProductModal(p={}) {
   const cats = await api.get('/product-categories').catch(()=>[]);
   const contacts = await api.get('/contacts?type=supplier').catch(()=>[]);
+  const unitNames = safeArray(await api.get('/products/unit-names').catch(()=>['ฟอง','แผง','ชุด']));
   const existingUnits = p.id ? safeArray(await api.get('/products/'+p.id+'/units').catch(()=>[])) : [];
   document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
   <div class="modal" style="max-width:580px">
@@ -2195,12 +2196,10 @@ async function showProductModal(p={}) {
           </select>
         </div>
         <div><label class="lbl">หน่วยหลัก</label>
-          <select class="ctrl" id="pUnit" style="margin-top:4px" onchange="updateProdPriceLabels()">
-            <option value="ฟอง" ${p.unit==='ฟอง'||!p.unit?'selected':''}>ฟอง</option>
-            <option value="แผง" ${p.unit==='แผง'?'selected':''}>แผง (30 ฟอง)</option>
-            <option value="ชุด" ${p.unit==='ชุด'?'selected':''}>ชุด</option>
-            <option value="อื่นๆ" ${p.unit==='อื่นๆ'?'selected':''}>อื่นๆ</option>
-          </select>
+          <input type="text" class="ctrl" id="pUnit" list="pUnitList" value="${p.unit||'ฟอง'}" style="margin-top:4px" placeholder="เช่น ฟอง, ชิ้น, กล่อง" oninput="updateProdPriceLabels()">
+          <datalist id="pUnitList">
+            ${unitNames.map(u=>`<option value="${u}">`).join('')}
+          </datalist>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
