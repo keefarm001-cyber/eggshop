@@ -70,6 +70,22 @@ async function initSchema() {
     // add track_stock column if not exists
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS track_stock BOOLEAN DEFAULT true`);
 
+    // product_units — หน่วยนับเพิ่มเติมของสินค้า พร้อมตัวคูณแปลงเป็นหน่วยหลัก เช่น "โหล" = 12 ชิ้น, "แผง" = 30 ฟอง
+    await pool.query(`CREATE TABLE IF NOT EXISTS product_units (
+      id SERIAL PRIMARY KEY,
+      product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+      unit_name VARCHAR(30) NOT NULL,
+      conversion_factor NUMERIC(10,2) NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
+    // seed หน่วย แผง(30) / ลัง(300) ให้สินค้าไข่ทุกตัวที่ยังไม่มีหน่วยกำหนดไว้เลย (ครั้งแรกเท่านั้น)
+    await pool.query(`INSERT INTO product_units (product_id, unit_name, conversion_factor)
+      SELECT p.id, 'แผง', 30 FROM products p
+      WHERE p.is_egg=true AND NOT EXISTS (SELECT 1 FROM product_units pu WHERE pu.product_id=p.id AND pu.unit_name='แผง')`).catch(()=>{});
+    await pool.query(`INSERT INTO product_units (product_id, unit_name, conversion_factor)
+      SELECT p.id, 'ลัง', 300 FROM products p
+      WHERE p.is_egg=true AND NOT EXISTS (SELECT 1 FROM product_units pu WHERE pu.product_id=p.id AND pu.unit_name='ลัง')`).catch(()=>{});
+
     const eggCat = await pool.query(`SELECT id FROM product_categories WHERE name='ไข่ไก่'`);
     const catId = eggCat.rows[0].id;
     const eggProducts = [['EGG-0','ไข่ไก่เบอร์ 0'],['EGG-1','ไข่ไก่เบอร์ 1'],['EGG-2','ไข่ไก่เบอร์ 2'],['EGG-3','ไข่ไก่เบอร์ 3'],['EGG-4','ไข่ไก่เบอร์ 4'],['EGG-5','ไข่ไก่เบอร์ 5'],['EGG-6','ไข่ไก่เบอร์ 6'],['EGG-BANG-L','ไข่บางใหญ่'],['EGG-BANG-M','ไข่บางกลาง'],['EGG-BANG-S','ไข่บางเล็ก']];
@@ -386,6 +402,8 @@ async function initSchema() {
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER').catch(()=>{});
     await pool.query('UPDATE member_tiers SET active=true WHERE active IS NULL').catch(()=>{});
     await pool.query('ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount NUMERIC(10,2) DEFAULT 0').catch(()=>{});
+    await pool.query('ALTER TABLE invoices ADD COLUMN IF NOT EXISTS contact_id INTEGER REFERENCES contacts(id)').catch(()=>{});
+    await pool.query('ALTER TABLE quotations ADD COLUMN IF NOT EXISTS contact_id INTEGER REFERENCES contacts(id)').catch(()=>{});
     // stock_receipts source_type
     await pool.query("ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS source_type VARCHAR(20) DEFAULT 'outside'").catch(()=>{});
     // stock_movements source_type  
@@ -1059,6 +1077,29 @@ app.post('/api/products/:id/prices', auth, role('owner','admin','manager'), asyn
   const { branch_id, customer_type, qty, price } = req.body;
   await pool.query(`INSERT INTO product_prices (product_id,branch_id,customer_type,qty,price) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (product_id,branch_id,customer_type,qty) DO UPDATE SET price=EXCLUDED.price,active=true`, [req.params.id, branch_id, customer_type, qty, price]);
   res.json({ message: 'ตั้งราคาเรียบร้อย' });
+});
+
+// หน่วยนับเพิ่มเติมของสินค้า (เช่น โหล, แพ็ค, แผง, ลัง) พร้อมตัวคูณแปลงเป็นหน่วยหลัก
+app.get('/api/products/:id/units', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM product_units WHERE product_id=$1 ORDER BY conversion_factor', [req.params.id]);
+    res.json(r.rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/products/:id/units', auth, role('owner','admin','manager'), async (req, res) => {
+  const { unit_name, conversion_factor } = req.body;
+  if (!unit_name || !conversion_factor) return res.status(400).json({ error: 'กรุณากรอกชื่อหน่วยและตัวคูณ' });
+  try {
+    const r = await pool.query('INSERT INTO product_units (product_id,unit_name,conversion_factor) VALUES ($1,$2,$3) RETURNING *',
+      [req.params.id, unit_name, parseFloat(conversion_factor)]);
+    res.status(201).json({ message: 'เพิ่มหน่วยเรียบร้อย', unit: r.rows[0] });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/products/units/:unitId', auth, role('owner','admin','manager'), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM product_units WHERE id=$1', [req.params.unitId]);
+    res.json({ message: 'ลบเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 app.post('/api/products/import-prices', auth, role('owner','admin'), async (req, res) => {
   const { prices } = req.body;
