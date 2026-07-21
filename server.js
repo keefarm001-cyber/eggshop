@@ -254,6 +254,7 @@ async function initSchema() {
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS emergency_contact TEXT`);
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_url TEXT`);
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS doc_url TEXT`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`);
 
     // debt_notes already in schema
     // add doc_sequence for debit/credit note
@@ -963,7 +964,11 @@ app.get('/api/products', auth, async (req, res) => {
       : `LEFT JOIN stock s ON s.product_id=p.id`;
     let q = `SELECT p.*,
       COALESCE(pc.name,'') AS category_name,
-      COALESCE(SUM(s.qty_unit),0) AS total_stock
+      COALESCE(SUM(s.qty_unit),0) AS total_stock,
+      (SELECT sri.cost_per_unit FROM stock_receipt_items sri
+        JOIN stock_receipts sr ON sri.receipt_id=sr.id
+        WHERE sri.product_id=p.id AND sr.status='approved'
+        ORDER BY sr.receipt_date DESC, sri.id DESC LIMIT 1) AS latest_cost_price
       FROM products p
       LEFT JOIN product_categories pc ON p.category_id=pc.id
       ${stockJoin}
@@ -1521,8 +1526,10 @@ app.get('/api/sales/:id/items', auth, async (req, res) => {
 
 // INVOICES
 app.get('/api/invoices', auth, async (req, res) => {
-  const r = await pool.query(`SELECT i.*,c.contact_name,c.business_name,c.address AS contact_address,c.tax_id AS contact_tax_id,b.code AS branch_code,b.name AS branch_name,u.full_name AS created_by_name FROM invoices i LEFT JOIN contacts c ON i.contact_id=c.id LEFT JOIN branches b ON i.branch_id=b.id LEFT JOIN users u ON i.created_by=u.id ORDER BY i.created_at DESC`);
-  res.json(r.rows);
+  try {
+    const r = await pool.query(`SELECT i.*,c.contact_name,c.business_name,c.address AS contact_address,c.tax_id AS contact_tax_id,b.code AS branch_code,b.name AS branch_name,u.full_name AS created_by_name FROM invoices i LEFT JOIN contacts c ON i.contact_id=c.id LEFT JOIN branches b ON i.branch_id=b.id LEFT JOIN users u ON i.created_by=u.id ORDER BY i.created_at DESC`);
+    res.json(r.rows);
+  } catch(e) { console.error('invoices GET error:', e.message); res.status(500).json({ error: e.message }); }
 });
 app.post('/api/invoices/manual', auth, role('owner','admin','manager'), async (req, res) => {
   const { contact_id, branch_id, items, discount, due_date, note } = req.body;
@@ -1717,6 +1724,7 @@ app.post('/api/employees', auth, role('owner','admin'), async (req, res) => {
       const userR = await client.query('INSERT INTO users (username,password_hash,full_name,role_id,branch_id,phone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
         [username, hash, full_name, roleId, branch_id||null, phone||null]);
       userId = userR.rows[0].id;
+      await client.query('UPDATE employees SET user_id=$1 WHERE id=$2', [userId, empId]);
       // สิทธิ์สาขา
       for (const bid of (branch_access||[])) {
         await client.query('INSERT INTO user_branch_access (user_id,branch_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [userId, bid]);
@@ -1731,10 +1739,28 @@ app.post('/api/employees', auth, role('owner','admin'), async (req, res) => {
   } finally { client.release(); }
 });
 app.put('/api/employees/:id', auth, role('owner','admin'), async (req, res) => {
-  const { full_name, nickname, national_id, phone, email, address, branch_id, position, start_date, probation_end_date, salary, salary_base, bank_name, bank_account, education, work_history, emergency_contact, active } = req.body;
-  await pool.query(`UPDATE employees SET full_name=$1,nickname=$2,national_id=$3,phone=$4,email=$5,address=$6,branch_id=$7,position=$8,start_date=$9,probation_end_date=$10,salary=$11,salary_base=$12,bank_name=$13,bank_account=$14,education=$15,work_history=$16,emergency_contact=$17,active=$18 WHERE id=$19`,
-    [full_name, nickname, national_id, phone, email, address, branch_id||null, position, start_date||null, probation_end_date||null, salary||null, salary_base||null, bank_name, bank_account, education, work_history, emergency_contact, active, req.params.id]);
-  res.json({ message: 'แก้ไขเรียบร้อย' });
+  const { full_name, nickname, national_id, phone, email, address, branch_id, position, start_date, probation_end_date, salary, salary_base, bank_name, bank_account, education, work_history, emergency_contact, active, branch_access } = req.body;
+  try {
+    await pool.query(`UPDATE employees SET full_name=$1,nickname=$2,national_id=$3,phone=$4,email=$5,address=$6,branch_id=$7,position=$8,start_date=$9,probation_end_date=$10,salary=$11,salary_base=$12,bank_name=$13,bank_account=$14,education=$15,work_history=$16,emergency_contact=$17,active=$18 WHERE id=$19`,
+      [full_name, nickname, national_id, phone, email, address, branch_id||null, position, start_date||null, probation_end_date||null, salary||null, salary_base||null, bank_name, bank_account, education, work_history, emergency_contact, active, req.params.id]);
+    // ถ้าพนักงานคนนี้ผูกกับ user account ให้อัพเดทสิทธิ์สาขาของ user ด้วย
+    if (Array.isArray(branch_access)) {
+      const empR = await pool.query('SELECT user_id FROM employees WHERE id=$1', [req.params.id]);
+      const uid = empR.rows[0]?.user_id;
+      if (uid) {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query('DELETE FROM user_branch_access WHERE user_id=$1', [uid]);
+          for (const bid of branch_access) {
+            await client.query('INSERT INTO user_branch_access (user_id,branch_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [uid, bid]);
+          }
+          await client.query('COMMIT');
+        } catch(e2) { await client.query('ROLLBACK'); throw e2; } finally { client.release(); }
+      }
+    }
+    res.json({ message: 'แก้ไขเรียบร้อย' });
+  } catch(e) { console.error('employees PUT error:', e.message); res.status(500).json({ error: e.message }); }
 });
 
 // Upload รูปพนักงาน
@@ -2346,7 +2372,7 @@ app.get('/api/reports/daily', auth, async (req, res) => {
   res.json({ date: targetDate, branches: r.rows });
 });
 
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+// (SPA catch-all moved to end of file, after all API routes)
 
 // ============================================================
 // PERMISSIONS API
@@ -2669,19 +2695,6 @@ function getMenuMessage() {
 
 
 
-initSchema().then(() => {
-  const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.error(`Port ${PORT} already in use, retrying in 1s...`);
-      setTimeout(() => server.listen(PORT), 1000);
-    } else {
-      throw err;
-    }
-  });
-});
-
-
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -2890,7 +2903,11 @@ app.get('/api/pos/products-for-member/:member_id', auth, async (req, res) => {
 app.get('/api/products/:id', auth, async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT p.*, pc.name AS category_name, pc.type AS category_type
+      SELECT p.*, pc.name AS category_name, pc.type AS category_type,
+      (SELECT sri.cost_per_unit FROM stock_receipt_items sri
+        JOIN stock_receipts sr ON sri.receipt_id=sr.id
+        WHERE sri.product_id=p.id AND sr.status='approved'
+        ORDER BY sr.receipt_date DESC, sri.id DESC LIMIT 1) AS latest_cost_price
       FROM products p
       LEFT JOIN product_categories pc ON p.category_id=pc.id
       WHERE p.id=$1`, [req.params.id]);
@@ -3887,6 +3904,9 @@ app.put('/api/stock/receipts/:id/cancel', auth, role('owner','admin'), async (re
   } finally { client.release(); }
 });
 
+
+// SPA fallback — ต้องอยู่หลังสุด หลัง API routes ทั้งหมด ไม่งั้น GET route ที่เขียนอยู่หลังจุดนี้จะใช้งานไม่ได้เลย
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 initSchema().then(() => {
   const server = app.listen(PORT, () => console.log(`🥚 Egg Station running on port ${PORT}`));
