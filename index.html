@@ -4,20 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Egg Station v2.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#f4f6f9;--surface:#fff;--surface2:#f0f2f5;--surface3:#e8eaed;--border:#d1d5db;--accent:#e67e00;--accent2:#d97706;--accent-dim:#fff3e0;--text:#1f2937;--text-muted:#6b7280;--error:#dc2626;--error-dim:#fef2f2;--success:#16a34a;--success-dim:#f0fdf4;--info:#2563eb;--info-dim:#eff6ff;--warning:#d97706;--warning-dim:#fffbeb;--shadow:0 1px 3px rgba(0,0,0,.1)}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);font-size:15px;overflow:hidden}
+html,body{height:100%;font-family:'Noto Sans Thai',sans-serif;background:var(--bg);color:var(--text);font-size:15px;overflow:hidden}
 #loginPage{display:flex;height:100vh;align-items:center;justify-content:center;background:linear-gradient(135deg,#fff7ed 0%,#f4f6f9 100%)}
 .login-wrap{background:#fff;border-radius:16px;padding:36px;width:380px;box-shadow:0 8px 40px rgba(0,0,0,.12)}
 .brand{text-align:center;margin-bottom:28px}
 .brand-icon{font-size:52px;display:block;margin-bottom:8px}
 .brand h1{font-size:26px;font-weight:700;color:var(--accent)}
 .brand p{font-size:13px;color:var(--text-muted);margin-top:4px}
-.ctrl{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:14px;font-family:'Sarabun',sans-serif;outline:none;color:var(--text);background:#fff;transition:border-color .2s}
+.ctrl{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:14px;font-family:'Noto Sans Thai',sans-serif;outline:none;color:var(--text);background:#fff;transition:border-color .2s}
 .ctrl:focus{border-color:var(--accent)}
 .lbl{font-size:12px;font-weight:600;color:var(--text-muted)}
-.btn-login{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px}
+.btn-login{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Noto Sans Thai',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px}
 .btn-login:disabled{opacity:.6;cursor:not-allowed}
 .login-err{color:var(--error);font-size:13px;margin-top:8px;display:none;padding:8px 12px;background:var(--error-dim);border-radius:6px}
 .login-err.show{display:block}
@@ -39,11 +42,11 @@ html,body{height:100%;font-family:'Sarabun',sans-serif;background:var(--bg);colo
 .nav-user{margin-top:auto;padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0}
 .nav-user-name{font-size:13px;font-weight:600;color:var(--text)}
 .nav-user-role{font-size:11px;color:var(--text-muted);margin-top:2px}
-.btn-logout{background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;color:var(--text-muted);margin-top:8px;font-family:'Sarabun',sans-serif;display:block;width:100%}
+.btn-logout{background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;color:var(--text-muted);margin-top:8px;font-family:'Noto Sans Thai',sans-serif;display:block;width:100%}
 .btn-logout:hover{background:var(--error-dim);color:var(--error);border-color:var(--error)}
 .card{background:var(--surface);border-radius:10px;padding:16px;border:1px solid var(--border);margin-bottom:12px}
 .ct{font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px}
-.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border:none;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border:none;border-radius:7px;font-family:'Noto Sans Thai',sans-serif;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
 .btn-primary{background:var(--accent);color:#fff}.btn-secondary{background:var(--surface2);color:var(--text)}
 .btn-success{background:var(--success-dim);color:var(--success)}.btn-danger{background:var(--error-dim);color:var(--error)}
 .btn-info{background:var(--info-dim);color:var(--info)}.btn-sm{padding:5px 9px;font-size:12px;border-radius:5px}
@@ -82,6 +85,8 @@ tr:hover td{background:#fafafa}
 .qty-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 .pos-total{padding:12px 14px;border-top:2px solid var(--border);font-size:20px;font-weight:700;color:var(--accent);display:flex;justify-content:space-between}
 @media(max-width:768px){.pos-layout{grid-template-columns:1fr}.pos-right{display:none}.g2,.g3,.g4{grid-template-columns:1fr}}
+.ss-mobile-cards{display:none}
+@media(max-width:768px){.ss-desktop-table{display:none}.ss-mobile-cards{display:block}}
 </style>
 </head>
 <body>
@@ -160,12 +165,12 @@ tr:hover td{background:#fafafa}
               <span>ส่วนลดสมาชิก</span>
               <div style="display:flex;align-items:center;gap:6px">
                 <span id="posMemDisc" style="color:var(--success)">฿0.00</span>
-                <button id="posRedeemBtn" onclick="showRedeemModal()" style="display:none;padding:2px 8px;background:var(--accent);color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer;font-family:'Sarabun',sans-serif">แลกฟอง</button>
+                <button id="posRedeemBtn" onclick="showRedeemModal()" style="display:none;padding:2px 8px;background:var(--accent);color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer;font-family:'Noto Sans Thai',sans-serif">แลกฟอง</button>
               </div>
             </div>
             <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px">
               <span>ส่วนลดเพิ่ม (บาท)</span>
-              <input type="number" id="posExtraDisc" value="0" min="0" style="width:80px;text-align:right;padding:3px 7px;border:1.5px solid var(--border);border-radius:5px;font-family:'Sarabun',sans-serif;font-size:13px" oninput="updateCartTotal()">
+              <input type="number" id="posExtraDisc" value="0" min="0" style="width:80px;text-align:right;padding:3px 7px;border:1.5px solid var(--border);border-radius:5px;font-family:'Noto Sans Thai',sans-serif;font-size:13px" oninput="updateCartTotal()">
             </div>
             <div class="pos-total"><span>รวม</span><span id="posTotal">฿0.00</span></div>
           </div>
@@ -759,7 +764,7 @@ const fmt={
 function CM(){document.getElementById('MC').innerHTML='';}
 function toast(msg,type='success'){
   const t=document.createElement('div');
-  t.style.cssText='position:fixed;bottom:20px;right:20px;padding:12px 18px;border-radius:8px;font-family:"Sarabun",sans-serif;font-size:14px;z-index:9999;color:#fff;background:'+(type==='error'?'#dc2626':type==='info'?'#2563eb':type==='warning'?'#d97706':'#16a34a')+';box-shadow:0 4px 12px rgba(0,0,0,.15);max-width:320px';
+  t.style.cssText='position:fixed;bottom:20px;right:20px;padding:12px 18px;border-radius:8px;font-family:"Noto Sans Thai",sans-serif;font-size:14px;z-index:9999;color:#fff;background:'+(type==='error'?'#dc2626':type==='info'?'#2563eb':type==='warning'?'#d97706':'#16a34a')+';box-shadow:0 4px 12px rgba(0,0,0,.15);max-width:320px';
   t.textContent=msg;
   document.body.appendChild(t);
   setTimeout(()=>t.remove(),3000);
@@ -808,8 +813,14 @@ const NAV=[
 function buildNav(){
   const nl=document.getElementById('navLinks');
   nl.innerHTML='';
-  NAV.forEach(item=>{
+  NAV.forEach((item,idx)=>{
     if(item.sec){
+      // เช็คว่ามี item ใต้หัวข้อนี้ที่ role ปัจจุบันเห็นบ้างไหม ก่อนจะแสดงหัวข้อ
+      let hasVisibleChild = false;
+      for (let j=idx+1; j<NAV.length && !NAV[j].sec; j++) {
+        if (!NAV[j].r || NAV[j].r.includes(CU.role)) { hasVisibleChild = true; break; }
+      }
+      if (!hasVisibleChild) return;
       const s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nl.appendChild(s);
     } else if(!item.r||item.r.includes(CU.role)){
       const a=document.createElement('div');
@@ -854,7 +865,7 @@ var PAGE_LOADERS={
   payroll:loadPayroll,
 };
 
-function showPage(id){
+function showPage(id, pushHistory=true){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
   const page=document.getElementById('page-'+id);
@@ -862,7 +873,15 @@ function showPage(id){
   const nl=document.getElementById('nav-'+id);
   if(nl) nl.classList.add('active');
   if(PAGE_LOADERS[id]) try{PAGE_LOADERS[id]();}catch(e){console.error('loader:',id,e);}
+  if(pushHistory){
+    if(history.state && history.state.page===id) return;
+    history.pushState({page:id}, '', '#'+id);
+  }
 }
+window.addEventListener('popstate', (e)=>{
+  const id = e.state?.page || 'dashboard';
+  showPage(id, false);
+});
 
 // ============================================================
 // AUTH
@@ -921,7 +940,8 @@ async function initApp(){
   try{mSet.eggs_required=(await api.get('/member-settings')).eggs_required||100;mSet.discount_amount=(await api.get('/member-settings')).discount_amount||5;}catch(e){}
   // company settings loaded on demand
   const def={owner:'dashboard',admin:'dashboard',manager:'dashboard',cashier:'pos',stock:'stock',viewer:'reports'}[CU.role]||'dashboard';
-  showPage(def);
+  history.replaceState({page:def}, '', '#'+def);
+  showPage(def, false);
 }
 
 
@@ -1040,50 +1060,50 @@ async function showRecvModal(isOwner=false) {
     _recvRowCount = 0; // reset counter
     const isO = ['owner','admin'].includes(CU.role) || isOwner;
     document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
-    <div class="modal" style="max-width:560px">
-      <div class="mh">
+    <div class="modal" style="max-width:620px">
+      <div class="mh" style="margin-bottom:18px">
         <div>
           <div class="mt">${isO?'📦 รับสินค้า (บันทึกราคาได้)':'📦 สร้างใบรับสินค้า (Pre)'}</div>
-          <div style="font-size:11px;color:var(--text-muted)">${isO?'เจ้าของ/ผู้จัดการ — ตัดสต๊อกทันที':'พนักงาน — เจ้าของจะใส่ราคาภายหลัง'}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px">${isO?'เจ้าของ/ผู้จัดการ — ตัดสต๊อกทันที':'พนักงาน — เจ้าของจะใส่ราคาภายหลัง'}</div>
         </div>
         <button class="mc" onclick="CM()">✕</button>
       </div>
-      <div style="display:grid;gap:10px">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="display:grid;gap:18px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
           <div><label class="lbl">สาขา *</label>
-            <select class="ctrl" id="recvBr" style="margin-top:4px">
+            <select class="ctrl" id="recvBr" style="margin-top:6px">
               ${brs.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}
             </select>
           </div>
           <div><label class="lbl">วันที่รับ</label>
-            <input type="date" class="ctrl" id="recvDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:4px">
+            <input type="date" class="ctrl" id="recvDate" value="${new Date().toISOString().slice(0,10)}" style="margin-top:6px">
           </div>
         </div>
         <div><label class="lbl">ผู้จำหน่าย / ซัพพลายเออร์</label>
-          <select class="ctrl" id="recvSupplier" style="margin-top:4px">
+          <select class="ctrl" id="recvSupplier" style="margin-top:6px">
             <option value="">— เลือกผู้จำหน่าย —</option>
             ${contacts.map(c=>`<option value="${c.business_name||c.contact_name}">${c.business_name||c.contact_name}</option>`).join('')}
             <option value="__custom__">+ พิมพ์เองด้านล่าง</option>
           </select>
-          <input type="text" class="ctrl" id="recvSupplierText" placeholder="หรือพิมพ์ชื่อผู้จำหน่าย" style="margin-top:6px">
+          <input type="text" class="ctrl" id="recvSupplierText" placeholder="หรือพิมพ์ชื่อผู้จำหน่าย" style="margin-top:8px">
         </div>
         <div id="recvItems">
-          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">รายการสินค้าที่รับเข้า</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px">รายการสินค้าที่รับเข้า</div>
           <div id="recvItemsList">
             ${recvItemRow(0, eggProds)}
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="addRecvItemRow()" style="margin-top:8px">+ เพิ่มสินค้า</button>
+          <button class="btn btn-secondary btn-sm" onclick="addRecvItemRow()" style="margin-top:10px">+ เพิ่มสินค้า</button>
         </div>
         ${isO ? `
-        <div style="border-top:1px solid var(--border);padding-top:10px">
-          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 ราคาสินค้า (เฉพาะเจ้าของ)</div>
+        <div style="border-top:1px solid var(--border);padding-top:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px">💰 ราคาสินค้า (เฉพาะเจ้าของ)</div>
           <div id="recvPrices"></div>
         </div>` : ''}
         <div><label class="lbl">หมายเหตุ</label>
-          <input type="text" class="ctrl" id="recvNote" style="margin-top:4px" placeholder="หมายเหตุ (ถ้ามี)">
+          <input type="text" class="ctrl" id="recvNote" style="margin-top:6px" placeholder="หมายเหตุ (ถ้ามี)">
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:${isO?'1fr 1fr':'1fr'};gap:8px;margin-top:14px">
+      <div style="display:grid;grid-template-columns:${isO?'1fr 1fr':'1fr'};gap:10px;margin-top:20px">
         ${isO?`<button class="btn btn-secondary" onclick="submitRecv(false)">📋 บันทึกเป็น Pre</button>`:''}
         <button class="btn btn-primary" onclick="submitRecv(${isO})">✅ ${isO?'บันทึกและตัดสต๊อก':'บันทึก Pre'}</button>
       </div>
@@ -1094,13 +1114,13 @@ async function showRecvModal(isOwner=false) {
 
 
 function recvItemRow(n, prods) {
-  return `<div id="recvRow_${n}" style="display:grid;grid-template-columns:1fr 100px 90px 24px;gap:6px;margin-bottom:6px;align-items:center">
-    <select class="ctrl" id="recvProd_${n}" style="font-size:13px">
+  return `<div id="recvRow_${n}" style="display:grid;grid-template-columns:1fr 100px 100px 24px;gap:8px;margin-bottom:8px;align-items:center">
+    <select class="ctrl" id="recvProd_${n}" style="font-size:13px;padding:8px 10px">
       <option value="">เลือกสินค้า</option>
       ${prods.map(p=>`<option value="${p.id}" data-name="${p.name}">${p.name}</option>`).join('')}
     </select>
-    <input type="number" class="ctrl" id="recvQty_${n}" value="1" min="1" style="text-align:right;font-size:13px">
-    <select class="ctrl" id="recvUnit_${n}" style="font-size:13px">
+    <input type="number" class="ctrl" id="recvQty_${n}" value="1" min="1" style="text-align:right;font-size:13px;padding:8px 10px">
+    <select class="ctrl" id="recvUnit_${n}" style="font-size:13px;padding:8px 10px">
       <option value="1">ฟอง (x1)</option>
       <option value="30">แผง (x30)</option>
       <option value="300">ลัง (x300)</option>
@@ -2082,7 +2102,6 @@ async function showProductModal(p={}) {
           <select class="ctrl" id="pUnit" style="margin-top:4px">
             <option value="ฟอง" ${p.unit==='ฟอง'||!p.unit?'selected':''}>ฟอง</option>
             <option value="แผง" ${p.unit==='แผง'?'selected':''}>แผง (30 ฟอง)</option>
-            <option value="ลัง" ${p.unit==='ลัง'?'selected':''}>ลัง (300 ฟอง)</option>
             <option value="ชุด" ${p.unit==='ชุด'?'selected':''}>ชุด</option>
             <option value="อื่นๆ" ${p.unit==='อื่นๆ'?'selected':''}>อื่นๆ</option>
           </select>
@@ -2173,6 +2192,7 @@ async function showBundleModal(){
   try{
     const [bundles,prods,brs]=await Promise.all([api.get('/bundles').catch(()=>[]),api.get('/products'),api.get('/branches')]);
     const eggProds=prods.filter(p=>p.is_egg);
+    window._bundleProds = eggProds;
     document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()"><div class="modal" style="max-width:580px"><div class="mh"><div class="mt">📦 ชุดสินค้า</div><button class="mc" onclick="CM()">✕</button></div>
     <div style="background:var(--info-dim);border-radius:7px;padding:10px;margin-bottom:12px;font-size:12px;color:var(--info)">💡 ชุดสินค้า เช่น ไข่ 10 ฟอง/ชุด — ขายออกแล้วตัดสต๊อกตามฟองในชุด</div>
     <div style="border:1px solid var(--border);border-radius:7px;max-height:180px;overflow-y:auto;margin-bottom:12px">
@@ -2182,16 +2202,41 @@ async function showBundleModal(){
     <div style="display:grid;gap:8px">
       <div><label class="lbl">ชื่อชุด *</label><input type="text" class="ctrl" id="bName" style="margin-top:4px" placeholder="เช่น ไข่เบอร์ 0 ชุด 10 ฟอง"></div>
       <div class="g2">
-        <div><label class="lbl">สินค้า *</label><select class="ctrl" id="bProd" style="margin-top:4px"><option value="">เลือกสินค้า</option>${eggProds.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
+        <div><label class="lbl">สินค้า *</label><select class="ctrl" id="bProd" style="margin-top:4px" onchange="updateBundleCost()"><option value="">เลือกสินค้า</option>${eggProds.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
         <div><label class="lbl">สาขา</label><select class="ctrl" id="bBranch" style="margin-top:4px"><option value="">ทุกสาขา</option>${brs.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}</select></div>
       </div>
       <div class="g2">
-        <div><label class="lbl">ฟอง/ชุด *</label><input type="number" class="ctrl" id="bQty" value="10" min="1" style="margin-top:4px"></div>
-        <div><label class="lbl">ราคา/ชุด *</label><input type="number" class="ctrl" id="bPrice" value="0" min="0" step="0.01" style="margin-top:4px"></div>
+        <div><label class="lbl">ฟอง/ชุด *</label><input type="number" class="ctrl" id="bQty" value="10" min="1" style="margin-top:4px" oninput="updateBundleCost()"></div>
+        <div><label class="lbl">ราคา/ชุด *</label><input type="number" class="ctrl" id="bPrice" value="0" min="0" step="0.01" style="margin-top:4px" oninput="updateBundleCost()"></div>
       </div>
+      <div id="bCostBox" style="display:none;background:var(--surface2);border-radius:7px;padding:10px 12px;font-size:13px"></div>
       <button class="btn btn-primary" onclick="saveBundle()">+ เพิ่ม</button>
     </div></div></div></div>`;
   }catch(e){toast(e.message,'error');}
+}
+
+function updateBundleCost(){
+  const box = document.getElementById('bCostBox');
+  if (!box) return;
+  const prodId = document.getElementById('bProd')?.value;
+  const qty = parseFloat(document.getElementById('bQty')?.value)||0;
+  const price = parseFloat(document.getElementById('bPrice')?.value)||0;
+  const prod = (window._bundleProds||[]).find(p=>String(p.id)===String(prodId));
+  if (!prodId || !prod) { box.style.display='none'; return; }
+  const costPerUnit = parseFloat(prod.latest_cost_price)||0;
+  if (!costPerUnit) {
+    box.style.display='block';
+    box.innerHTML = `<span style="color:var(--text-muted)">ยังไม่ได้ตั้งราคาต้นทุนของสินค้านี้ไว้ — ไปตั้งที่หน้ารายละเอียดสินค้าก่อน จะได้คำนวณต้นทุนชุดให้อัตโนมัติ</span>`;
+    return;
+  }
+  const totalCost = costPerUnit * qty;
+  const margin = price - totalCost;
+  box.style.display='block';
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">ต้นทุน/ฟอง</span><strong>${fmt.b(costPerUnit)}</strong></div>
+    <div style="display:flex;justify-content:space-between;margin-top:4px"><span style="color:var(--text-muted)">ต้นทุนรวม (${qty} ฟอง)</span><strong>${fmt.b(totalCost)}</strong></div>
+    ${price ? `<div style="display:flex;justify-content:space-between;margin-top:4px;padding-top:4px;border-top:1px solid var(--border)"><span style="color:var(--text-muted)">กำไร/ชุด</span><strong style="color:${margin>=0?'var(--success)':'var(--error)'}">${margin>=0?'+':''}${fmt.b(margin)}</strong></div>` : ''}
+  `;
 }
 
 async function saveBundle(){
@@ -2469,13 +2514,17 @@ async function delExpense(id){
 // SAVE PROMO
 // ============================================================
 async function savePromo() {
+  const type = document.getElementById('pmType').value;
+  const val = parseFloat(document.getElementById('pmDiscVal').value)||0;
   const body={
     name:document.getElementById('pmName').value,
     branch_id:document.getElementById('pmBr').value?parseInt(document.getElementById('pmBr').value):null,
-    promo_type:document.getElementById('pmType').value,
+    promo_type:type,
     product_id:document.getElementById('pmProd').value?parseInt(document.getElementById('pmProd').value):null,
     min_qty:parseInt(document.getElementById('pmMinQty').value)||1,
-    discount_value:parseFloat(document.getElementById('pmDiscVal').value)||0,
+    discount_value: type==='discount' ? val : null,
+    free_product_id: type==='free_item' ? (document.getElementById('pmProd').value?parseInt(document.getElementById('pmProd').value):null) : null,
+    free_qty: type==='free_item' ? val : null,
     start_date:document.getElementById('pmStart').value,
     end_date:document.getElementById('pmEnd').value
   };
@@ -2637,7 +2686,7 @@ function printPaySlip(item, periodName) {
     '<!DOCTYPE html>',
     '\x3chtml lang="th">',
     '\x3chead><meta charset="UTF-8"><title>Pay Slip</title>',
-    '<style>body{font-family:"Sarabun",sans-serif;font-size:13px;margin:0;padding:20px;background:#f4f4f4}',
+    '<style>body{font-family:"Noto Sans Thai",sans-serif;font-size:13px;margin:0;padding:20px;background:#f4f4f4}',
     '.slip{max-width:700px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.1)}',
     '.slip-header{background:#e67e00;color:#fff;padding:16px 20px}',
     '.slip-header h1{font-size:16px;margin:0}',
@@ -2649,7 +2698,7 @@ function printPaySlip(item, periodName) {
     'td{padding:7px 10px;border-bottom:1px solid #eee}',
     '.net{background:#e67e00;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;font-size:16px;font-weight:700}',
     '.toolbar{background:#1f2937;padding:10px 20px;display:flex;gap:10px}',
-    '.toolbar button{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:"Sarabun",sans-serif}',
+    '.toolbar button{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:"Noto Sans Thai",sans-serif}',
     '@media print{.toolbar{display:none}}',
     '<\/style><\/head>',
     '\x3cbody>',
@@ -2726,10 +2775,10 @@ function buildInvoiceHTML(inv, co, remaining, statusLabel) {
     '\x3chtml lang="th">',
     '\x3chead><meta charset="UTF-8"><title>ใบแจ้งหนี้ ' + inv.invoice_no + '<\/title>',
     '<style>',
-    'body{font-family:"Sarabun",sans-serif;font-size:13px;color:#1f2937;background:#f4f4f4}',
+    'body{font-family:"Noto Sans Thai",sans-serif;font-size:13px;color:#1f2937;background:#f4f4f4}',
     '.toolbar{background:#1f2937;padding:10px 20px;display:flex;gap:10px;align-items:center}',
     '.toolbar span{color:#9ca3af;font-size:13px}',
-    '.toolbar button{padding:7px 16px;border:none;border-radius:6px;font-family:"Sarabun",sans-serif;cursor:pointer}',
+    '.toolbar button{padding:7px 16px;border:none;border-radius:6px;font-family:"Noto Sans Thai",sans-serif;cursor:pointer}',
     '.page{width:210mm;min-height:297mm;margin:12px auto;background:#fff;padding:16mm 18mm 14mm;box-shadow:0 2px 16px rgba(0,0,0,.12)}',
     '.doc-header{display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:16px;border-bottom:3px solid #e67e00}',
     '.company-detail h2{font-size:16px;font-weight:700;color:#e67e00}',
@@ -2903,19 +2952,30 @@ async function showEmployeeModal(e={}) {
     {val:'stock',label:'📦 สต๊อก'},{val:'viewer',label:'👁️ ผู้ชม'},
     {val:'accountant',label:'📊 บัญชี'},{val:'sales_pc',label:'🛍️ พนักงานขาย (PC)'},
   ];
+  let existingAccess = [];
+  if (e.id && e.user_id) {
+    existingAccess = await api.get('/users/'+e.user_id+'/branches').then(r=>(r||[]).map(x=>x.branch_id)).catch(()=>[]);
+  }
   document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
   <div class="modal" style="max-width:660px">
     <div class="mh"><div class="mt">${e.id?'แก้ไข':'➕ เพิ่ม'}พนักงาน</div><button class="mc" onclick="CM()">✕</button></div>
 
     <!-- แท็บ -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
-      <button class="emp-tab" onclick="switchEmpTab('info',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid var(--accent);color:var(--accent);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer">📋 ข้อมูล</button>
-      <button class="emp-tab" onclick="switchEmpTab('pay',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer">💰 เงินเดือน</button>
-      <button class="emp-tab" onclick="switchEmpTab('edu',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer">📚 ประวัติ</button>
+      <button class="emp-tab" onclick="switchEmpTab('info',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid var(--accent);color:var(--accent);font-family:'Noto Sans Thai',sans-serif;font-size:13px;font-weight:600;cursor:pointer">📋 ข้อมูล</button>
+      <button class="emp-tab" onclick="switchEmpTab('pay',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Noto Sans Thai',sans-serif;font-size:13px;cursor:pointer">💰 เงินเดือน</button>
+      <button class="emp-tab" onclick="switchEmpTab('edu',this)" style="padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:'Noto Sans Thai',sans-serif;font-size:13px;cursor:pointer">📚 ประวัติ</button>
     </div>
 
     <!-- แท็บ: ข้อมูล -->
     <div id="empTab-info" style="display:grid;gap:9px">
+      <div style="text-align:center;margin-bottom:6px">
+        <div id="empPhotoPreview" style="width:84px;height:84px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 8px;overflow:hidden">${e.photo_url?`<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover">`:'👤'}</div>
+        ${e.id ? `
+        <input type="file" id="empPhotoFile" accept="image/*" style="display:none" onchange="uploadEmployeePhoto(${e.id})">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('empPhotoFile').click()">📷 อัปโหลดรูป</button>
+        ` : `<div style="font-size:11px;color:var(--text-muted)">บันทึกพนักงานก่อน แล้วค่อยอัปโหลดรูปได้</div>`}
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
         <div><label class="lbl">ชื่อ-นามสกุล *</label><input type="text" class="ctrl" id="emName" value="${e.full_name||''}" style="margin-top:4px"></div>
         <div><label class="lbl">ชื่อเล่น</label><input type="text" class="ctrl" id="emNick" value="${e.nickname||''}" style="margin-top:4px"></div>
@@ -2939,9 +2999,10 @@ async function showEmployeeModal(e={}) {
       </div>
       <div>
         <label class="lbl" style="margin-bottom:6px;display:block">🏪 สาขาที่ทำงานได้ (ติ๊กหลายสาขาได้)</label>
+        ${e.id && !e.user_id ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">พนักงานคนนี้ยังไม่มี account เข้าระบบ การติ๊กสาขาจะยังไม่มีผลจนกว่าจะสร้าง account ให้</div>` : ''}
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${branches.map(b=>`<label style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-size:13px">
-            <input type="checkbox" class="emBrAccess" value="${b.id}" style="accent-color:var(--accent)">
+            <input type="checkbox" class="emBrAccess" value="${b.id}" ${existingAccess.includes(b.id)?'checked':''} style="accent-color:var(--accent)">
             ${b.name}
           </label>`).join('')}
         </div>
@@ -2979,6 +3040,25 @@ async function showEmployeeModal(e={}) {
 
     <button class="btn btn-primary" onclick="saveEmployee(${e.id||0})" style="width:100%;margin-top:16px">💾 บันทึกพนักงาน</button>
   </div></div>`;
+}
+
+async function uploadEmployeePhoto(empId) {
+  const file = document.getElementById('empPhotoFile')?.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('photo', file);
+  try {
+    const res = await fetch('/api/employees/'+empId+'/photo', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer '+api.tok() },
+      body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error||'อัปโหลดไม่สำเร็จ');
+    document.getElementById('empPhotoPreview').innerHTML = `<img src="${data.url}" style="width:100%;height:100%;object-fit:cover">`;
+    toast('อัปโหลดรูปเรียบร้อย','success');
+    loadEmployees();
+  } catch(e) { toast(e.message,'error'); }
 }
 
 function switchEmpTab(tab, btn) {
@@ -3060,9 +3140,9 @@ async function printDailySummary() {
       '\x3chtml lang="th">',
       '<head><meta charset="UTF-8"><title>ใบสรุปยอดขาย</title>',
       '<style>',
-      'body{font-family:"Sarabun",sans-serif;font-size:14px;margin:0;padding:0}',
+      'body{font-family:"Noto Sans Thai",sans-serif;font-size:14px;margin:0;padding:0}',
       '.toolbar{background:#1f2937;padding:10px 20px;display:flex;gap:10px}',
-      '.toolbar button{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:"Sarabun",sans-serif}',
+      '.toolbar button{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:"Noto Sans Thai",sans-serif}',
       '.page{max-width:380px;margin:0 auto;padding:16px}',
       '.title{text-align:center;font-size:16px;font-weight:700;margin-bottom:4px}',
       '.subtitle{text-align:center;font-size:13px;color:#666;margin-bottom:16px}',
@@ -3606,9 +3686,9 @@ async function printDC(id) {
       '<!DOCTYPE html>',
       '\x3chtml lang="th"><head><meta charset="UTF-8"><title>ใบปิดยอด '+d.date+'</title>',
       '<style>',
-      'body{font-family:"Sarabun",sans-serif;font-size:13px;margin:0;background:#f4f4f4}',
+      'body{font-family:"Noto Sans Thai",sans-serif;font-size:13px;margin:0;background:#f4f4f4}',
       '.toolbar{background:#1f2937;padding:10px 20px;display:flex;gap:10px}',
-      '.toolbar button{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:"Sarabun",sans-serif}',
+      '.toolbar button{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:"Noto Sans Thai",sans-serif}',
       '.page{max-width:800px;margin:12px auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,.1)}',
       '.header{text-align:center;border-bottom:2px solid #e67e00;padding-bottom:12px;margin-bottom:16px}',
       '.header h2{color:#e67e00;font-size:18px;margin:0 0 4px}',
@@ -4111,7 +4191,11 @@ async function loadProductDetail() {
   if (!_curProdId) return;
   try {
     const data = await api.get('/products/'+_curProdId);
-    if (!data || !data.id) { toast('ไม่พบข้อมูลสินค้า','error'); return; }
+    if (!data || !data.id) {
+      console.error('loadProductDetail: unexpected response', data, 'for product id', _curProdId);
+      toast('ไม่พบข้อมูลสินค้า (ลองกดรีเฟรชหน้า หรือดู console เพื่อดูรายละเอียด)','error');
+      return;
+    }
     data.stocks = data.stocks || [];
     data.prices = data.prices || [];
     _curProdData = data;
@@ -4125,12 +4209,12 @@ async function loadProductDetail() {
     document.getElementById('pdCategory').textContent = data.category_name || '-';
 
     // หาราคาปลีก/ฟอง
-    const retailPrice = data.prices||[].find(p=>p.customer_type==='retail' && parseInt(p.qty)===1);
-    const restPrice = data.prices||[].find(p=>p.customer_type==='restaurant' && parseInt(p.qty)===1);
+    const retailPrice = (data.prices||[]).find(p=>p.customer_type==='retail' && parseInt(p.qty)===1);
+    const restPrice = (data.prices||[]).find(p=>p.customer_type==='restaurant' && parseInt(p.qty)===1);
     document.getElementById('pdSalePrice').textContent =
       (retailPrice ? '฿'+parseFloat(retailPrice.price).toFixed(2) : '-') +
       (restPrice ? ' / ฿'+parseFloat(restPrice.price).toFixed(2)+' (ร้านข้าว)' : '');
-    document.getElementById('pdCostPrice').textContent = data.cost_price ? '฿'+parseFloat(data.cost_price).toFixed(2) : '-';
+    document.getElementById('pdCostPrice').textContent = data.latest_cost_price ? '฿'+parseFloat(data.latest_cost_price).toFixed(2) : 'ยังไม่มีข้อมูล';
 
     // Info table
     document.getElementById('pdInfoTable').innerHTML = [
@@ -4149,8 +4233,8 @@ async function loadProductDetail() {
     // สต๊อกแยกสาขา
     const branchFilter = document.getElementById('pdBranchFilter');
     const curBranch = branchFilter.value;
-    if (data.stocks||[].length && branchFilter.options.length <= 1) {
-      data.stocks||[].forEach(s => {
+    if ((data.stocks||[]).length && branchFilter.options.length <= 1) {
+      (data.stocks||[]).forEach(s => {
         const opt = document.createElement('option');
         opt.value = s.branch_id; opt.textContent = s.branch_name;
         branchFilter.appendChild(opt);
@@ -4451,10 +4535,19 @@ async function loadCompanySettings() {
   try {
     const data = await api.get('/company-settings').catch(()=>null);
     if (!data) return;
-    if (document.getElementById('coName')) document.getElementById('coName').value = data.name||'';
-    if (document.getElementById('coTax')) document.getElementById('coTax').value = data.tax_id||'';
-    if (document.getElementById('coAddr')) document.getElementById('coAddr').value = data.address||'';
-    if (document.getElementById('coPhone')) document.getElementById('coPhone').value = data.phone||'';
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val||''; };
+    set('csName', data.company_name);
+    set('csNameEn', data.company_name_en);
+    set('csTaxId', data.tax_id);
+    set('csAddress', data.address);
+    set('csPhone', data.phone);
+    set('csEmail', data.email);
+    set('csBankName', data.bank_name);
+    set('csBankAccName', data.bank_account_name);
+    set('csBankAcc', data.bank_account);
+    set('csInvNote', data.invoice_note);
+    const logoPrev = document.getElementById('csLogoPreview');
+    if (logoPrev && data.logo_url) logoPrev.innerHTML = `<img src="${data.logo_url}" style="width:80px;height:80px;object-fit:cover;border-radius:8px">`;
   } catch(e) { console.error('loadCompanySettings:', e); }
 }
 
@@ -4469,24 +4562,55 @@ async function loadEmployees() {
     if (!el) return;
     el.innerHTML = data.length
       ? data.map(e=>`<tr>
+          <td>${e.code||'-'}</td>
           <td><strong>${e.full_name||e.name||'-'}</strong></td>
           <td>${e.position||'-'}</td>
           <td>${e.branch_name||'-'}</td>
           <td>${e.phone||'-'}</td>
-          <td><span class="badge ${e.active?'bs':'bg'}">${e.active?'ใช้งาน':'ปิด'}</span></td>
-          <td><button class="btn btn-secondary btn-sm" onclick='showEmployeeModal(${JSON.stringify(e).replace(/'/g,"&#39;")})'>แก้ไข</button></td>
+          <td>${e.start_date?fmt.d(e.start_date):'-'}</td>
+          <td>${e.probation_end_date?(new Date(e.probation_end_date)<=new Date()?'<span class="badge bs">ผ่านแล้ว</span>':'<span class="badge bw">'+fmt.d(e.probation_end_date)+'</span>'):'-'}</td>
+          <td style="white-space:nowrap">
+            <span class="badge ${e.active?'bs':'bg'}">${e.active?'ใช้งาน':'ปิด'}</span>
+            <button class="btn btn-secondary btn-sm" onclick='showEmployeeModal(${JSON.stringify(e).replace(/'/g,"&#39;")})' style="margin-left:4px">แก้ไข</button>
+          </td>
         </tr>`).join('')
-      : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ยังไม่มีพนักงาน</td></tr>';
+      : '<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">ยังไม่มีพนักงาน</td></tr>';
   } catch(e) { console.error('loadEmployees:', e); }
+}
+
+async function uploadCompanyLogo() {
+  const file = document.getElementById('csLogoFile')?.files[0];
+  if (!file) { toast('กรุณาเลือกไฟล์รูป','error'); return; }
+  const fd = new FormData();
+  fd.append('logo', file);
+  try {
+    const res = await fetch('/api/company-settings/logo', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer '+api.tok() },
+      body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error||'อัพโหลดไม่สำเร็จ');
+    const logoPrev = document.getElementById('csLogoPreview');
+    if (logoPrev) logoPrev.innerHTML = `<img src="${data.url}" style="width:80px;height:80px;object-fit:cover;border-radius:8px">`;
+    toast('อัพโหลดโลโก้เรียบร้อย','success');
+  } catch(e) { toast(e.message,'error'); }
 }
 
 async function saveCompanySettings() {
   try {
+    const g = id => document.getElementById(id)?.value||'';
     const body = {
-      name: document.getElementById('coName')?.value||'',
-      tax_id: document.getElementById('coTax')?.value||'',
-      address: document.getElementById('coAddr')?.value||'',
-      phone: document.getElementById('coPhone')?.value||'',
+      company_name: g('csName'),
+      company_name_en: g('csNameEn'),
+      tax_id: g('csTaxId'),
+      address: g('csAddress'),
+      phone: g('csPhone'),
+      email: g('csEmail'),
+      bank_name: g('csBankName'),
+      bank_account_name: g('csBankAccName'),
+      bank_account: g('csBankAcc'),
+      invoice_note: g('csInvNote'),
     };
     await api.put('/company-settings', body);
     toast('บันทึกข้อมูลบริษัทเรียบร้อย','success');
@@ -4521,8 +4645,79 @@ async function saveNewBranch() {
 }
 
 function loadPromos() {
-  const el = document.getElementById('promoT');
-  if (el) el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">ยังไม่ได้พัฒนาโมดูลโปรโมชัน</td></tr>';
+  api.get('/promotions').then(data => {
+    const el = document.getElementById('promoT');
+    if (!el) return;
+    const typeLabel = {discount:'ลดราคา', free_item:'แถมสินค้า'};
+    const today = new Date().toISOString().slice(0,10);
+    el.innerHTML = (data&&data.length) ? data.map(p => {
+      const isExpired = p.end_date < today;
+      const condTxt = p.promo_type==='discount'
+        ? `ซื้อครบ ${p.min_qty} ลด ${fmt.b(p.discount_value)}`
+        : `ซื้อครบ ${p.min_qty} แถม ${p.free_qty} ชิ้น`;
+      return `<tr>
+        <td>${p.name}</td>
+        <td>${p.branch_code||'ทุกสาขา'}</td>
+        <td>${typeLabel[p.promo_type]||p.promo_type}</td>
+        <td>${p.product_name||'-'}</td>
+        <td>${condTxt}</td>
+        <td>${fmt.d(p.start_date)}</td>
+        <td>${fmt.d(p.end_date)}</td>
+        <td>${isExpired?'<span class="badge bg">หมดอายุ</span>':(p.active?'<span class="badge bs">เปิดใช้งาน</span>':'<span class="badge bg">ปิด</span>')}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="togglePromo(${p.id},${!p.active})">${p.active?'ปิด':'เปิด'}</button></td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">ยังไม่มีโปรโมชั่น</td></tr>';
+  }).catch(e => toast(e.message,'error'));
+}
+
+async function showPromoModal() {
+  const prods = await api.get('/products').catch(()=>[]);
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:520px">
+    <div class="mh"><div class="mt">🎁 เพิ่มโปรโมชั่น</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:9px">
+      <div><label class="lbl">ชื่อโปรโมชั่น *</label><input type="text" class="ctrl" id="pmName" style="margin-top:4px"></div>
+      <div class="g2">
+        <div><label class="lbl">สาขา</label>
+          <select class="ctrl" id="pmBr" style="margin-top:4px">
+            <option value="">ทุกสาขา</option>
+            ${branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}
+          </select>
+        </div>
+        <div><label class="lbl">ประเภท</label>
+          <select class="ctrl" id="pmType" style="margin-top:4px" onchange="togglePromoTypeFields()">
+            <option value="discount">ลดราคาเมื่อซื้อครบจำนวน</option>
+            <option value="free_item">ซื้อครบแถมสินค้า</option>
+          </select>
+        </div>
+      </div>
+      <div><label class="lbl">สินค้าที่ร่วมรายการ</label>
+        <select class="ctrl" id="pmProd" style="margin-top:4px">
+          <option value="">-- เลือกสินค้า --</option>
+          ${(prods||[]).map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="g2">
+        <div><label class="lbl">ซื้อครบ (จำนวน)</label><input type="number" class="ctrl" id="pmMinQty" value="1" min="1" style="margin-top:4px"></div>
+        <div id="pmDiscWrap"><label class="lbl">ส่วนลด (บาท)</label><input type="number" class="ctrl" id="pmDiscVal" value="0" min="0" style="margin-top:4px"></div>
+      </div>
+      <div class="g2">
+        <div><label class="lbl">วันเริ่ม *</label><input type="date" class="ctrl" id="pmStart" style="margin-top:4px"></div>
+        <div><label class="lbl">วันสิ้นสุด *</label><input type="date" class="ctrl" id="pmEnd" style="margin-top:4px"></div>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="savePromo()" style="width:100%;margin-top:14px">💾 บันทึกโปรโมชั่น</button>
+  </div></div>`;
+}
+
+function togglePromoTypeFields() {
+  const type = document.getElementById('pmType').value;
+  const wrap = document.getElementById('pmDiscWrap');
+  if (type==='free_item') {
+    wrap.innerHTML = `<label class="lbl">แถมจำนวน (ชิ้น)</label><input type="number" class="ctrl" id="pmDiscVal" value="1" min="1" style="margin-top:4px">`;
+  } else {
+    wrap.innerHTML = `<label class="lbl">ส่วนลด (บาท)</label><input type="number" class="ctrl" id="pmDiscVal" value="0" min="0" style="margin-top:4px">`;
+  }
 }
 
 function loadDebtNotes() {
@@ -4580,7 +4775,7 @@ function showBranchSelectModal(onSelect) {
         return `<button onclick="selectPOSBranch(${bid},'${bcode}','${bname}')"
           style="padding:14px 18px;border:2px solid ${isActive?'var(--accent)':'var(--border)'};
           border-radius:10px;background:${isActive?'var(--accent-dim)':'var(--surface)'};
-          cursor:pointer;text-align:left;font-family:'Sarabun',sans-serif;
+          cursor:pointer;text-align:left;font-family:'Noto Sans Thai',sans-serif;
           display:flex;justify-content:space-between;align-items:center">
           <div>
             <div style="font-weight:700;font-size:15px">${bname}</div>
@@ -4690,7 +4885,7 @@ async function showPriceM(productId, productName) {
                 placeholder="—" min="0" step="0.01"
                 oninput="markPriceEdit(this)"
                 style="width:70px;padding:4px 6px;border:1.5px solid ${ex?'var(--accent)':'var(--border)'};
-                border-radius:6px;text-align:right;font-size:13px;font-family:'Sarabun',sans-serif;
+                border-radius:6px;text-align:right;font-size:13px;font-family:'Noto Sans Thai',sans-serif;
                 background:${ex?'var(--accent-dim)':'var(--surface2)'};color:var(--text)">
             </div>
           </td>`;
@@ -4903,7 +5098,7 @@ function showBranchSwitcherMenu() {
         return `<button onclick="switchBranch(${bid},'${bcode}','${bname}')"
           style="padding:14px 18px;border:2px solid ${isActive?'var(--accent)':'var(--border)'};
           border-radius:10px;background:${isActive?'var(--accent-dim)':'var(--surface)'};
-          cursor:pointer;text-align:left;font-family:'Sarabun',sans-serif;width:100%;
+          cursor:pointer;text-align:left;font-family:'Noto Sans Thai',sans-serif;width:100%;
           display:flex;justify-content:space-between;align-items:center">
           <div>
             <div style="font-weight:700;font-size:15px">${bname}</div>
@@ -5046,9 +5241,9 @@ async function printDocument(opts) {
     '<style>',
     '@page{size:A4;margin:0}',
     '*{box-sizing:border-box;margin:0;padding:0}',
-    'body{font-family:"Sarabun",sans-serif;font-size:12px;color:#1f2937;background:#e5e7eb}',
+    'body{font-family:"Noto Sans Thai",sans-serif;font-size:12px;color:#1f2937;background:#e5e7eb}',
     '.toolbar{position:sticky;top:0;background:#1f2937;padding:10px 20px;display:flex;gap:10px;z-index:100;justify-content:center}',
-    '.toolbar button{padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-family:"Sarabun",sans-serif;font-size:13px;font-weight:600}',
+    '.toolbar button{padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-family:"Noto Sans Thai",sans-serif;font-size:13px;font-weight:600}',
     '@media print{.toolbar{display:none}body{background:#fff}.page{box-shadow:none!important;margin:0!important}}',
     '.page{width:210mm;min-height:297mm;margin:16px auto;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.15);padding:14mm 14mm;display:flex;flex-direction:column}',
     '.doc-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid var(--accentColor,#e67e00);padding-bottom:14px;margin-bottom:16px}',
@@ -6419,7 +6614,7 @@ async function loadStockSummary() {
           <div style="font-size:24px;font-weight:700">${fmt.n(sum.total_J||0)} ฟ.</div>
         </div>
         <div class="card" style="text-align:center;padding:14px">
-          <div style="font-size:11px;color:var(--text-muted)">ขายส่ง ใบแจ้งหนี้ (F)</div>
+          <div style="font-size:11px;color:var(--text-muted)">ยอดส่งของ ใบแจ้งหนี้ (F)</div>
           <div style="font-size:24px;font-weight:700;color:#2563eb">${fmt.n(sum.total_F||0)} ฟ.</div>
         </div>
         <div class="card" style="text-align:center;padding:14px;background:${O<0?'var(--error-dim)':O>0?'var(--success-dim)':'var(--surface)'}">
@@ -6433,17 +6628,18 @@ async function loadStockSummary() {
         Stock ลดสต๊อก · ${branchName} · ${dateLabel}
         <span style="float:right;font-size:11px">(หน่วย: ฟอง)</span>
       </div>
+      <div class="ss-desktop-table" style="overflow-x:auto">
       <table id="ssTable" style="width:100%;border-collapse:collapse;font-size:12px;min-width:1000px;border:1px solid #ccc">
         <thead>
           <tr style="white-space:nowrap">
             <th style="padding:8px 10px;text-align:left;min-width:140px;border:1px solid #ccc">รายการสินค้า</th>
-            <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="เข้า/ล บางเลน">B<br><span style="font-weight:400;font-size:10px">บางเลน</span></th>
+            <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="เข้า/ล ไข่นอก">B<br><span style="font-weight:400;font-size:10px">ไข่นอก</span></th>
             <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="เข้า/ฟ ฟาร์มตัวเอง">C<br><span style="font-weight:400;font-size:10px">ฟาร์ม</span></th>
             <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="ยอดยกมา">D<br><span style="font-weight:400;font-size:10px">ยกมา</span></th>
             <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="รวมยอด B+C+D">E<br><span style="font-weight:400;font-size:10px">รวมยอด</span></th>
-            <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="ขายส่ง ใบแจ้งหนี้">F<br><span style="font-weight:400;font-size:10px">ขายส่ง</span></th>
+            <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="ยอดส่งของ ใบแจ้งหนี้">F<br><span style="font-weight:400;font-size:10px">ยอดส่งของ</span></th>
             <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="ไข่บุบ">I<br><span style="font-weight:400;font-size:10px">ไข่บุบ</span></th>
-            <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="ขายหน้าร้าน POS">J<br><span style="font-weight:400;font-size:10px">หน้าร้าน</span></th>
+            <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="ขายหน้าร้าน POS">J<br><span style="font-weight:400;font-size:10px">ขายหน้าร้าน</span></th>
             <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="สต๊อกระบบ E-F-I-J">K<br><span style="font-weight:400;font-size:10px">สต๊อกระบบ</span></th>
             <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="สต๊อกจริง (นับปิด)">M<br><span style="font-weight:400;font-size:10px">สต๊อกจริง</span></th>
             <th style="padding:8px 10px;text-align:center;border:1px solid #ccc" title="เกิน/ขาด M-K">P<br><span style="font-weight:400;font-size:10px">เกิน/ขาด</span></th>
@@ -6487,7 +6683,48 @@ async function loadStockSummary() {
             <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${sum.total_T||0}</td>
           </tr>
         </tfoot>
-      </table>`;
+      </table>
+      </div>
+      <div class="ss-mobile-cards">
+        ${rows.map((r) => {
+          const Ptxt = r.P===null?'—':r.P>0?'+'+r.P:r.P;
+          const Otxt = r.O===null?'—':(r.O>=0?'+':'')+fmt.b(r.O);
+          return `<div style="border:1px solid #ccc;border-radius:8px;padding:10px 12px;margin-bottom:8px">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px">${r.product_name}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px 10px;font-size:12px">
+              <div><span style="color:var(--text-muted)">B ไข่นอก</span><br>${r.B||'–'}</div>
+              <div><span style="color:var(--text-muted)">C ฟาร์ม</span><br>${r.C||'–'}</div>
+              <div><span style="color:var(--text-muted)">D ยกมา</span><br>${r.D||'–'}</div>
+              <div><span style="color:var(--text-muted)">E รวมยอด</span><br>${r.E||'–'}</div>
+              <div><span style="color:var(--text-muted)">F ยอดส่งของ</span><br>${r.F||'–'}</div>
+              <div><span style="color:var(--text-muted)">I ไข่บุบ</span><br>${r.I||'–'}</div>
+              <div><span style="color:var(--text-muted)">J ขายหน้าร้าน</span><br>${r.J||'–'}</div>
+              <div><span style="color:var(--text-muted)">K สต๊อกระบบ</span><br>${r.K}</div>
+              <div><span style="color:var(--text-muted)">M สต๊อกจริง</span><br>${r.M!==null?r.M:'—'}</div>
+              <div><span style="color:var(--text-muted)">P เกิน/ขาด</span><br>${Ptxt}</div>
+              <div><span style="color:var(--text-muted)">O เป็นเงิน</span><br>${Otxt}</div>
+              <div><span style="color:var(--text-muted)">T ขายจริง</span><br>${r.T!==null?r.T:'—'}</div>
+            </div>
+          </div>`;
+        }).join('')}
+        <div style="border:1px solid #ccc;border-radius:8px;padding:10px 12px;font-weight:700">
+          <div style="margin-bottom:8px">รวม</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px 10px;font-size:12px">
+            <div><span style="color:var(--text-muted);font-weight:400">B</span><br>${sum.total_B||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">C</span><br>${sum.total_C||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">D</span><br>${sum.total_D||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">E</span><br>${sum.total_E||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">F</span><br>${sum.total_F||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">I</span><br>${sum.total_I||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">J</span><br>${sum.total_J||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">K</span><br>${sum.total_K||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">M</span><br>${sum.total_M||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">P</span><br>${(sum.total_P||0)>=0?'+':''}${sum.total_P||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">O</span><br>${(sum.total_O||0)>=0?'+':''}${fmt.b(sum.total_O||0)}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">T</span><br>${sum.total_T||0}</div>
+          </div>
+        </div>
+      </div>`;
   } catch(e) {
     if (wrap) wrap.innerHTML = `<div style="color:var(--error);padding:20px">${e.message}</div>`;
   }
