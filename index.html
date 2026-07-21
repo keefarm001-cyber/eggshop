@@ -212,8 +212,12 @@ tr:hover td{background:#fafafa}
           <button class="btn btn-secondary" onclick="loadDCHistory()">📜 ประวัติ</button>
           <button class="btn btn-secondary" onclick="showDamagedEggModal(document.getElementById('dcBranch').value,document.getElementById('dcDate').value)">🥚 ไข่บุบ</button>
           <button class="btn btn-secondary" onclick="showAttachmentPanel(document.getElementById('dcBranch').value,document.getElementById('dcDate').value)">📎 เอกสาร</button>
-          <button class="btn btn-primary" onclick="saveDailyClose()">💾 บันทึก</button>
+          <button id="dcSaveBtn" class="btn btn-primary" onclick="saveDailyClose()">💾 บันทึก</button>
         </div>
+      </div>
+      <div id="dcBranchWarning" style="display:none;background:var(--warning-dim);color:var(--warning);padding:10px 16px;font-size:13px;align-items:center;justify-content:space-between;gap:10px">
+        <span>⚠️ กำลังดูสาขาอื่นที่ไม่ใช่สาขาที่คุณ active อยู่ — ดูข้อมูลได้ แต่บันทึกปิดยอดไม่ได้ ต้องสลับไปสาขานี้ก่อน</span>
+        <button class="btn btn-primary btn-sm" onclick="switchToBranchOf('dcBranch','daily-close')" style="white-space:nowrap">สลับไปสาขานี้</button>
       </div>
       <div class="pb" id="dcContent"><div class="es"><div class="ei">📋</div><p>เลือกสาขาและวันที่เพื่อเริ่มปิดยอด</p></div></div>
     </div>
@@ -226,6 +230,7 @@ tr:hover td{background:#fafafa}
           <div style="font-size:12px;color:var(--text-muted)">ยอดขาย / สต๊อก / ผลต่าง รายวัน</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span id="ssBranchDot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#9ca3af;margin-right:-4px"></span>
           <select class="ctrl" id="ssBranch" onchange="loadStockSummary()" style="width:150px"></select>
           <input type="date" class="ctrl" id="ssDate" onchange="loadStockSummary()" style="width:140px">
           <button class="btn btn-secondary" onclick="exportStockSummary()">📥 Export Excel</button>
@@ -247,12 +252,16 @@ tr:hover td{background:#fafafa}
           <div style="font-size:12px;color:var(--text-muted)">บันทึกการนับสต๊อกเช้า/เย็น</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
+          <span id="scBranchDot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#9ca3af;margin-right:-4px"></span>
           <select class="ctrl" id="scBranch" onchange="loadStockCount()" style="width:160px"></select>
           <input type="date" class="ctrl" id="scDate" onchange="loadStockCountSummary()" style="width:140px">
-          <button class="btn btn-primary" onclick="startStockCount('open')">🌅 นับเปิด</button>
-          <button class="btn btn-primary" onclick="startStockCount('close')">🌇 นับปิด</button>
-          <button class="btn btn-secondary" onclick="doAutoDeduct()" title="ตัด stock ส่วนที่ยังขาดอยู่ (จาก stock count)">⚡ Auto Deduct</button>
+          <button id="scCloseBtn" class="btn btn-primary" onclick="startStockCount('close')">🌇 นับปิด</button>
+          <button id="scAutoDeductBtn" class="btn btn-secondary" onclick="doAutoDeduct()" title="ตัด stock ส่วนที่ยังขาดอยู่ (จาก stock count)">⚡ Auto Deduct</button>
         </div>
+      </div>
+      <div id="scBranchWarning" style="display:none;background:var(--warning-dim);color:var(--warning);padding:10px 16px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <span>⚠️ กำลังดูสาขาอื่นที่ไม่ใช่สาขาที่คุณ active อยู่ — ดูข้อมูลได้ แต่บันทึกนับสต๊อกไม่ได้ ต้องสลับไปสาขานี้ก่อน</span>
+        <button class="btn btn-primary btn-sm" onclick="switchToBranchOf('scBranch','stock-count')" style="white-space:nowrap">สลับไปสาขานี้</button>
       </div>
       <div class="pb">
         <!-- Summary today -->
@@ -267,7 +276,7 @@ tr:hover td{background:#fafafa}
           <div style="font-size:13px;font-weight:700;margin-bottom:10px">📋 ประวัติการนับ</div>
           <table><thead><tr>
             <th>วันที่</th><th>เวลา</th><th>สินค้า</th><th>รอบ</th>
-            <th>นับได้</th><th>ระบบ</th><th>ต่าง</th><th>หมายเหตุ</th>
+            <th>นับได้</th><th>ระบบ</th><th>ต่าง</th><th>หมายเหตุ</th><th></th>
           </tr></thead><tbody id="scHistoryT"></tbody></table>
         </div>
       </div>
@@ -773,6 +782,7 @@ function toast(msg,type='success'){
 // ============================================================
 // NAV + PAGE
 // ============================================================
+let CU_PERMS = new Set(); // สิทธิ์เสริมของ role ปัจจุบัน (จากหน้า "ตั้งค่าสิทธิ์")
 const NAV=[
   {sec:'การขาย'},
   {id:'pos',l:'ขายหน้าร้าน',i:'🛒',r:['owner','admin','manager','cashier']},
@@ -786,7 +796,7 @@ const NAV=[
   {id:'receipts',l:'ใบรับสินค้า',i:'📦',r:['owner','admin','manager','stock']},
   {sec:'สต๊อก'},
   {id:'stock',l:'สต๊อกสินค้า',i:'🥚',r:['owner','admin','manager','stock']},
-  {id:'stock-summary',l:'สรุปสต๊อก',i:'📊',r:['owner','admin','manager','accountant']},
+  {id:'stock-summary',l:'สรุปสต๊อก',i:'📊',r:['owner','admin','manager','accountant'],perm:'stock_summary.view'},
   {id:'stock-count',l:'นับสต๊อก',i:'📦',r:['owner','admin','manager','stock']},
   {id:'smv',l:'ประวัติสต๊อก',i:'📜',r:['owner','admin','manager']},
   {sec:'CRM'},
@@ -813,16 +823,17 @@ const NAV=[
 function buildNav(){
   const nl=document.getElementById('navLinks');
   nl.innerHTML='';
+  const canSee = item => (!item.r || item.r.includes(CU.role)) || (item.perm && CU_PERMS.has(item.perm));
   NAV.forEach((item,idx)=>{
     if(item.sec){
-      // เช็คว่ามี item ใต้หัวข้อนี้ที่ role ปัจจุบันเห็นบ้างไหม ก่อนจะแสดงหัวข้อ
+      // เช็คว่ามี item ใต้หัวข้อนี้ที่ role/สิทธิ์ปัจจุบันเห็นบ้างไหม ก่อนจะแสดงหัวข้อ
       let hasVisibleChild = false;
       for (let j=idx+1; j<NAV.length && !NAV[j].sec; j++) {
-        if (!NAV[j].r || NAV[j].r.includes(CU.role)) { hasVisibleChild = true; break; }
+        if (canSee(NAV[j])) { hasVisibleChild = true; break; }
       }
       if (!hasVisibleChild) return;
       const s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nl.appendChild(s);
-    } else if(!item.r||item.r.includes(CU.role)){
+    } else if(canSee(item)){
       const a=document.createElement('div');
       a.className='nav-link';a.id='nav-'+item.id;
       a.innerHTML='<span style="width:18px;text-align:center">'+item.i+'</span><span>'+item.l+'</span>';
@@ -917,6 +928,35 @@ async function doLogin(){
 
 
 
+const BRANCH_COLORS = ['#e67e00','#2563eb','#16a34a','#dc2626','#7c3aed','#0891b2','#d97706','#db2777'];
+function branchColor(branchId) {
+  if (!branchId) return '#9ca3af';
+  const n = parseInt(branchId) || 0;
+  return BRANCH_COLORS[n % BRANCH_COLORS.length];
+}
+
+// ป้องกันบันทึกข้อมูลผิดสาขา — บันทึกได้เฉพาะสาขาที่ active อยู่ (มุมซ้ายบน) เท่านั้น
+function branchLockGuard(branchId) {
+  if (!CU.branch_id) return true; // ไม่มีสาขา active (เช่น owner ดูทุกสาขา) ไม่ล็อก
+  if (parseInt(branchId) !== CU.branch_id) {
+    toast('บันทึกได้เฉพาะสาขาที่ active อยู่เท่านั้น — สลับสาขาก่อนถ้าต้องการบันทึกให้สาขาอื่น','error');
+    return false;
+  }
+  return true;
+}
+// ปิดใช้งาน/เตือน UI สำหรับ dropdown สาขาที่ผูกกับ action เขียนข้อมูล
+function applyBranchLockUI(selectId, actionBtnIds, warnId) {
+  const sel = document.getElementById(selectId);
+  const isActive = !CU.branch_id || parseInt(sel?.value) === CU.branch_id;
+  (actionBtnIds||[]).forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) { btn.disabled = !isActive; btn.style.opacity = isActive ? '1' : '.5'; btn.style.cursor = isActive ? 'pointer' : 'not-allowed'; }
+  });
+  const warn = warnId ? document.getElementById(warnId) : null;
+  if (warn) warn.style.display = isActive ? 'none' : 'flex';
+  return isActive;
+}
+
 async function initApp(){
   document.getElementById('loginPage').style.display='none';
   document.getElementById('appPage').classList.add('active');
@@ -925,18 +965,25 @@ async function initApp(){
   const _nb = document.getElementById('navBranch');
   if (_nb) {
     const _bname = CU.branch_name||(CU.branch_code?'สาขา '+CU.branch_code:'ทุกสาขา');
-    _nb.textContent = _bname;
+    const _dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${branchColor(CU.branch_id)};margin-right:6px"></span>`;
+    _nb.innerHTML = _dot + _bname;
     // ถ้ามีหลายสาขา → กดเปลี่ยนสาขาได้
     if ((CU.access_branches||branches).length > 1) {
       _nb.style.cursor = 'pointer';
       _nb.title = 'คลิกเพื่อเปลี่ยนสาขา';
-      _nb.innerHTML = _bname + ' <span style="font-size:9px;opacity:.7">▼</span>';
+      _nb.innerHTML = _dot + _bname + ' <span style="font-size:9px;opacity:.7">▼</span>';
       _nb.onclick = () => showBranchSwitcherMenu();
     }
   }
   buildNav();
   try{branches=await api.get('/branches');populateBranchSelects();}catch(e){}
   try{roles=await api.get('/roles');}catch(e){}
+  // โหลดสิทธิ์เสริมของ role ตัวเอง (ตั้งค่าไว้ในหน้า "ตั้งค่าสิทธิ์") เพื่อปลดล็อกเมนูเพิ่มเติมนอกเหนือจาก role มาตรฐาน
+  try{
+    const myPerms = await api.get('/permissions/'+CU.role);
+    CU_PERMS = new Set((Array.isArray(myPerms)?myPerms:[]).map(p=>typeof p==='string'?p:(p.permission||'')));
+    buildNav(); // rebuild ด้วยสิทธิ์ที่โหลดมาแล้ว
+  }catch(e){}
   try{mSet.eggs_required=(await api.get('/member-settings')).eggs_required||100;mSet.discount_amount=(await api.get('/member-settings')).discount_amount||5;}catch(e){}
   // company settings loaded on demand
   const def={owner:'dashboard',admin:'dashboard',manager:'dashboard',cashier:'pos',stock:'stock',viewer:'reports'}[CU.role]||'dashboard';
@@ -974,16 +1021,39 @@ async function loadPosProds(){
 
 function renderPosProds(prods){
   const search=(document.getElementById('posSearch')?.value||'').toLowerCase();
-  const filtered=prods.filter(p=>p.name.toLowerCase().includes(search)||p.code.toLowerCase().includes(search));
+  const filtered=prods.filter(p=>p.name.toLowerCase().includes(search)||p.code.toLowerCase().includes(search)).filter(p=>parseInt(p.stock_qty)>0);
   const grid=document.getElementById('posProdGrid');
   grid.innerHTML=filtered.map(p=>{
     const price=p.prices&&p.prices.length?p.prices[0].price:0;
-    return `<div class="pos-prod" onclick="addToCart(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+    return `<div class="pos-prod" onclick="showPosQtyModal(${JSON.stringify(p).replace(/"/g,'&quot;')})">
       <div class="pos-prod-name">${p.name}</div>
       <div class="pos-prod-price">${fmt.b(price)}</div>
       <div class="pos-prod-stock">คงเหลือ: ${fmt.n(p.stock_qty)} ฟ.</div>
     </div>`;
   }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">ไม่มีสินค้า</div>';
+}
+
+function showPosQtyModal(prod){
+  const price=prod.prices&&prod.prices.length?prod.prices[0].price:0;
+  const unitQty=prod.prices&&prod.prices.length?prod.prices[0].qty:1;
+  document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:340px">
+    <div class="mh"><div class="mt">${prod.name}</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="text-align:center;color:var(--text-muted);font-size:13px;margin-bottom:12px">คงเหลือในสต๊อก: ${fmt.n(prod.stock_qty)} ฟอง</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:16px">
+      <button onclick="const el=document.getElementById('posQtyInput');el.value=Math.max(1,(parseInt(el.value)||1)-1)" style="width:44px;height:44px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);font-size:20px;cursor:pointer">−</button>
+      <input type="number" id="posQtyInput" value="1" min="1" style="width:90px;text-align:center;font-size:24px;font-weight:700;padding:10px;border:1.5px solid var(--border);border-radius:10px" onkeydown="if(event.key==='Enter')confirmPosQty(${JSON.stringify(prod).replace(/"/g,'&quot;')})">
+      <button onclick="const el=document.getElementById('posQtyInput');el.value=(parseInt(el.value)||1)+1" style="width:44px;height:44px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);font-size:20px;cursor:pointer">+</button>
+    </div>
+    <button class="btn btn-primary" onclick="confirmPosQty(${JSON.stringify(prod).replace(/"/g,'&quot;')})" style="width:100%">✅ เพิ่มลงตะกร้า</button>
+  </div></div>`;
+  setTimeout(()=>{ const el=document.getElementById('posQtyInput'); el?.focus(); el?.select(); }, 50);
+}
+
+function confirmPosQty(prod){
+  const qty = parseInt(document.getElementById('posQtyInput')?.value)||1;
+  addToCart(prod, qty);
+  CM();
 }
 
 
@@ -1463,14 +1533,14 @@ async function loadContacts(){
         (c.business_name||'').toLowerCase().includes(search) ||
         (c.contact_name||'').toLowerCase().includes(search) ||
         (c.tax_id||'').includes(search) ||
-        (c.phone||'').includes(search);
+        (c.mobile||c.office_phone||'').includes(search);
       const matchType = !typeFilter ||
         (typeFilter==='customer' && c.is_customer) ||
         (typeFilter==='supplier' && c.is_supplier);
       return matchSearch && matchType;
     });
     document.getElementById('contactT').innerHTML=filtered.length?filtered.map(c=>`<tr>
-      <td><strong>${c.business_name||'-'}</strong></td><td>${c.contact_name||'-'}</td><td>${c.phone||'-'}</td>
+      <td><strong>${c.business_name||'-'}</strong></td><td>${c.contact_name||'-'}</td><td>${c.mobile||c.office_phone||'-'}</td>
       <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${c.tax_id||'-'}</td>
       <td><span class="badge ${c.is_customer?'bi':'bw'}">${c.is_customer?'ลูกค้า':''}${c.is_supplier?' ผู้จำหน่าย':''}</span></td>
       <td>${c.credit_days||0} วัน</td>
@@ -1668,6 +1738,9 @@ function populateBranchSelects(){
     const el=document.getElementById(id);
     if(el){el.innerHTML='<option value="">ทุกสาขา</option>';branches.forEach(b=>{el.innerHTML+=`<option value="${b.id}">${b.name}</option>`;});}
   });
+  // ปิดยอดประจำวันเป็น action เขียนข้อมูล ให้ default ไปที่สาขา active แทน "ทุกสาขา"
+  const dcEl = document.getElementById('dcBranch');
+  if (dcEl && CU.branch_id && branches.find(b=>b.id===CU.branch_id)) dcEl.value = CU.branch_id;
 }
 
 function showBranchSelector(list){
@@ -1682,7 +1755,7 @@ async function switchBranch(bid,bcode,bname){
     localStorage.setItem('es_token',res.token);
     CU={...CU,branch_id:res.branch_id,branch_code:res.branch_code,branch_name:res.branch_name};
     localStorage.setItem('es_user',JSON.stringify(CU));
-    document.getElementById('navBranch').textContent=bname;
+    document.getElementById('navBranch').innerHTML=`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${branchColor(bid)};margin-right:6px"></span>${bname}`;
     CM();showPage('dashboard');toast('เปลี่ยนสาขา: '+bname);
   }catch(e){toast(e.message,'error');}
 }
@@ -1759,12 +1832,13 @@ async function selPosMember(){
   }
 }
 
-function addToCart(prod){
+function addToCart(prod, addQty){
+  addQty = addQty || 1;
   const price=prod.prices&&prod.prices.length?prod.prices[0].price:0;
   const qty=prod.prices&&prod.prices.length?prod.prices[0].qty:1;
   const existing=cart.find(c=>c.product_id===prod.product_id&&c.unit_size===qty);
-  if(existing) existing.qty_set++;
-  else cart.push({product_id:prod.product_id,name:prod.name,price_per_set:price,unit_size:qty,qty_set:1,is_egg:prod.is_egg,stock_qty:prod.stock_qty});
+  if(existing) existing.qty_set+=addQty;
+  else cart.push({product_id:prod.product_id,name:prod.name,price_per_set:price,unit_size:qty,qty_set:addQty,is_egg:prod.is_egg,stock_qty:prod.stock_qty});
   renderCart();
 }
 
@@ -1960,6 +2034,7 @@ function addRecvItem(prods) {
 
 async function submitRecv(approve=false) {
   const branch_id = document.getElementById('recvBr').value;
+  if (!branchLockGuard(branch_id)) return;
   const receipt_date = document.getElementById('recvDate').value;
   const supplierSel = document.getElementById('recvSupplier').value;
   const supplier_name = supplierSel && supplierSel !== '__custom__'
@@ -2099,7 +2174,7 @@ async function showProductModal(p={}) {
           </select>
         </div>
         <div><label class="lbl">หน่วยหลัก</label>
-          <select class="ctrl" id="pUnit" style="margin-top:4px">
+          <select class="ctrl" id="pUnit" style="margin-top:4px" onchange="updateProdPriceLabels()">
             <option value="ฟอง" ${p.unit==='ฟอง'||!p.unit?'selected':''}>ฟอง</option>
             <option value="แผง" ${p.unit==='แผง'?'selected':''}>แผง (30 ฟอง)</option>
             <option value="ชุด" ${p.unit==='ชุด'?'selected':''}>ชุด</option>
@@ -2109,7 +2184,7 @@ async function showProductModal(p={}) {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label style="display:flex;align-items:center;gap:7px;font-size:13px;margin-top:4px">
-          <input type="checkbox" id="pIsEgg" ${p.is_egg?'checked':''} style="accent-color:var(--accent)"> เป็นไข่ (นับสต๊อกเป็นฟอง)
+          <input type="checkbox" id="pIsEgg" ${p.is_egg?'checked':''} onchange="updateProdPriceLabels()" style="accent-color:var(--accent)"> เป็นไข่ (นับสต๊อกเป็นฟอง)
         </label></div>
         <div><label style="display:flex;align-items:center;gap:7px;font-size:13px;margin-top:4px">
           <input type="checkbox" id="pTrack" ${p.track_stock!==false?'checked':''} style="accent-color:var(--accent)"> นับสต๊อก
@@ -2117,18 +2192,18 @@ async function showProductModal(p={}) {
       </div>
 
       <div style="border-top:1px solid var(--border);padding-top:10px">
-        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 ราคาขายหน้าร้าน (บาท/ฟอง)</div>
+        <div id="pPriceRetailTitle" style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 ราคาขายหน้าร้าน (บาท/หน่วย)</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          <div><label class="lbl">1 ฟอง</label><input type="number" class="ctrl" id="pr1" value="${p.price_1||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">5 ฟอง</label><input type="number" class="ctrl" id="pr5" value="${p.price_5||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">10 ฟอง</label><input type="number" class="ctrl" id="pr10" value="${p.price_10||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">15 ฟอง</label><input type="number" class="ctrl" id="pr15" value="${p.price_15||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">20 ฟอง</label><input type="number" class="ctrl" id="pr20" value="${p.price_20||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
-          <div><label class="lbl">30 ฟอง (แผง)</label><input type="number" class="ctrl" id="pr30" value="${p.price_30||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl pr-unit-lbl" data-qty="1">1</label><input type="number" class="ctrl" id="pr1" value="${p.price_1||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl pr-unit-lbl" data-qty="5">5</label><input type="number" class="ctrl" id="pr5" value="${p.price_5||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl pr-unit-lbl" data-qty="10">10</label><input type="number" class="ctrl" id="pr10" value="${p.price_10||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl pr-unit-lbl" data-qty="15">15</label><input type="number" class="ctrl" id="pr15" value="${p.price_15||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl pr-unit-lbl" data-qty="20">20</label><input type="number" class="ctrl" id="pr20" value="${p.price_20||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
+          <div><label class="lbl pr-unit-lbl" data-qty="30">30</label><input type="number" class="ctrl" id="pr30" value="${p.price_30||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
         </div>
       </div>
 
-      <div style="border-top:1px solid var(--border);padding-top:10px">
+      <div id="pWholesaleSection" style="border-top:1px solid var(--border);padding-top:10px">
         <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">🚚 ราคาส่ง (บาท/ฟอง)</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
           <div><label class="lbl">1 แผง (30ฟ.)</label><input type="number" class="ctrl" id="pw30" value="${p.wholesale_30||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
@@ -2139,6 +2214,20 @@ async function showProductModal(p={}) {
     </div>
     <button class="btn btn-primary" onclick="saveProd(${p.id||0})" style="width:100%;margin-top:14px">💾 บันทึก</button>
   </div></div>`;
+  updateProdPriceLabels();
+}
+
+function updateProdPriceLabels() {
+  const isEgg = document.getElementById('pIsEgg')?.checked;
+  const unit = document.getElementById('pUnit')?.value || 'หน่วย';
+  const unitWord = isEgg ? 'ฟอง' : unit;
+  document.querySelectorAll('.pr-unit-lbl').forEach(el => {
+    el.textContent = el.dataset.qty + ' ' + unitWord + (el.dataset.qty==='30' && isEgg ? ' (แผง)' : '');
+  });
+  const titleEl = document.getElementById('pPriceRetailTitle');
+  if (titleEl) titleEl.textContent = `💰 ราคาขายหน้าร้าน (บาท/${unitWord})`;
+  const wsSection = document.getElementById('pWholesaleSection');
+  if (wsSection) wsSection.style.display = isEgg ? 'block' : 'none';
 }
 
 
@@ -2300,7 +2389,7 @@ function showContactModal(c={}){
     <div><label class="lbl">ชื่อกิจการ</label><input type="text" class="ctrl" id="cBiz" value="${c.business_name||''}" style="margin-top:4px"></div>
     <div class="g2">
       <div><label class="lbl">ผู้ติดต่อ</label><input type="text" class="ctrl" id="cName" value="${c.contact_name||''}" style="margin-top:4px"></div>
-      <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="cPhone" value="${c.phone||''}" style="margin-top:4px"></div>
+      <div><label class="lbl">เบอร์โทร</label><input type="text" class="ctrl" id="cPhone" value="${c.mobile||c.office_phone||''}" style="margin-top:4px"></div>
     </div>
     <div><label class="lbl">ที่อยู่</label><input type="text" class="ctrl" id="cAddr" value="${c.address||''}" style="margin-top:4px"></div>
     <div class="g2">
@@ -2317,7 +2406,7 @@ function showContactModal(c={}){
 }
 
 async function saveContact(id){
-  const body={business_name:document.getElementById('cBiz').value,contact_name:document.getElementById('cName').value,phone:document.getElementById('cPhone').value,address:document.getElementById('cAddr').value,tax_id:document.getElementById('cTax').value,credit_days:parseInt(document.getElementById('cCredit').value)||0,is_customer:document.getElementById('cIsCust').checked,is_supplier:document.getElementById('cIsSupp').checked};
+  const body={business_name:document.getElementById('cBiz').value,contact_name:document.getElementById('cName').value,mobile:document.getElementById('cPhone').value,address:document.getElementById('cAddr').value,tax_id:document.getElementById('cTax').value,credit_days:parseInt(document.getElementById('cCredit').value)||0,is_customer:document.getElementById('cIsCust').checked,is_supplier:document.getElementById('cIsSupp').checked};
   try{if(id) await api.put('/contacts/'+id,body);else await api.post('/contacts',body);toast('บันทึกเรียบร้อย','success');CM();loadContacts();}catch(e){toast(e.message,'error');}
 }
 
@@ -3301,6 +3390,7 @@ var PERM_LIST = [
   {key:'receipt.approve', label:'อนุมัติใบรับสินค้า', group:'สต๊อก'},
   {key:'stock.view', label:'ดูสต๊อก', group:'สต๊อก'},
   {key:'stock.transfer', label:'โอนย้ายสต๊อก', group:'สต๊อก'},
+  {key:'stock_summary.view', label:'ดูสรุปสต๊อก', group:'สต๊อก'},
   {key:'member.view', label:'ดูสมาชิก', group:'CRM'},
   {key:'member.create', label:'เพิ่มสมาชิก', group:'CRM'},
   {key:'contact.view', label:'ดูผู้ติดต่อ', group:'CRM'},
@@ -3463,6 +3553,7 @@ async function initDailyClose() {
 async function loadDailyClose() {
   const date = document.getElementById('dcDate').value;
   const branchId = document.getElementById('dcBranch').value;
+  applyBranchLockUI('dcBranch', ['dcSaveBtn'], 'dcBranchWarning');
   if (!branchId) {
     document.getElementById('dcContent').innerHTML =
       '<div class="es"><div class="ei">📋</div><p>เลือกสาขาและวันที่เพื่อเริ่มปิดยอด</p></div>';
@@ -3579,7 +3670,7 @@ function renderDailyClose(date, branch, salesItems, stock, dc) {
           <div style="display:flex;justify-content:space-between;align-items:center">
             <label style="font-size:13px">จำนวนไข่บุบ (ฟอง)</label>
             <input type="number" class="ctrl" id="dcBroken" value="${saved.broken_eggs||0}" min="0"
-              style="width:100px;text-align:right">
+              style="width:100px;text-align:right" oninput="calcDcBroken()">
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center">
             <label style="font-size:13px">ราคาทดแทน/ฟอง</label>
@@ -3632,6 +3723,7 @@ async function saveDailyClose() {
   const date = document.getElementById('dcDate').value;
   const branchId = document.getElementById('dcBranch').value;
   if (!branchId) { toast('กรุณาเลือกสาขา','error'); return; }
+  if (!branchLockGuard(branchId)) return;
   const body = {
     date, branch_id: parseInt(branchId),
     cash_amount: parseFloat(document.getElementById('dcCash')?.value||0),
@@ -3644,6 +3736,237 @@ async function saveDailyClose() {
   try {
     await api.post('/daily-close', body);
     toast('💾 บันทึกปิดยอดเรียบร้อย','success');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ============================================================
+// ไข่บุบ — บันทึกรายวัน แยกตามเบอร์ไข่
+// ============================================================
+async function showDamagedEggModal(branchId, date) {
+  if (!branchId) { toast('กรุณาเลือกสาขาก่อน','error'); return; }
+  if (!date) date = new Date().toISOString().slice(0,10);
+  const [prods, existing] = await Promise.all([
+    api.get('/products').catch(()=>[]),
+    api.get('/damaged-eggs?branch_id='+branchId+'&date='+date).catch(()=>[]),
+  ]);
+  const eggProds = safeArray(prods).filter(p=>p.is_egg && !['EGG-BROKEN-L','EGG-BROKEN-S'].includes(p.code));
+  const existingMap = {};
+  safeArray(existing).forEach(e => { existingMap[e.product_id] = e; });
+  const branchName = branches.find(b=>b.id==branchId)?.name || '';
+
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:680px;max-height:90vh;overflow-y:auto">
+    <div class="mh" style="position:sticky;top:0;background:var(--surface);z-index:10">
+      <div>
+        <div class="mt">🥚 ไข่บุบ</div>
+        <div style="font-size:12px;color:var(--text-muted)">${branchName} — ${new Date(date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'})}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="showDamageCategoryConfig()">⚙️ ตั้งค่าบุบใหญ่/เล็ก</button>
+        <button class="btn btn-secondary btn-sm" onclick="showDamagedEggSummary()">📊 ยอดสะสม</button>
+        <button class="btn btn-primary" onclick="saveDamagedEggs(${branchId},'${date}')">💾 บันทึก</button>
+        <button class="mc" onclick="CM()">✕</button>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);background:var(--surface2);padding:8px 10px;border-radius:7px;margin-bottom:10px">
+      💡 <strong>บุบทิ้ง</strong> = เสียหายทั้งหมด นับเป็นมูลค่าความเสียหาย | <strong>บุบขายได้</strong> = จะเข้าสต๊อก "ไข่บุบใหญ่/เล็ก" ให้ขายต่อ (ต้องตั้งค่าก่อนว่าเบอร์นี้เป็นบุบใหญ่หรือเล็ก)
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:var(--surface2)">
+        <th style="padding:8px 10px;text-align:left;font-size:11px">สินค้า</th>
+        <th style="padding:8px 10px;width:100px;font-size:11px;text-align:center">จำนวน (ฟอง)</th>
+        <th style="padding:8px 10px;width:130px;font-size:11px;text-align:center">ประเภท</th>
+        <th style="padding:8px 10px;font-size:11px">หมายเหตุ</th>
+      </tr></thead>
+      <tbody id="deItemsBody">
+        ${eggProds.map((p,i) => {
+          const ex = existingMap[p.id];
+          return `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 10px">
+              <div style="font-weight:600">${p.name}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${p.code||''}</div>
+            </td>
+            <td style="padding:4px 8px">
+              <input type="number" min="0" class="ctrl de-qty-input" style="text-align:center;font-size:16px;font-weight:700"
+                data-pid="${p.id}" data-record-id="${ex?.id||''}" value="${ex?.qty||''}" placeholder="0">
+            </td>
+            <td style="padding:4px 8px">
+              <select class="ctrl de-type-input" data-pid="${p.id}" style="font-size:12px">
+                <option value="discard" ${(!ex||ex.damage_type==='discard')?'selected':''}>บุบทิ้ง</option>
+                <option value="sellable" ${ex?.damage_type==='sellable'?'selected':''}>บุบขายได้</option>
+              </select>
+            </td>
+            <td style="padding:4px 8px">
+              <input type="text" class="ctrl de-note-input" data-pid="${p.id}" style="font-size:12px" placeholder="หมายเหตุ" value="${ex?.note||''}">
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div></div>`;
+  setTimeout(() => document.querySelector('.de-qty-input')?.focus(), 100);
+}
+
+async function saveDamagedEggs(branchId, date) {
+  const rows = Array.from(document.querySelectorAll('.de-qty-input'));
+  const toSave = rows
+    .map(el => ({
+      product_id: el.dataset.pid,
+      record_id: el.dataset.recordId,
+      qty: parseInt(el.value)||0,
+      damage_type: document.querySelector('.de-type-input[data-pid="'+el.dataset.pid+'"]')?.value||'discard',
+      note: document.querySelector('.de-note-input[data-pid="'+el.dataset.pid+'"]')?.value||'',
+    }))
+    .filter(r => r.qty > 0);
+  if (!toSave.length) { toast('กรุณากรอกจำนวนอย่างน้อย 1 รายการ','error'); return; }
+  try {
+    // ลบของเดิมที่เคยบันทึกไว้วันนี้ก่อน (กันซ้ำ) แล้วค่อยบันทึกใหม่
+    for (const el of rows) {
+      if (el.dataset.recordId) await api.del('/damaged-eggs/'+el.dataset.recordId).catch(()=>{});
+    }
+    let warnings = [];
+    for (const row of toSave) {
+      const res = await api.post('/damaged-eggs', { branch_id: branchId, damage_date: date, product_id: row.product_id, qty: row.qty, note: row.note, damage_type: row.damage_type });
+      if (res?.message?.includes('⚠️')) warnings.push(res.message);
+    }
+    if (warnings.length) toast(warnings[0], 'warning');
+    else toast(`✅ บันทึกไข่บุบ ${toSave.length} รายการเรียบร้อย`, 'success');
+    CM();
+    // มูลค่าความเสียหายในหน้าปิดยอด นับเฉพาะที่ "บุบทิ้ง" (บุบขายได้ไม่ใช่ความเสียหายเต็มจำนวน)
+    const discardTotal = toSave.filter(r=>r.damage_type==='discard').reduce((s,r)=>s+r.qty, 0);
+    const dcBroken = document.getElementById('dcBroken');
+    if (dcBroken) { dcBroken.value = discardTotal; calcDcBroken(); }
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showDamageCategoryConfig() {
+  const prods = safeArray(await api.get('/products/damage-categories').catch(()=>[]));
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:480px;max-height:85vh;overflow-y:auto">
+    <div class="mh"><div><div class="mt">⚙️ ตั้งค่าบุบใหญ่/เล็ก</div><div style="font-size:12px;color:var(--text-muted)">เลือกว่าไข่แต่ละเบอร์ ถ้าบุบขายได้ จะเข้าสต๊อกไข่บุบใหญ่หรือเล็ก</div></div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;gap:8px">
+      ${prods.map(p => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+          <div>
+            <div style="font-weight:600;font-size:13px">${p.name}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${p.code||''}</div>
+          </div>
+          <select class="ctrl" style="width:150px" onchange="saveDamageCategory(${p.id}, this.value)">
+            <option value="" ${!p.damage_category?'selected':''}>— ไม่ระบุ —</option>
+            <option value="large_broken" ${p.damage_category==='large_broken'?'selected':''}>🥚 บุบใหญ่</option>
+            <option value="small_broken" ${p.damage_category==='small_broken'?'selected':''}>🥚 บุบเล็ก</option>
+          </select>
+        </div>`).join('')}
+    </div>
+  </div></div>`;
+}
+
+async function saveDamageCategory(productId, category) {
+  try {
+    await api.put('/products/'+productId+'/damage-category', { damage_category: category||null });
+    toast('บันทึกเรียบร้อย','success');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showDamagedEggSummary() {
+  const branchId = document.getElementById('dcBranch')?.value;
+  const today = new Date().toISOString().slice(0,10);
+  const monthAgo = new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:560px">
+    <div class="mh"><div class="mt">📊 ไข่บุบสะสม</div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div><label class="lbl">จากวันที่</label><input type="date" class="ctrl" id="deFromDate" value="${monthAgo}" style="margin-top:4px" onchange="loadDamagedEggSummary()"></div>
+      <div><label class="lbl">ถึงวันที่</label><input type="date" class="ctrl" id="deToDate" value="${today}" style="margin-top:4px" onchange="loadDamagedEggSummary()"></div>
+    </div>
+    <div id="deSummaryTable"><div style="text-align:center;color:var(--text-muted);padding:20px">⏳ กำลังโหลด...</div></div>
+  </div></div>`;
+  await loadDamagedEggSummary();
+}
+
+async function loadDamagedEggSummary() {
+  const branchId = document.getElementById('dcBranch')?.value;
+  const from = document.getElementById('deFromDate')?.value;
+  const to = document.getElementById('deToDate')?.value;
+  const el = document.getElementById('deSummaryTable');
+  if (!el) return;
+  try {
+    const all = safeArray(await api.get('/damaged-eggs'+(branchId?'?branch_id='+branchId:'')));
+    const filtered = all.filter(r => (!from || r.damage_date>=from) && (!to || r.damage_date<=to));
+    const byProduct = {};
+    filtered.forEach(r => {
+      const key = r.product_name || 'ไม่ระบุ';
+      byProduct[key] = (byProduct[key]||0) + parseInt(r.qty||0);
+    });
+    const entries = Object.entries(byProduct).sort((a,b)=>b[1]-a[1]);
+    const total = entries.reduce((s,[,q])=>s+q,0);
+    el.innerHTML = entries.length ? `
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--surface2)"><th style="padding:6px 10px;text-align:left;font-size:12px">สินค้า</th><th style="padding:6px 10px;text-align:right;font-size:12px">จำนวนบุบสะสม (ฟอง)</th></tr></thead>
+        <tbody>${entries.map(([name,qty])=>`<tr style="border-bottom:1px solid var(--border)"><td style="padding:7px 10px">${name}</td><td style="padding:7px 10px;text-align:right;font-weight:700">${fmt.n(qty)}</td></tr>`).join('')}</tbody>
+        <tfoot><tr style="font-weight:700"><td style="padding:8px 10px">รวม</td><td style="padding:8px 10px;text-align:right">${fmt.n(total)}</td></tr></tfoot>
+      </table>` : '<div style="text-align:center;color:var(--text-muted);padding:20px">ไม่มีข้อมูลในช่วงที่เลือก</div>';
+  } catch(e) { el.innerHTML = '<div style="color:var(--error);padding:12px">'+e.message+'</div>'; }
+}
+
+// ============================================================
+// เอกสารแนบรายวัน
+// ============================================================
+async function showAttachmentPanel(branchId, date) {
+  if (!branchId) { toast('กรุณาเลือกสาขาก่อน','error'); return; }
+  if (!date) date = new Date().toISOString().slice(0,10);
+  const branchName = branches.find(b=>b.id==branchId)?.name || '';
+  document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
+  <div class="modal" style="max-width:520px">
+    <div class="mh"><div><div class="mt">📎 เอกสารแนบ</div><div style="font-size:12px;color:var(--text-muted)">${branchName} — ${new Date(date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'})}</div></div><button class="mc" onclick="CM()">✕</button></div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <input type="file" id="attFile" class="ctrl" accept="image/*,.pdf" style="padding:6px">
+      <button class="btn btn-primary" onclick="uploadAttachment(${branchId},'${date}')" style="white-space:nowrap">📤 อัปโหลด</button>
+    </div>
+    <div id="attList"><div style="text-align:center;color:var(--text-muted);padding:20px">⏳ กำลังโหลด...</div></div>
+  </div></div>`;
+  await loadAttachmentList(branchId, date);
+}
+
+async function loadAttachmentList(branchId, date) {
+  const el = document.getElementById('attList');
+  if (!el) return;
+  try {
+    const data = safeArray(await api.get('/daily-attachments?branch_id='+branchId+'&date='+date));
+    el.innerHTML = data.length ? data.map(a => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+        ${a.file_type==='pdf' ? '<div style="font-size:24px">📄</div>' : `<img src="${a.file_url}" style="width:44px;height:44px;object-fit:cover;border-radius:6px">`}
+        <div style="flex:1;font-size:12px">
+          <a href="${a.file_url}" target="_blank" style="color:var(--accent);font-weight:600">เปิดไฟล์</a>
+          <div style="color:var(--text-muted)">${a.note||''} ${a.uploaded_by_name?'· '+a.uploaded_by_name:''}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="delAttachment(${a.id},${branchId},'${date}')">🗑️</button>
+      </div>`).join('') : '<div style="text-align:center;color:var(--text-muted);padding:20px">ยังไม่มีเอกสารแนบ</div>';
+  } catch(e) { el.innerHTML = '<div style="color:var(--error);padding:12px">'+e.message+'</div>'; }
+}
+
+async function uploadAttachment(branchId, date) {
+  const file = document.getElementById('attFile')?.files[0];
+  if (!file) { toast('กรุณาเลือกไฟล์','error'); return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('branch_id', branchId);
+  fd.append('attach_date', date);
+  try {
+    const res = await fetch('/api/daily-attachments', { method:'POST', headers:{'Authorization':'Bearer '+api.tok()}, body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error||'อัปโหลดไม่สำเร็จ');
+    toast('อัปโหลดเรียบร้อย','success');
+    await loadAttachmentList(branchId, date);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function delAttachment(id, branchId, date) {
+  if (!confirm('ลบเอกสารนี้?')) return;
+  try {
+    await api.del('/daily-attachments/'+id);
+    toast('ลบเรียบร้อย','success');
+    await loadAttachmentList(branchId, date);
   } catch(e) { toast(e.message,'error'); }
 }
 
@@ -4357,7 +4680,7 @@ async function showAdjustModal() {
       <div>
         <label class="lbl">สาขา *</label>
         <select class="ctrl" id="adjBranch" style="margin-top:4px" onchange="updateAdjCurrent()">
-          ${branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}
+          ${branches.map(b=>`<option value="${b.id}" ${b.id===CU.branch_id?'selected':''}>${b.name}</option>`).join('')}
         </select>
       </div>
       <div>
@@ -4433,6 +4756,7 @@ function updateAdjAfter() {
 
 async function doAdjust() {
   const branch_id = document.getElementById('adjBranch')?.value;
+  if (!branchLockGuard(branch_id)) return;
   const adjust_type = document.getElementById('adjType')?.value;
   const qty = parseInt(document.getElementById('adjQty')?.value||0);
   const reason = document.getElementById('adjReason')?.value;
@@ -4801,7 +5125,7 @@ function _setPOSBranch(bid, bcode, bname) {
   CU._pos_branch_name = bname;
   // แสดงใน UI
   const el = document.getElementById('navBranch');
-  if (el) el.textContent = bname || ('สาขา ' + bcode);
+  if (el) el.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${branchColor(bid)};margin-right:6px"></span>${bname || ('สาขา ' + bcode)}`;
 }
 
 async function selectPOSBranch(bid, bcode, bname) {
@@ -4819,7 +5143,7 @@ async function selectPOSBranch(bid, bcode, bname) {
       localStorage.setItem('es_user', JSON.stringify(CU));
     }
     _setPOSBranch(bid, bcode, bname);
-    document.getElementById('navBranch').textContent = bname;
+    document.getElementById('navBranch').innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${branchColor(bid)};margin-right:6px"></span>${bname}`;
     toast('🏪 ขายที่สาขา ' + bname, 'success');
     // เรียก callback (loadShiftSt + loadPosProds + loadPosMem)
     if (window._branchSelectCallback) {
@@ -4846,7 +5170,7 @@ async function showPriceM(productId, productName) {
     ]);
 
     const prices = prod.prices || [];
-    const typeLabel = {retail:'🛒 ปลีก', restaurant:'🍳 ร้านข้าว', wholesale:'🚚 ส่ง'};
+    const typeLabel = {retail:'🛒 ระดับราคา 1 (ปลีก)', restaurant:'🍳 ระดับราคา 2 (ร้านข้าว)', wholesale:'🚚 ระดับราคา 3 (ส่ง)'};
     const typeBadge = {retail:'bi', restaurant:'bw', wholesale:'bs'};
     const types = ['retail','restaurant','wholesale'];
 
@@ -4939,7 +5263,7 @@ async function showPriceM(productId, productName) {
 }
 
 async function managePriceTiers(custType) {
-  const typeLabel = {retail:'🛒 ปลีก', restaurant:'🍳 ร้านข้าว', wholesale:'🚚 ส่ง'};
+  const typeLabel = {retail:'🛒 ระดับราคา 1 (ปลีก)', restaurant:'🍳 ระดับราคา 2 (ร้านข้าว)', wholesale:'🚚 ระดับราคา 3 (ส่ง)'};
   try {
     const tiers = await api.get('/price-qty-tiers');
     const mine = tiers.filter(t => t.customer_type === custType);
@@ -5512,8 +5836,10 @@ function updateQtTotal() {
 async function saveQt() {
   const items = _qtItems.filter(it => it.product_id && it.qty>0);
   if (!items.length) { toast('กรุณาเพิ่มรายการสินค้า','error'); return; }
+  const qtBranchId = document.getElementById('qtBranch').value;
+  if (!branchLockGuard(qtBranchId)) return;
   const body = {
-    branch_id: parseInt(document.getElementById('qtBranch').value),
+    branch_id: parseInt(qtBranchId),
     contact_id: document.getElementById('qtContact').value || null,
     valid_until: document.getElementById('qtValid').value || null,
     items: items.map(it=>({product_id:it.product_id, qty:it.qty, price:it.price})),
@@ -5707,8 +6033,10 @@ function updateInvTotal() {
 async function saveInvoice() {
   const items = _invItems.filter(it => it.product_id && it.qty>0);
   if (!items.length) { toast('กรุณาเพิ่มรายการสินค้า','error'); return; }
+  const invBranchId = document.getElementById('invBranch').value;
+  if (!branchLockGuard(invBranchId)) return;
   const body = {
-    branch_id: parseInt(document.getElementById('invBranch').value),
+    branch_id: parseInt(invBranchId),
     contact_id: document.getElementById('invContact').value || null,
     due_date: document.getElementById('invDue').value || null,
     items: items.map(it=>({product_id:it.product_id, qty:it.qty, unit_price:it.unit_price, name:it.name})),
@@ -5800,17 +6128,31 @@ async function loadStockCount() {
   const bSel = document.getElementById('scBranch');
   if (bSel && bSel.options.length <= 1) {
     branches.forEach(b => bSel.innerHTML += `<option value="${b.id}">${b.name}</option>`);
-    // default เดอะมอลล์ถ้ามี
-    const mall = branches.find(b => b.code==='16KA' || b.name.includes('มอลล์'));
-    if (mall) bSel.value = mall.id;
-    else if (CU.branch_id) bSel.value = CU.branch_id;
+    // default = สาขาปัจจุบันที่ใช้งานอยู่ (มุมซ้ายบน) ให้ตรงกับหน้าอื่นๆ
+    const myBranch = branches.find(b => b.id === CU.branch_id);
+    if (myBranch) bSel.value = myBranch.id;
+    else if (branches.length) bSel.value = branches[0].id;
   }
   // set today's date
   const dateEl = document.getElementById('scDate');
   if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0,10);
+  const scDot = document.getElementById('scBranchDot');
+  if (scDot) scDot.style.background = branchColor(bSel?.value);
+
+  // ล็อกการบันทึกถ้ากำลังดูสาขาที่ไม่ใช่สาขา active อยู่ — ดูได้ แก้ไม่ได้
+  applyBranchLockUI('scBranch', ['scCloseBtn','scAutoDeductBtn'], 'scBranchWarning');
 
   await loadStockCountSummary();
   await loadStockCountHistory();
+}
+
+async function switchToBranchOf(selectId, pageId) {
+  const bSel = document.getElementById(selectId);
+  const bid = parseInt(bSel?.value);
+  const b = branches.find(x => x.id === bid);
+  if (!b) return;
+  await switchBranch(b.id, b.code, b.name);
+  showPage(pageId, false);
 }
 
 async function loadStockCountSummary() {
@@ -5900,15 +6242,27 @@ async function loadStockCountHistory() {
         <td style="text-align:center;color:var(--text-muted)">${r.qty_system ?? '-'}</td>
         <td style="text-align:center;${diffStyle}">${diff === null ? '-' : diff > 0 ? '+'+diff : diff}</td>
         <td style="font-size:11px;color:var(--text-muted)">${r.note||''}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="delStockCount(${r.id})">🗑️</button></td>
       </tr>`;
-    }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:16px">ยังไม่มีประวัติการนับ</td></tr>';
+    }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:16px">ยังไม่มีประวัติการนับ</td></tr>';
   } catch(e) { console.error('loadStockCountHistory:', e); }
+}
+
+async function delStockCount(id) {
+  if (!confirm('ลบรายการนับสต๊อกนี้? (จะไม่กระทบสต๊อกจริงในระบบ เพราะการนับไม่ได้ตัดสต๊อกโดยตรง)')) return;
+  try {
+    await api.del('/stock-counts/'+id);
+    toast('ลบเรียบร้อย','success');
+    await loadStockCountSummary();
+    await loadStockCountHistory();
+  } catch(e) { toast(e.message,'error'); }
 }
 
 let _scItems = [];
 
 async function startStockCount(sessionType) {
   const branchId = parseInt(document.getElementById('scBranch')?.value);
+  if (CU.branch_id && branchId !== CU.branch_id) { toast('บันทึกได้เฉพาะสาขาที่ active อยู่เท่านั้น — สลับสาขาก่อน','error'); return; }
   const date = document.getElementById('scDate')?.value || new Date().toISOString().slice(0,10);
   if (!branchId) { toast('กรุณาเลือกสาขาก่อน','error'); return; }
 
@@ -5988,6 +6342,7 @@ async function doAutoDeduct() {
   const branchId = document.getElementById('scBranch')?.value;
   const date = document.getElementById('scDate')?.value;
   if (!branchId || !date) { toast('กรุณาเลือกสาขาและวันที่','error'); return; }
+  if (CU.branch_id && parseInt(branchId) !== CU.branch_id) { toast('ทำได้เฉพาะสาขาที่ active อยู่เท่านั้น — สลับสาขาก่อน','error'); return; }
 
   const branchName = branches.find(b=>b.id==branchId)?.name || '';
   const dateStr = new Date(date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
@@ -6587,6 +6942,8 @@ function initStockSummary() {
 async function loadStockSummary() {
   const branchId = document.getElementById('ssBranch')?.value;
   const date = document.getElementById('ssDate')?.value;
+  const dot = document.getElementById('ssBranchDot');
+  if (dot) dot.style.background = branchColor(branchId);
   const wrap = document.getElementById('ssTableWrap');
   const cards = document.getElementById('ssSummaryCards');
   if (!branchId || !date || !wrap) return;
