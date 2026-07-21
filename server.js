@@ -374,28 +374,6 @@ async function initSchema() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`).catch(()=>{});
 
-    await pool.query(`CREATE TABLE IF NOT EXISTS member_tiers (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      description TEXT,
-      customer_type VARCHAR(20) DEFAULT 'retail',
-      discount_percent NUMERIC(5,2) DEFAULT 0,
-      discount_amount NUMERIC(10,2) DEFAULT 0,
-      min_eggs_required INTEGER DEFAULT 0,
-      sort_order INTEGER DEFAULT 0,
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`).catch(()=>{});
-
-    // seed default tiers ถ้ายังไม่มี
-    await pool.query(`INSERT INTO member_tiers (name, description, customer_type, sort_order)
-      SELECT * FROM (VALUES
-        ('ระดับ 1 (สมาชิกหน้าร้าน)', 'ราคาปลีก + สะสมฟองแลกส่วนลดได้', 'retail', 1),
-        ('ระดับ 2 (ร้านค้า/ร้านอาหาร)', 'ราคาร้านค้า ไม่ต้องออกใบแจ้งหนี้', 'restaurant', 2)
-      ) AS v(name, description, customer_type, sort_order)
-      WHERE NOT EXISTS (SELECT 1 FROM member_tiers LIMIT 1)
-    `).catch(()=>{});
-
     await pool.query(`CREATE TABLE IF NOT EXISTS role_permissions (
       id SERIAL PRIMARY KEY,
       role_name VARCHAR(50) NOT NULL,
@@ -568,29 +546,12 @@ async function initSchema() {
 
     
     
-    // member_tiers — ระดับสมาชิก
-    await pool.query(`CREATE TABLE IF NOT EXISTS member_tiers (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      description TEXT,
-      customer_type VARCHAR(20) DEFAULT 'retail',
-      discount_percent NUMERIC(5,2) DEFAULT 0,
-      discount_amount NUMERIC(10,2) DEFAULT 0,
-      min_eggs_required INTEGER DEFAULT 0,
-      sort_order INTEGER DEFAULT 0,
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )`).catch(()=>{});
-
+    // member_tiers — ระดับสมาชิก (ตารางถูกสร้างไว้แล้วด้านบน ไม่ต้อง CREATE ซ้ำ)
     // เพิ่ม column tier_id ในตาราง members ถ้ายังไม่มี
     await pool.query('ALTER TABLE members ADD COLUMN IF NOT EXISTS tier_id INTEGER REFERENCES member_tiers(id)').catch(()=>{});
 
-    // สร้าง tier เริ่มต้น
-    await pool.query(`INSERT INTO member_tiers (name, description, customer_type, sort_order) VALUES
-      ('ระดับ 1 (ทั่วไป)', 'ลูกค้าทั่วไป', 'retail', 1),
-      ('ระดับ 2 (ร้านข้าว)', 'ร้านอาหาร/ร้านข้าว', 'restaurant', 2),
-      ('ระดับ 3 (ส่ง/ลูกค้าประจำ)', 'ลูกค้าส่งหรือประจำ', 'wholesale', 3)
-      ON CONFLICT DO NOTHING`).catch(()=>{});
+    // ล้างระดับสมาชิกที่ซ้ำกัน (เกิดจากบั๊กเดิมที่ insert ซ้ำทุกครั้งที่ server รีสตาร์ท) เหลือไว้แค่รายการแรกสุดของแต่ละชื่อ
+    await pool.query(`DELETE FROM member_tiers WHERE id NOT IN (SELECT MIN(id) FROM member_tiers GROUP BY name)`).catch(()=>{});
     // daily_close table
     await pool.query(`CREATE TABLE IF NOT EXISTS daily_closes (
       id SERIAL PRIMARY KEY,
@@ -621,6 +582,24 @@ async function initSchema() {
       created_by INTEGER REFERENCES users(id),
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
+    // damage_type: 'discard' (บุบทิ้ง) หรือ 'sellable' (บุบขายได้ — เข้าสต๊อกไข่บุบใหญ่/เล็ก)
+    await pool.query(`ALTER TABLE damaged_eggs ADD COLUMN IF NOT EXISTS damage_type VARCHAR(20) DEFAULT 'discard'`).catch(()=>{});
+    // damage_category บนสินค้าไข่ปกติ — บอกว่าถ้าบุบแล้วขายได้ จะเข้ากลุ่ม 'large_broken' หรือ 'small_broken'
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS damage_category VARCHAR(20)`).catch(()=>{});
+
+    // สร้างสินค้า "ไข่บุบใหญ่" / "ไข่บุบเล็ก" ให้อัตโนมัติถ้ายังไม่มี (ขายผ่าน POS ได้เหมือนไข่ปกติ)
+    const brokenCat = await pool.query(`SELECT id FROM product_categories WHERE name='ไข่บุบ' LIMIT 1`);
+    let brokenCatId = brokenCat.rows[0]?.id;
+    if (!brokenCatId) {
+      const insCat = await pool.query(`INSERT INTO product_categories (name, type) VALUES ('ไข่บุบ','stock') RETURNING id`);
+      brokenCatId = insCat.rows[0].id;
+    }
+    await pool.query(`INSERT INTO products (code,name,unit,is_egg,track_stock,category_id)
+      SELECT 'EGG-BROKEN-L','ไข่บุบใหญ่','ฟอง',true,true,$1
+      WHERE NOT EXISTS (SELECT 1 FROM products WHERE code='EGG-BROKEN-L')`, [brokenCatId]).catch(()=>{});
+    await pool.query(`INSERT INTO products (code,name,unit,is_egg,track_stock,category_id)
+      SELECT 'EGG-BROKEN-S','ไข่บุบเล็ก','ฟอง',true,true,$1
+      WHERE NOT EXISTS (SELECT 1 FROM products WHERE code='EGG-BROKEN-S')`, [brokenCatId]).catch(()=>{});
 
     // daily_attachments — เอกสารแนบรายวัน (บิล, ใบส่งของ ฯลฯ)
     await pool.query(`CREATE TABLE IF NOT EXISTS daily_attachments (
@@ -1201,8 +1180,10 @@ app.get('/api/stock', auth, async (req, res) => {
   if (branch_id) { params.push(branch_id); q += ` AND s.branch_id=$${params.length}`; }
   if (search) { params.push('%'+search+'%'); q += ` AND (p.name ILIKE $${params.length} OR p.code ILIKE $${params.length})`; }
   q += ' ORDER BY b.code,p.code';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
+  try {
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch(e) { console.error('stock GET error:', e.message); res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/stock/movements', auth, async (req, res) => {
@@ -1415,8 +1396,11 @@ app.post('/api/contacts', auth, async (req, res) => {
 });
 app.put('/api/contacts/:id', auth, async (req, res) => {
   const { entity_type,is_customer,is_supplier,business_name,tax_id,branch_office,address,postal_code,office_phone,contact_name,email,mobile,credit_days,note,active } = req.body;
-  await pool.query(`UPDATE contacts SET entity_type=$1,is_customer=$2,is_supplier=$3,business_name=$4,tax_id=$5,branch_office=$6,address=$7,postal_code=$8,office_phone=$9,contact_name=$10,email=$11,mobile=$12,credit_days=$13,note=$14,active=$15 WHERE id=$16`, [entity_type,is_customer,is_supplier,business_name,tax_id,branch_office,address,postal_code,office_phone,contact_name,email,mobile,credit_days,note,active,req.params.id]);
-  res.json({ message: 'แก้ไขเรียบร้อย' });
+  try {
+    await pool.query(`UPDATE contacts SET entity_type=$1,is_customer=$2,is_supplier=$3,business_name=$4,tax_id=$5,branch_office=$6,address=$7,postal_code=$8,office_phone=$9,contact_name=$10,email=$11,mobile=$12,credit_days=$13,note=$14,active=$15 WHERE id=$16`,
+      [entity_type||'individual',is_customer,is_supplier,business_name,tax_id,branch_office,address,postal_code,office_phone,contact_name,email,mobile,credit_days||0,note,active!==false,req.params.id]);
+    res.json({ message: 'แก้ไขเรียบร้อย' });
+  } catch(e) { console.error('contacts PUT error:', e.message); res.status(500).json({ error: e.message }); }
 });
 app.delete('/api/contacts/:id', auth, role('owner','admin'), async (req, res) => { await pool.query('UPDATE contacts SET active=false WHERE id=$1', [req.params.id]); res.json({ message: 'ลบเรียบร้อย' }); });
 
@@ -1947,21 +1931,89 @@ app.get('/api/damaged-eggs', auth, async (req, res) => {
 });
 
 app.post('/api/damaged-eggs', auth, upload.single('photo'), async (req, res) => {
-  const { branch_id, damage_date, product_id, product_name, qty, note } = req.body;
+  const { branch_id, damage_date, product_id, product_name, qty, note, damage_type } = req.body;
   const photo_url = req.file ? '/uploads/'+req.file.filename : null;
+  const dtype = damage_type === 'sellable' ? 'sellable' : 'discard';
   if (!branch_id || !qty) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
+  const client = await pool.connect();
   try {
-    const r = await pool.query(`INSERT INTO damaged_eggs (branch_id,damage_date,product_id,product_name,qty,note,photo_url,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    await client.query('BEGIN');
+    const r = await client.query(`INSERT INTO damaged_eggs (branch_id,damage_date,product_id,product_name,qty,note,photo_url,created_by,damage_type)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [branch_id, damage_date||new Date().toISOString().slice(0,10),
-       product_id||null, product_name||null, parseInt(qty), note||null, photo_url, req.user.id]);
-    res.status(201).json({ message: 'บันทึกไข่บุบเรียบร้อย', record: r.rows[0] });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+       product_id||null, product_name||null, parseInt(qty), note||null, photo_url, req.user.id, dtype]);
+
+    let stockNote = '';
+    if (dtype === 'sellable' && product_id) {
+      const prodR = await client.query('SELECT damage_category FROM products WHERE id=$1', [product_id]);
+      const cat = prodR.rows[0]?.damage_category;
+      if (cat === 'large_broken' || cat === 'small_broken') {
+        const brokenCode = cat === 'large_broken' ? 'EGG-BROKEN-L' : 'EGG-BROKEN-S';
+        const brokenProd = await client.query('SELECT id FROM products WHERE code=$1', [brokenCode]);
+        const brokenProdId = brokenProd.rows[0]?.id;
+        if (brokenProdId) {
+          const cur = await client.query('SELECT qty_unit FROM stock WHERE product_id=$1 AND branch_id=$2', [brokenProdId, branch_id]);
+          if (cur.rows.length) {
+            await client.query('UPDATE stock SET qty_unit=qty_unit+$1, updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [parseInt(qty), brokenProdId, branch_id]);
+          } else {
+            await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [brokenProdId, branch_id, parseInt(qty)]);
+          }
+          await client.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note,created_by)
+            VALUES ($1,$2,'in',$3,'damage',$4,$5)`,
+            [brokenProdId, branch_id, parseInt(qty), 'ไข่บุบขายได้จาก '+(product_name||''), req.user.id]);
+          stockNote = ' (เข้าสต๊อก '+(cat==='large_broken'?'ไข่บุบใหญ่':'ไข่บุบเล็ก')+' แล้ว)';
+        }
+      } else {
+        stockNote = ' (⚠️ สินค้านี้ยังไม่ได้ตั้งค่าว่าเป็นบุบใหญ่/เล็ก จึงยังไม่เข้าสต๊อกให้ — ไปตั้งค่าที่ "⚙️ ตั้งค่าบุบใหญ่/เล็ก")';
+      }
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ message: 'บันทึกไข่บุบเรียบร้อย'+stockNote, record: r.rows[0] });
+  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
+  finally { client.release(); }
 });
 
 app.delete('/api/damaged-eggs/:id', auth, async (req, res) => {
-  await pool.query('DELETE FROM damaged_eggs WHERE id=$1', [req.params.id]);
-  res.json({ message: 'ลบเรียบร้อย' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const rec = await client.query('SELECT * FROM damaged_eggs WHERE id=$1', [req.params.id]);
+    const row = rec.rows[0];
+    if (row && row.damage_type === 'sellable' && row.product_id) {
+      const prodR = await client.query('SELECT damage_category FROM products WHERE id=$1', [row.product_id]);
+      const cat = prodR.rows[0]?.damage_category;
+      if (cat === 'large_broken' || cat === 'small_broken') {
+        const brokenCode = cat === 'large_broken' ? 'EGG-BROKEN-L' : 'EGG-BROKEN-S';
+        const brokenProd = await client.query('SELECT id FROM products WHERE code=$1', [brokenCode]);
+        const brokenProdId = brokenProd.rows[0]?.id;
+        if (brokenProdId) {
+          await client.query('UPDATE stock SET qty_unit=GREATEST(0,qty_unit-$1), updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [row.qty, brokenProdId, row.branch_id]);
+          await client.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note,created_by)
+            VALUES ($1,$2,'out',$3,'damage_reverse','ยกเลิกรายการไข่บุบขายได้',$4)`,
+            [brokenProdId, row.branch_id, row.qty, req.user.id]);
+        }
+      }
+    }
+    await client.query('DELETE FROM damaged_eggs WHERE id=$1', [req.params.id]);
+    await client.query('COMMIT');
+    res.json({ message: 'ลบเรียบร้อย' });
+  } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
+  finally { client.release(); }
+});
+
+// ตั้งค่าว่าไข่เบอร์ไหนจัดอยู่กลุ่ม "บุบใหญ่" หรือ "บุบเล็ก" เวลาบุบขายได้
+app.get('/api/products/damage-categories', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT id, code, name, damage_category FROM products WHERE is_egg=true AND active=true AND code NOT IN ('EGG-BROKEN-L','EGG-BROKEN-S') ORDER BY code`);
+    res.json(r.rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/products/:id/damage-category', auth, role('owner','admin','manager'), async (req, res) => {
+  const { damage_category } = req.body; // 'large_broken' | 'small_broken' | null
+  try {
+    await pool.query('UPDATE products SET damage_category=$1 WHERE id=$2', [damage_category||null, req.params.id]);
+    res.json({ message: 'บันทึกเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ============================================================
@@ -2359,8 +2411,10 @@ app.get('/api/reports/sales-by-product', auth, async (req, res) => {
   const params = [d];
   if (branch_id) { params.push(branch_id); q += ` AND s.branch_id=$${params.length}`; }
   q += ' GROUP BY p.id, p.name, p.code ORDER BY qty_sold DESC';
-  const r = await pool.query(q, params);
-  res.json({ items: r.rows });
+  try {
+    const r = await pool.query(q, params);
+    res.json({ items: r.rows });
+  } catch(e) { console.error('sales-by-product error:', e.message); res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/reports/daily', auth, async (req, res) => {
@@ -3055,7 +3109,7 @@ app.post('/api/price-qty-tiers', auth, role('owner','admin'), async (req, res) =
   try {
     const r = await pool.query(
       'INSERT INTO price_qty_tiers (customer_type,qty,label,sort_order) VALUES ($1,$2,$3,$4) ON CONFLICT (customer_type,qty) DO UPDATE SET active=true,label=$3 RETURNING *',
-      [customer_type, qty, label||qty+' ฟอง', sort_order||0]);
+      [customer_type, qty, label||qty+' ฟอง', sort_order!=null?sort_order:qty]);
     res.json(r.rows[0]);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -3190,6 +3244,14 @@ app.post('/api/stock-counts', auth, async (req, res) => {
 });
 
 // Summary: เปรียบเทียบเปิด-ปิด วันเดียวกัน
+app.delete('/api/stock-counts/:id', auth, async (req, res) => {
+  try {
+    const r = await pool.query('DELETE FROM stock_counts WHERE id=$1 RETURNING id', [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบรายการ' });
+    res.json({ message: 'ลบเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/stock-counts/summary', auth, async (req, res) => {
   const { branch_id, date } = req.query;
   if (!branch_id || !date) return res.status(400).json({ error: 'กรุณาระบุ branch_id และ date' });
