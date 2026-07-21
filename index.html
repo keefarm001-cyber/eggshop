@@ -1034,25 +1034,46 @@ function renderPosProds(prods){
 }
 
 function showPosQtyModal(prod){
-  const price=prod.prices&&prod.prices.length?prod.prices[0].price:0;
-  const unitQty=prod.prices&&prod.prices.length?prod.prices[0].qty:1;
+  const tiers = (prod.prices||[]).slice().sort((a,b)=>a.qty-b.qty);
   document.getElementById('MC').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)CM()">
-  <div class="modal" style="max-width:340px">
+  <div class="modal" style="max-width:380px">
     <div class="mh"><div class="mt">${prod.name}</div><button class="mc" onclick="CM()">✕</button></div>
-    <div style="text-align:center;color:var(--text-muted);font-size:13px;margin-bottom:12px">คงเหลือในสต๊อก: ${fmt.n(prod.stock_qty)} ฟอง</div>
-    <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:16px">
-      <button onclick="const el=document.getElementById('posQtyInput');el.value=Math.max(1,(parseInt(el.value)||1)-1)" style="width:44px;height:44px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);font-size:20px;cursor:pointer">−</button>
-      <input type="number" id="posQtyInput" value="1" min="1" style="width:90px;text-align:center;font-size:24px;font-weight:700;padding:10px;border:1.5px solid var(--border);border-radius:10px" onkeydown="if(event.key==='Enter')confirmPosQty(${JSON.stringify(prod).replace(/"/g,'&quot;')})">
-      <button onclick="const el=document.getElementById('posQtyInput');el.value=(parseInt(el.value)||1)+1" style="width:44px;height:44px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);font-size:20px;cursor:pointer">+</button>
+    <div style="text-align:center;color:var(--text-muted);font-size:13px;margin-bottom:14px">คงเหลือในสต๊อก: ${fmt.n(prod.stock_qty)} ฟอง</div>
+    ${tiers.length ? `
+    <div style="display:grid;gap:8px;margin-bottom:16px" id="posTierList">
+      ${tiers.map((t,i)=>`
+        <button type="button" class="pos-tier-btn" data-idx="${i}" onclick="selectPosTier(${i})"
+          style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border:2px solid ${i===0?'var(--accent)':'var(--border)'};border-radius:10px;background:${i===0?'var(--accent-dim)':'var(--surface)'};cursor:pointer;font-family:'Noto Sans Thai',sans-serif">
+          <span style="font-weight:700;font-size:14px">${t.qty} ฟอง</span>
+          <span style="font-weight:700;font-size:15px;color:var(--accent)">${fmt.b(t.price)}</span>
+        </button>`).join('')}
     </div>
-    <button class="btn btn-primary" onclick="confirmPosQty(${JSON.stringify(prod).replace(/"/g,'&quot;')})" style="width:100%">✅ เพิ่มลงตะกร้า</button>
+    <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:16px">
+      <span style="font-size:12px;color:var(--text-muted)">จำนวนชุด ×</span>
+      <button onclick="const el=document.getElementById('posSetInput');el.value=Math.max(1,(parseInt(el.value)||1)-1)" style="width:38px;height:38px;border-radius:9px;border:1.5px solid var(--border);background:var(--surface2);font-size:18px;cursor:pointer">−</button>
+      <input type="number" id="posSetInput" value="1" min="1" style="width:64px;text-align:center;font-size:18px;font-weight:700;padding:7px;border:1.5px solid var(--border);border-radius:9px">
+      <button onclick="const el=document.getElementById('posSetInput');el.value=(parseInt(el.value)||1)+1" style="width:38px;height:38px;border-radius:9px;border:1.5px solid var(--border);background:var(--surface2);font-size:18px;cursor:pointer">+</button>
+    </div>
+    <button class="btn btn-primary" onclick="confirmPosTier(${JSON.stringify(prod).replace(/"/g,'&quot;')})" style="width:100%">✅ เพิ่มลงตะกร้า</button>
+    ` : `<div style="text-align:center;color:var(--error);padding:12px;font-size:13px">ยังไม่ได้ตั้งราคาสินค้านี้ — ไปตั้งราคาที่หน้าสินค้าก่อน</div>`}
   </div></div>`;
-  setTimeout(()=>{ const el=document.getElementById('posQtyInput'); el?.focus(); el?.select(); }, 50);
 }
 
-function confirmPosQty(prod){
-  const qty = parseInt(document.getElementById('posQtyInput')?.value)||1;
-  addToCart(prod, qty);
+let _posSelectedTierIdx = 0;
+function selectPosTier(idx){
+  _posSelectedTierIdx = idx;
+  document.querySelectorAll('.pos-tier-btn').forEach((btn,i)=>{
+    btn.style.borderColor = i===idx ? 'var(--accent)' : 'var(--border)';
+    btn.style.background = i===idx ? 'var(--accent-dim)' : 'var(--surface)';
+  });
+}
+
+function confirmPosTier(prod){
+  const tiers = (prod.prices||[]).slice().sort((a,b)=>a.qty-b.qty);
+  const tier = tiers[_posSelectedTierIdx] || tiers[0];
+  const setCount = parseInt(document.getElementById('posSetInput')?.value)||1;
+  if (!tier) return;
+  addToCartTier(prod, tier, setCount);
   CM();
 }
 
@@ -1184,19 +1205,33 @@ async function showRecvModal(isOwner=false) {
 
 
 function recvItemRow(n, prods) {
-  return `<div id="recvRow_${n}" style="display:grid;grid-template-columns:1fr 100px 100px 24px;gap:8px;margin-bottom:8px;align-items:center">
-    <select class="ctrl" id="recvProd_${n}" style="font-size:13px;padding:8px 10px">
+  return `<div id="recvRow_${n}" style="display:grid;grid-template-columns:1fr 100px 120px 24px;gap:8px;margin-bottom:8px;align-items:center">
+    <select class="ctrl" id="recvProd_${n}" style="font-size:13px;padding:8px 10px" onchange="onRecvProdChange(${n})">
       <option value="">เลือกสินค้า</option>
-      ${prods.map(p=>`<option value="${p.id}" data-name="${p.name}">${p.name}</option>`).join('')}
+      ${prods.map(p=>`<option value="${p.id}" data-name="${p.name}" data-unit="${p.unit||'หน่วย'}">${p.name}</option>`).join('')}
     </select>
     <input type="number" class="ctrl" id="recvQty_${n}" value="1" min="1" style="text-align:right;font-size:13px;padding:8px 10px">
     <select class="ctrl" id="recvUnit_${n}" style="font-size:13px;padding:8px 10px">
-      <option value="1">ฟอง (x1)</option>
-      <option value="30">แผง (x30)</option>
-      <option value="300">ลัง (x300)</option>
+      <option value="1">หน่วย (x1)</option>
     </select>
     ${n>0?`<button onclick="document.getElementById('recvRow_${n}').remove()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:16px">✕</button>`:'<span></span>'}
   </div>`;
+}
+
+async function onRecvProdChange(n) {
+  const prodSel = document.getElementById('recvProd_'+n);
+  const unitSel = document.getElementById('recvUnit_'+n);
+  if (!prodSel || !unitSel) return;
+  const pid = prodSel.value;
+  const baseUnit = prodSel.options[prodSel.selectedIndex]?.dataset.unit || 'หน่วย';
+  if (!pid) { unitSel.innerHTML = `<option value="1">หน่วย (x1)</option>`; return; }
+  unitSel.innerHTML = `<option value="1">${baseUnit} (x1)</option>`;
+  try {
+    const units = safeArray(await api.get('/products/'+pid+'/units'));
+    units.forEach(u => {
+      unitSel.innerHTML += `<option value="${u.conversion_factor}">${u.unit_name} (x${u.conversion_factor})</option>`;
+    });
+  } catch(e) {}
 }
 
 
@@ -1842,6 +1877,14 @@ function addToCart(prod, addQty){
   renderCart();
 }
 
+function addToCartTier(prod, tier, setCount){
+  setCount = setCount || 1;
+  const existing=cart.find(c=>c.product_id===prod.product_id&&c.unit_size===tier.qty);
+  if(existing) existing.qty_set+=setCount;
+  else cart.push({product_id:prod.product_id,name:prod.name,price_per_set:tier.price,unit_size:tier.qty,qty_set:setCount,is_egg:prod.is_egg,stock_qty:prod.stock_qty});
+  renderCart();
+}
+
 function renderCart(){
   const cartEl=document.getElementById('cartItems');
   if(!cart.length){cartEl.innerHTML='<div class="es"><div class="ei">🛒</div><p>ยังไม่มีรายการ</p></div>';updateCartTotal();return;}
@@ -2005,30 +2048,7 @@ function addRecvItemRow() {
   _recvRowCount++;
   const n = _recvRowCount;
   const div = document.createElement('div');
-  div.id = 'recvRow_' + n;
-  div.style.cssText = 'display:grid;grid-template-columns:1fr 100px 90px 24px;gap:6px;margin-bottom:6px;align-items:center';
-  div.innerHTML = `
-    <select class="ctrl" id="recvProd_${n}" style="font-size:13px">
-      <option value="">เลือกสินค้า</option>
-      ${_recvProds.map(p=>`<option value="${p.id}" data-name="${p.name}">${p.name}</option>`).join('')}
-    </select>
-    <input type="number" class="ctrl" id="recvQty_${n}" value="1" min="1" style="text-align:right;font-size:13px">
-    <select class="ctrl" id="recvUnit_${n}" style="font-size:13px">
-      <option value="1">ฟอง (x1)</option>
-      <option value="30">แผง (x30)</option>
-      <option value="300">ลัง (x300)</option>
-    </select>
-    <button onclick="document.getElementById('recvRow_${n}').remove()" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:16px">✕</button>
-  `;
-  document.getElementById('recvItemsList').appendChild(div);
-}
-
-
-
-function addRecvItem(prods) {
-  _recvRowCount++;
-  const div = document.createElement('div');
-  div.innerHTML = recvItemRow(_recvRowCount, prods);
+  div.innerHTML = recvItemRow(n, _recvProds);
   document.getElementById('recvItemsList').appendChild(div.firstElementChild);
 }
 
@@ -2048,10 +2068,10 @@ async function submitRecv(approve=false) {
     const prodSel = document.getElementById('recvProd_'+n);
     const product_id = prodSel?.value;
     const qty = parseInt(document.getElementById('recvQty_'+n)?.value||0);
-    const unitMult = parseInt(document.getElementById('recvUnit_'+n)?.value||1);
+    const unitMult = parseFloat(document.getElementById('recvUnit_'+n)?.value||1);
     if (product_id && qty > 0) {
       const product_name = prodSel.options[prodSel.selectedIndex]?.dataset?.name||'';
-      items.push({ product_id: parseInt(product_id), product_name, qty_unit: qty * unitMult, qty_display: qty, unit_mult: unitMult });
+      items.push({ product_id: parseInt(product_id), product_name, qty_unit: Math.round(qty * unitMult), qty_display: qty, unit_mult: unitMult });
     }
   });
 
@@ -2159,6 +2179,7 @@ async function submitTr(){
 async function showProductModal(p={}) {
   const cats = await api.get('/product-categories').catch(()=>[]);
   const contacts = await api.get('/contacts?type=supplier').catch(()=>[]);
+  const existingUnits = p.id ? safeArray(await api.get('/products/'+p.id+'/units').catch(()=>[])) : [];
   document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
   <div class="modal" style="max-width:580px">
     <div class="mh"><div class="mt">${p.id?'แก้ไข':'เพิ่ม'}สินค้า</div><button class="mc" onclick="CM()">✕</button></div>
@@ -2192,6 +2213,28 @@ async function showProductModal(p={}) {
       </div>
 
       <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleProdUnitsSection()">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted)">📐 หน่วยนับเพิ่มเติม (เช่น โหล, แพ็ค, แผง) — แปลงเป็นหน่วยหลักอัตโนมัติ</div>
+          <span id="pUnitsToggleIcon" style="font-size:12px;color:var(--accent)">▼ ${p.id?'':'เพิ่ม'}</span>
+        </div>
+        <div id="pUnitsSection" style="display:${p.id&&existingUnits.length?'block':'none'};margin-top:10px">
+          <div id="pUnitsList" style="display:grid;gap:6px;margin-bottom:8px">
+            ${existingUnits.map(u=>`
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:7px" data-unit-id="${u.id}">
+                <span style="flex:1;font-size:13px"><strong>${u.unit_name}</strong> = ${u.conversion_factor} ${p.unit||'หน่วย'}</span>
+                <button type="button" onclick="delProdUnit(${u.id},this)" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:14px">✕</button>
+              </div>`).join('')}
+          </div>
+          ${p.id ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
+            <div><label class="lbl">ชื่อหน่วย</label><input type="text" class="ctrl" id="pNewUnitName" style="margin-top:3px" placeholder="เช่น โหล"></div>
+            <div><label class="lbl">เท่ากับกี่หน่วยหลัก</label><input type="number" class="ctrl" id="pNewUnitFactor" style="margin-top:3px" min="0.01" step="0.01" placeholder="เช่น 12"></div>
+            <button type="button" class="btn btn-secondary" onclick="addProdUnit(${p.id})">+ เพิ่ม</button>
+          </div>` : `<div style="font-size:11px;color:var(--text-muted)">บันทึกสินค้าก่อน แล้วค่อยเพิ่มหน่วยนับเพิ่มเติมได้</div>`}
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
         <div id="pPriceRetailTitle" style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 ราคาขายหน้าร้าน (บาท/หน่วย)</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
           <div><label class="lbl pr-unit-lbl" data-qty="1">1</label><input type="number" class="ctrl" id="pr1" value="${p.price_1||''}" step="0.01" min="0" style="margin-top:3px" placeholder="-"></div>
@@ -2215,6 +2258,35 @@ async function showProductModal(p={}) {
     <button class="btn btn-primary" onclick="saveProd(${p.id||0})" style="width:100%;margin-top:14px">💾 บันทึก</button>
   </div></div>`;
   updateProdPriceLabels();
+}
+
+function toggleProdUnitsSection() {
+  const sec = document.getElementById('pUnitsSection');
+  const icon = document.getElementById('pUnitsToggleIcon');
+  if (!sec) return;
+  const isHidden = sec.style.display === 'none';
+  sec.style.display = isHidden ? 'block' : 'none';
+  if (icon) icon.textContent = isHidden ? '▲ ซ่อน' : '▼ เพิ่ม';
+}
+
+async function addProdUnit(productId) {
+  const name = document.getElementById('pNewUnitName')?.value?.trim();
+  const factor = parseFloat(document.getElementById('pNewUnitFactor')?.value);
+  if (!name || !factor) { toast('กรุณากรอกชื่อหน่วยและตัวคูณให้ครบ','error'); return; }
+  try {
+    await api.post('/products/'+productId+'/units', { unit_name: name, conversion_factor: factor });
+    toast('เพิ่มหน่วยเรียบร้อย','success');
+    showProductModal(await api.get('/products/'+productId));
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function delProdUnit(unitId, btn) {
+  if (!confirm('ลบหน่วยนี้?')) return;
+  try {
+    await api.del('/products/units/'+unitId);
+    btn.closest('[data-unit-id]')?.remove();
+    toast('ลบเรียบร้อย','success');
+  } catch(e) { toast(e.message,'error'); }
 }
 
 function updateProdPriceLabels() {
@@ -3750,8 +3822,12 @@ async function showDamagedEggModal(branchId, date) {
     api.get('/damaged-eggs?branch_id='+branchId+'&date='+date).catch(()=>[]),
   ]);
   const eggProds = safeArray(prods).filter(p=>p.is_egg && !['EGG-BROKEN-L','EGG-BROKEN-S'].includes(p.code));
-  const existingMap = {};
-  safeArray(existing).forEach(e => { existingMap[e.product_id] = e; });
+  // แต่ละสินค้าอาจมีทั้งรายการ "บุบทิ้ง" และ "บุบขายได้" พร้อมกันในวันเดียว
+  const existingMap = {}; // {productId: {discard: record, sellable: record}}
+  safeArray(existing).forEach(e => {
+    if (!existingMap[e.product_id]) existingMap[e.product_id] = {};
+    existingMap[e.product_id][e.damage_type||'discard'] = e;
+  });
   const branchName = branches.find(b=>b.id==branchId)?.name || '';
 
   document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
@@ -3769,35 +3845,34 @@ async function showDamagedEggModal(branchId, date) {
       </div>
     </div>
     <div style="font-size:11px;color:var(--text-muted);background:var(--surface2);padding:8px 10px;border-radius:7px;margin-bottom:10px">
-      💡 <strong>บุบทิ้ง</strong> = เสียหายทั้งหมด นับเป็นมูลค่าความเสียหาย | <strong>บุบขายได้</strong> = จะเข้าสต๊อก "ไข่บุบใหญ่/เล็ก" ให้ขายต่อ (ต้องตั้งค่าก่อนว่าเบอร์นี้เป็นบุบใหญ่หรือเล็ก)
+      💡 <strong>บุบทิ้ง</strong> = เสียหายทั้งหมด นับเป็นมูลค่าความเสียหาย | <strong>บุบขาย</strong> = จะเข้าสต๊อก "ไข่บุบใหญ่/เล็ก" ให้ขายต่อ (ต้องตั้งค่าก่อนว่าเบอร์นี้เป็นบุบใหญ่หรือเล็ก)
     </div>
     <table style="width:100%;border-collapse:collapse">
       <thead><tr style="background:var(--surface2)">
         <th style="padding:8px 10px;text-align:left;font-size:11px">สินค้า</th>
-        <th style="padding:8px 10px;width:100px;font-size:11px;text-align:center">จำนวน (ฟอง)</th>
-        <th style="padding:8px 10px;width:130px;font-size:11px;text-align:center">ประเภท</th>
+        <th style="padding:8px 10px;width:90px;font-size:11px;text-align:center">บุบทิ้ง</th>
+        <th style="padding:8px 10px;width:90px;font-size:11px;text-align:center">บุบขาย</th>
         <th style="padding:8px 10px;font-size:11px">หมายเหตุ</th>
       </tr></thead>
       <tbody id="deItemsBody">
         ${eggProds.map((p,i) => {
-          const ex = existingMap[p.id];
+          const exD = existingMap[p.id]?.discard;
+          const exS = existingMap[p.id]?.sellable;
           return `<tr style="border-bottom:1px solid var(--border)">
             <td style="padding:8px 10px">
               <div style="font-weight:600">${p.name}</div>
               <div style="font-size:11px;color:var(--text-muted)">${p.code||''}</div>
             </td>
-            <td style="padding:4px 8px">
-              <input type="number" min="0" class="ctrl de-qty-input" style="text-align:center;font-size:16px;font-weight:700"
-                data-pid="${p.id}" data-record-id="${ex?.id||''}" value="${ex?.qty||''}" placeholder="0">
+            <td style="padding:4px 6px">
+              <input type="number" min="0" class="ctrl de-qty-input" style="text-align:center;font-size:15px;font-weight:700"
+                data-pid="${p.id}" data-dtype="discard" data-record-id="${exD?.id||''}" value="${exD?.qty||''}" placeholder="0">
+            </td>
+            <td style="padding:4px 6px">
+              <input type="number" min="0" class="ctrl de-qty-input" style="text-align:center;font-size:15px;font-weight:700"
+                data-pid="${p.id}" data-dtype="sellable" data-record-id="${exS?.id||''}" value="${exS?.qty||''}" placeholder="0">
             </td>
             <td style="padding:4px 8px">
-              <select class="ctrl de-type-input" data-pid="${p.id}" style="font-size:12px">
-                <option value="discard" ${(!ex||ex.damage_type==='discard')?'selected':''}>บุบทิ้ง</option>
-                <option value="sellable" ${ex?.damage_type==='sellable'?'selected':''}>บุบขายได้</option>
-              </select>
-            </td>
-            <td style="padding:4px 8px">
-              <input type="text" class="ctrl de-note-input" data-pid="${p.id}" style="font-size:12px" placeholder="หมายเหตุ" value="${ex?.note||''}">
+              <input type="text" class="ctrl de-note-input" data-pid="${p.id}" style="font-size:12px" placeholder="หมายเหตุ" value="${exD?.note||exS?.note||''}">
             </td>
           </tr>`;
         }).join('')}
@@ -3813,27 +3888,27 @@ async function saveDamagedEggs(branchId, date) {
     .map(el => ({
       product_id: el.dataset.pid,
       record_id: el.dataset.recordId,
+      damage_type: el.dataset.dtype,
       qty: parseInt(el.value)||0,
-      damage_type: document.querySelector('.de-type-input[data-pid="'+el.dataset.pid+'"]')?.value||'discard',
       note: document.querySelector('.de-note-input[data-pid="'+el.dataset.pid+'"]')?.value||'',
-    }))
-    .filter(r => r.qty > 0);
-  if (!toSave.length) { toast('กรุณากรอกจำนวนอย่างน้อย 1 รายการ','error'); return; }
+    }));
+  const toSubmit = toSave.filter(r => r.qty > 0);
+  if (!toSubmit.length) { toast('กรุณากรอกจำนวนอย่างน้อย 1 รายการ','error'); return; }
   try {
     // ลบของเดิมที่เคยบันทึกไว้วันนี้ก่อน (กันซ้ำ) แล้วค่อยบันทึกใหม่
     for (const el of rows) {
       if (el.dataset.recordId) await api.del('/damaged-eggs/'+el.dataset.recordId).catch(()=>{});
     }
     let warnings = [];
-    for (const row of toSave) {
+    for (const row of toSubmit) {
       const res = await api.post('/damaged-eggs', { branch_id: branchId, damage_date: date, product_id: row.product_id, qty: row.qty, note: row.note, damage_type: row.damage_type });
       if (res?.message?.includes('⚠️')) warnings.push(res.message);
     }
     if (warnings.length) toast(warnings[0], 'warning');
-    else toast(`✅ บันทึกไข่บุบ ${toSave.length} รายการเรียบร้อย`, 'success');
+    else toast(`✅ บันทึกไข่บุบ ${toSubmit.length} รายการเรียบร้อย`, 'success');
     CM();
     // มูลค่าความเสียหายในหน้าปิดยอด นับเฉพาะที่ "บุบทิ้ง" (บุบขายได้ไม่ใช่ความเสียหายเต็มจำนวน)
-    const discardTotal = toSave.filter(r=>r.damage_type==='discard').reduce((s,r)=>s+r.qty, 0);
+    const discardTotal = toSubmit.filter(r=>r.damage_type==='discard').reduce((s,r)=>s+r.qty, 0);
     const dcBroken = document.getElementById('dcBroken');
     if (dcBroken) { dcBroken.value = discardTotal; calcDcBroken(); }
   } catch(e) { toast(e.message,'error'); }
