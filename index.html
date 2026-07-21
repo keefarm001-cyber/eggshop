@@ -6651,77 +6651,77 @@ async function loadStockSummary() {
           ${rows.map((r) => {
             return `<tr>
               <td style="padding:7px 10px;font-weight:600;border:1px solid #ccc">${r.product_name}</td>
-              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.B||'–'}</td>
-              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.C||'–'}</td>
-              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.D||'–'}</td>
-              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.E||'–'}</td>
-              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.F||'–'}</td>
-              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.I||'–'}</td>
-              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.J||'–'}</td>
-              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.K}</td>
-              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.M!==null?r.M:'—'}</td>
-              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.P===null?'—':r.P>0?'+'+r.P:r.P}</td>
+              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.B?fmt.n(r.B):'–'}</td>
+              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.C?fmt.n(r.C):'–'}</td>
+              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.D?fmt.n(r.D):'–'}</td>
+              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.E?fmt.n(r.E):'–'}</td>
+              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.F?fmt.n(r.F):'–'}</td>
+              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.I?fmt.n(r.I):'–'}</td>
+              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.J?fmt.n(r.J):'–'}</td>
+              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${fmt.n(r.K)}</td>
+              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.M!==null?fmt.n(r.M):'—'}</td>
+              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.P===null?'—':(r.P>0?'+':'')+fmt.n(r.P)}</td>
               <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.O===null?'—':(r.O>=0?'+':'')+fmt.b(r.O)}</td>
-              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.T!==null?r.T:'—'}</td>
+              <td style="padding:7px 10px;text-align:right;border:1px solid #ccc">${r.T!==null?fmt.n(r.T):'—'}</td>
             </tr>`;
           }).join('')}
         </tbody>
         <tfoot>
           <tr style="font-weight:700;font-size:13px">
             <td style="padding:9px 10px;border:1px solid #ccc">รวม</td>
-            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${sum.total_B||0}</td>
-            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${sum.total_C||0}</td>
-            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${sum.total_D||0}</td>
-            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${sum.total_E||0}</td>
-            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${sum.total_F||0}</td>
-            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${sum.total_I||0}</td>
-            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${sum.total_J||0}</td>
-            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${sum.total_K||0}</td>
-            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${sum.total_M||0}</td>
-            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${(sum.total_P||0)>=0?'+':''}${sum.total_P||0}</td>
+            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${fmt.n(sum.total_B||0)}</td>
+            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${fmt.n(sum.total_C||0)}</td>
+            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${fmt.n(sum.total_D||0)}</td>
+            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${fmt.n(sum.total_E||0)}</td>
+            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${fmt.n(sum.total_F||0)}</td>
+            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${fmt.n(sum.total_I||0)}</td>
+            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${fmt.n(sum.total_J||0)}</td>
+            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${fmt.n(sum.total_K||0)}</td>
+            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${fmt.n(sum.total_M||0)}</td>
+            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${(sum.total_P||0)>=0?'+':''}${fmt.n(sum.total_P||0)}</td>
             <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${(sum.total_O||0)>=0?'+':''}${fmt.b(sum.total_O||0)}</td>
-            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${sum.total_T||0}</td>
+            <td style="padding:9px 10px;text-align:right;border:1px solid #ccc">${fmt.n(sum.total_T||0)}</td>
           </tr>
         </tfoot>
       </table>
       </div>
       <div class="ss-mobile-cards">
         ${rows.map((r) => {
-          const Ptxt = r.P===null?'—':r.P>0?'+'+r.P:r.P;
+          const Ptxt = r.P===null?'—':(r.P>0?'+':'')+fmt.n(r.P);
           const Otxt = r.O===null?'—':(r.O>=0?'+':'')+fmt.b(r.O);
           return `<div style="border:1px solid #ccc;border-radius:8px;padding:10px 12px;margin-bottom:8px">
             <div style="font-weight:700;font-size:14px;margin-bottom:8px">${r.product_name}</div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px 10px;font-size:12px">
-              <div><span style="color:var(--text-muted)">B ไข่นอก</span><br>${r.B||'–'}</div>
-              <div><span style="color:var(--text-muted)">C ฟาร์ม</span><br>${r.C||'–'}</div>
-              <div><span style="color:var(--text-muted)">D ยกมา</span><br>${r.D||'–'}</div>
-              <div><span style="color:var(--text-muted)">E รวมยอด</span><br>${r.E||'–'}</div>
-              <div><span style="color:var(--text-muted)">F ยอดส่งของ</span><br>${r.F||'–'}</div>
-              <div><span style="color:var(--text-muted)">I ไข่บุบ</span><br>${r.I||'–'}</div>
-              <div><span style="color:var(--text-muted)">J ขายหน้าร้าน</span><br>${r.J||'–'}</div>
-              <div><span style="color:var(--text-muted)">K สต๊อกระบบ</span><br>${r.K}</div>
-              <div><span style="color:var(--text-muted)">M สต๊อกจริง</span><br>${r.M!==null?r.M:'—'}</div>
+              <div><span style="color:var(--text-muted)">B ไข่นอก</span><br>${r.B?fmt.n(r.B):'–'}</div>
+              <div><span style="color:var(--text-muted)">C ฟาร์ม</span><br>${r.C?fmt.n(r.C):'–'}</div>
+              <div><span style="color:var(--text-muted)">D ยกมา</span><br>${r.D?fmt.n(r.D):'–'}</div>
+              <div><span style="color:var(--text-muted)">E รวมยอด</span><br>${r.E?fmt.n(r.E):'–'}</div>
+              <div><span style="color:var(--text-muted)">F ยอดส่งของ</span><br>${r.F?fmt.n(r.F):'–'}</div>
+              <div><span style="color:var(--text-muted)">I ไข่บุบ</span><br>${r.I?fmt.n(r.I):'–'}</div>
+              <div><span style="color:var(--text-muted)">J ขายหน้าร้าน</span><br>${r.J?fmt.n(r.J):'–'}</div>
+              <div><span style="color:var(--text-muted)">K สต๊อกระบบ</span><br>${fmt.n(r.K)}</div>
+              <div><span style="color:var(--text-muted)">M สต๊อกจริง</span><br>${r.M!==null?fmt.n(r.M):'—'}</div>
               <div><span style="color:var(--text-muted)">P เกิน/ขาด</span><br>${Ptxt}</div>
               <div><span style="color:var(--text-muted)">O เป็นเงิน</span><br>${Otxt}</div>
-              <div><span style="color:var(--text-muted)">T ขายจริง</span><br>${r.T!==null?r.T:'—'}</div>
+              <div><span style="color:var(--text-muted)">T ขายจริง</span><br>${r.T!==null?fmt.n(r.T):'—'}</div>
             </div>
           </div>`;
         }).join('')}
         <div style="border:1px solid #ccc;border-radius:8px;padding:10px 12px;font-weight:700">
           <div style="margin-bottom:8px">รวม</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px 10px;font-size:12px">
-            <div><span style="color:var(--text-muted);font-weight:400">B</span><br>${sum.total_B||0}</div>
-            <div><span style="color:var(--text-muted);font-weight:400">C</span><br>${sum.total_C||0}</div>
-            <div><span style="color:var(--text-muted);font-weight:400">D</span><br>${sum.total_D||0}</div>
-            <div><span style="color:var(--text-muted);font-weight:400">E</span><br>${sum.total_E||0}</div>
-            <div><span style="color:var(--text-muted);font-weight:400">F</span><br>${sum.total_F||0}</div>
-            <div><span style="color:var(--text-muted);font-weight:400">I</span><br>${sum.total_I||0}</div>
-            <div><span style="color:var(--text-muted);font-weight:400">J</span><br>${sum.total_J||0}</div>
-            <div><span style="color:var(--text-muted);font-weight:400">K</span><br>${sum.total_K||0}</div>
-            <div><span style="color:var(--text-muted);font-weight:400">M</span><br>${sum.total_M||0}</div>
-            <div><span style="color:var(--text-muted);font-weight:400">P</span><br>${(sum.total_P||0)>=0?'+':''}${sum.total_P||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">B</span><br>${fmt.n(sum.total_B||0)}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">C</span><br>${fmt.n(sum.total_C||0)}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">D</span><br>${fmt.n(sum.total_D||0)}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">E</span><br>${fmt.n(sum.total_E||0)}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">F</span><br>${fmt.n(sum.total_F||0)}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">I</span><br>${fmt.n(sum.total_I||0)}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">J</span><br>${fmt.n(sum.total_J||0)}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">K</span><br>${fmt.n(sum.total_K||0)}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">M</span><br>${fmt.n(sum.total_M||0)}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">P</span><br>${(sum.total_P||0)>=0?'+':''}${fmt.n(sum.total_P||0)}</div>
             <div><span style="color:var(--text-muted);font-weight:400">O</span><br>${(sum.total_O||0)>=0?'+':''}${fmt.b(sum.total_O||0)}</div>
-            <div><span style="color:var(--text-muted);font-weight:400">T</span><br>${sum.total_T||0}</div>
+            <div><span style="color:var(--text-muted);font-weight:400">T</span><br>${fmt.n(sum.total_T||0)}</div>
           </div>
         </div>
       </div>`;
