@@ -18,6 +18,18 @@ const pool = new Pool({
 });
 
 // ============================================================
+// ตาข่ายนิรภัย — กัน error เดี่ยวๆ จุดใดจุดหนึ่ง (เช่น query พลาด คอลัมน์ไม่มีจริง)
+// ทำให้ทั้งเซิร์ฟเวอร์ล่มไปด้วย (502 ทุก endpoint) เหมือนที่เคยเกิดขึ้น
+// endpoint ที่ยังไม่มี try/catch ของตัวเอง จะ log error แล้วเซิร์ฟเวอร์ยังทำงานต่อได้
+// ============================================================
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️  Unhandled Rejection (server ยังทำงานต่อ):', reason?.message || reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠️  Uncaught Exception (server ยังทำงานต่อ):', err?.message || err);
+});
+
+// ============================================================
 // SCHEMA INIT
 // ============================================================
 async function initSchema() {
@@ -570,23 +582,7 @@ async function initSchema() {
 
     // ล้างระดับสมาชิกที่ซ้ำกัน (เกิดจากบั๊กเดิมที่ insert ซ้ำทุกครั้งที่ server รีสตาร์ท) เหลือไว้แค่รายการแรกสุดของแต่ละชื่อ
     await pool.query(`DELETE FROM member_tiers WHERE id NOT IN (SELECT MIN(id) FROM member_tiers GROUP BY name)`).catch(()=>{});
-    // daily_close table
-    await pool.query(`CREATE TABLE IF NOT EXISTS daily_closes (
-      id SERIAL PRIMARY KEY,
-      date DATE NOT NULL,
-      branch_id INTEGER REFERENCES branches(id),
-      sales_total NUMERIC(12,2) DEFAULT 0,
-      cash_amount NUMERIC(12,2) DEFAULT 0,
-      transfer_amount NUMERIC(12,2) DEFAULT 0,
-      broken_eggs INTEGER DEFAULT 0,
-      broken_price NUMERIC(8,2) DEFAULT 4.5,
-      note TEXT,
-      sales_snapshot JSONB DEFAULT '[]',
-      stock_snapshot JSONB DEFAULT '[]',
-      created_by INTEGER,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(date, branch_id)
-    )`).catch(()=>{});
+    // (daily_closes ถูกสร้างและปรับ schema ไว้จุดเดียวด้านล่าง — ไม่สร้างซ้ำตรงนี้แล้ว เพราะเคยมี schema ชนกัน 2 แบบทำให้ server ล่ม)
     // damaged_eggs — บันทึกไข่บุบรายวัน
     await pool.query(`CREATE TABLE IF NOT EXISTS damaged_eggs (
       id SERIAL PRIMARY KEY,
@@ -660,6 +656,15 @@ async function initSchema() {
       UNIQUE(branch_id, close_date)
     )`);
     await pool.query(`ALTER TABLE daily_closes ADD COLUMN IF NOT EXISTS other_income NUMERIC(10,2) DEFAULT 0`);
+    // เติมคอลัมน์ที่หน้าบ้านใช้จริง (เดิม code อ้างชื่อคอลัมน์ผิดชุด ทำให้ query พังและ server ล่ม)
+    await pool.query(`ALTER TABLE daily_closes ADD COLUMN IF NOT EXISTS date DATE`).catch(()=>{});
+    await pool.query(`ALTER TABLE daily_closes ADD COLUMN IF NOT EXISTS cash_amount NUMERIC(12,2) DEFAULT 0`).catch(()=>{});
+    await pool.query(`ALTER TABLE daily_closes ADD COLUMN IF NOT EXISTS transfer_amount NUMERIC(12,2) DEFAULT 0`).catch(()=>{});
+    await pool.query(`ALTER TABLE daily_closes ADD COLUMN IF NOT EXISTS broken_eggs INTEGER DEFAULT 0`).catch(()=>{});
+    await pool.query(`ALTER TABLE daily_closes ADD COLUMN IF NOT EXISTS broken_price NUMERIC(8,2) DEFAULT 4.5`).catch(()=>{});
+    await pool.query(`ALTER TABLE daily_closes ADD COLUMN IF NOT EXISTS sales_total NUMERIC(12,2) DEFAULT 0`).catch(()=>{});
+    // backfill: sync date จาก close_date สำหรับข้อมูลเก่าที่เคยบันทึกไว้ก่อนหน้านี้
+    await pool.query(`UPDATE daily_closes SET date=close_date WHERE date IS NULL AND close_date IS NOT NULL`).catch(()=>{});
 
     // company_settings
     await pool.query(`CREATE TABLE IF NOT EXISTS company_settings (
@@ -2383,26 +2388,17 @@ app.get('/api/daily-close/prepare', auth, async (req, res) => {
 });
 
 app.post('/api/daily-close', auth, async (req, res) => {
-  const { branch_id, close_date, cash_system, cash_actual, transfer_system, transfer_actual, other_income, items, note, egg_variance, egg_variance_value } = req.body;
-  const cash_diff = parseFloat(cash_actual||0) - parseFloat(cash_system||0);
-  const transfer_diff = parseFloat(transfer_actual||0) - parseFloat(transfer_system||0);
-  const total_system = parseFloat(cash_system||0) + parseFloat(transfer_system||0) + parseFloat(other_income||0);
-  const total_actual = parseFloat(cash_actual||0) + parseFloat(transfer_actual||0) + parseFloat(other_income||0);
+  const { branch_id, date, cash_amount, transfer_amount, broken_eggs, broken_price, note, sales_total } = req.body;
+  if (!branch_id || !date) return res.status(400).json({ error: 'กรุณาระบุ branch_id และ date' });
   try {
     await pool.query(`INSERT INTO daily_closes
-      (branch_id,close_date,cash_system,cash_actual,cash_diff,transfer_system,transfer_actual,transfer_diff,other_income,total_system,total_actual,total_diff,egg_variance,egg_variance_value,items,note,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+      (branch_id,date,close_date,cash_amount,transfer_amount,broken_eggs,broken_price,sales_total,note,created_by)
+      VALUES ($1,$2,$2,$3,$4,$5,$6,$7,$8,$9)
       ON CONFLICT (branch_id,close_date) DO UPDATE SET
-        cash_system=$3,cash_actual=$4,cash_diff=$5,transfer_system=$6,transfer_actual=$7,transfer_diff=$8,
-        other_income=$9,total_system=$10,total_actual=$11,total_diff=$12,egg_variance=$13,
-        egg_variance_value=$14,items=$15,note=$16,created_by=$17`,
-      [branch_id, close_date, cash_system||0, cash_actual||0, cash_diff,
-       transfer_system||0, transfer_actual||0, transfer_diff,
-       other_income||0, total_system, total_actual, total_actual-total_system,
-       egg_variance||0, egg_variance_value||0,
-       JSON.stringify(items||[]), note||null, req.user.id]);
+        date=$2,cash_amount=$3,transfer_amount=$4,broken_eggs=$5,broken_price=$6,sales_total=$7,note=$8,created_by=$9`,
+      [branch_id, date, cash_amount||0, transfer_amount||0, broken_eggs||0, broken_price||4.5, sales_total||0, note||null, req.user.id]);
     res.json({ message: 'บันทึกปิดยอดเรียบร้อย' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('daily-close POST error:', e.message); res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/daily-close/history', auth, async (req, res) => {
@@ -2412,9 +2408,11 @@ app.get('/api/daily-close/history', auth, async (req, res) => {
     LEFT JOIN users u ON dc.created_by=u.id WHERE 1=1`;
   const params = [];
   if (branch_id) { params.push(branch_id); q += ` AND dc.branch_id=$${params.length}`; }
-  q += ' ORDER BY dc.close_date DESC LIMIT 30';
-  const r = await pool.query(q, params);
-  res.json(r.rows);
+  q += ' ORDER BY dc.date DESC NULLS LAST LIMIT 30';
+  try {
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch(e) { console.error('daily-close history error:', e.message); res.status(500).json({ error: e.message }); }
 });
 
 // ============================================================
@@ -2509,10 +2507,12 @@ app.get('/api/products/export-prices', auth, async (req, res) => {
 app.get('/api/daily-close', auth, async (req, res) => {
   const { date, branch_id } = req.query;
   if (!date || !branch_id) return res.status(400).json({ error: 'กรุณาระบุ date และ branch_id' });
-  const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.date=$1 AND dc.branch_id=$2',
-    [date, branch_id]);
-  if (!r.rows.length) return res.status(404).json({ error: 'ยังไม่มีข้อมูล' });
-  res.json(r.rows[0]);
+  try {
+    const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.date=$1 AND dc.branch_id=$2',
+      [date, branch_id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'ยังไม่มีข้อมูล' });
+    res.json(r.rows[0]);
+  } catch(e) { console.error('daily-close GET error:', e.message); res.status(500).json({ error: e.message }); }
 });
 
 
@@ -2894,13 +2894,15 @@ app.post('/api/stock/receipts', auth, async (req, res) => {
 
 
 app.get('/api/daily-close/:id', auth, async (req, res) => {
-  const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.id=$1', [req.params.id]);
-  if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบข้อมูล' });
-  const dc = r.rows[0];
-  // ดึง snapshot หรือ realtime
-  const salesR = await pool.query(`SELECT p.name AS product_name,p.is_egg,COALESCE(SUM(si.qty_unit),0) AS qty_sold,COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue FROM sale_items si JOIN products p ON si.product_id=p.id JOIN sales s ON si.sale_id=s.id WHERE s.sale_date=$1 AND s.branch_id=$2 AND s.status='completed' GROUP BY p.id,p.name,p.is_egg ORDER BY qty_sold DESC`, [dc.date, dc.branch_id]);
-  const stockR = await pool.query(`SELECT s.qty_unit,p.name AS product_name,p.is_egg FROM stock s JOIN products p ON s.product_id=p.id WHERE s.branch_id=$1 AND (p.is_egg=true OR p.track_stock=true) ORDER BY p.code`, [dc.branch_id]);
-  res.json({ ...dc, sales_items: salesR.rows, stock_items: stockR.rows });
+  try {
+    const r = await pool.query('SELECT dc.*,b.code AS branch_code,b.name AS branch_name FROM daily_closes dc JOIN branches b ON dc.branch_id=b.id WHERE dc.id=$1', [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบข้อมูล' });
+    const dc = r.rows[0];
+    // ดึง snapshot หรือ realtime
+    const salesR = await pool.query(`SELECT p.name AS product_name,p.is_egg,COALESCE(SUM(si.qty_unit),0) AS qty_sold,COALESCE(SUM(si.qty_set*si.price_per_set),0) AS revenue FROM sale_items si JOIN products p ON si.product_id=p.id JOIN sales s ON si.sale_id=s.id WHERE s.sale_date=$1 AND s.branch_id=$2 AND s.status='completed' GROUP BY p.id,p.name,p.is_egg ORDER BY qty_sold DESC`, [dc.date, dc.branch_id]);
+    const stockR = await pool.query(`SELECT s.qty_unit,p.name AS product_name,p.is_egg FROM stock s JOIN products p ON s.product_id=p.id WHERE s.branch_id=$1 AND (p.is_egg=true OR p.track_stock=true) ORDER BY p.code`, [dc.branch_id]);
+    res.json({ ...dc, sales_items: salesR.rows, stock_items: stockR.rows });
+  } catch(e) { console.error('daily-close/:id error:', e.message); res.status(500).json({ error: e.message }); }
 });
 
 
