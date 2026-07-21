@@ -2484,6 +2484,14 @@ app.get('/api/permissions/:role', auth, async (req, res) => {
 
 
 // EXPORT PRICES TO CSV
+// รายชื่อหน่วยนับที่เคยใช้แล้ว (ไว้แนะนำ autocomplete ตอนพิมพ์หน่วยเอง)
+app.get('/api/products/unit-names', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT DISTINCT unit FROM products WHERE unit IS NOT NULL AND unit<>'' ORDER BY unit`);
+    res.json(r.rows.map(x=>x.unit));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/products/export-prices', auth, async (req, res) => {
   const r = await pool.query(`
     SELECT p.code, b.code AS branch_code, pp.customer_type, pp.qty, pp.price
