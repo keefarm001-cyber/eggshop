@@ -3203,6 +3203,7 @@ app.get('/api/stock-counts/summary', auth, async (req, res) => {
       FROM products p
       LEFT JOIN stock_counts sc ON sc.product_id=p.id AND sc.branch_id=$1 AND sc.count_date=$2
       WHERE p.active=true
+      GROUP BY p.id, p.name, p.code
       ORDER BY p.code`, [branch_id, date]);
 
     const rows = r.rows.map(row => {
