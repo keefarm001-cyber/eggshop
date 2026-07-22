@@ -602,6 +602,31 @@ async function initSchema() {
     // ล้างระดับสมาชิกที่ซ้ำกัน (เกิดจากบั๊กเดิมที่ insert ซ้ำทุกครั้งที่ server รีสตาร์ท) เหลือไว้แค่รายการแรกสุดของแต่ละชื่อ
     await pool.query(`DELETE FROM member_tiers WHERE id NOT IN (SELECT MIN(id) FROM member_tiers GROUP BY name)`).catch(()=>{});
     // (daily_closes ถูกสร้างและปรับ schema ไว้จุดเดียวด้านล่าง — ไม่สร้างซ้ำตรงนี้แล้ว เพราะเคยมี schema ชนกัน 2 แบบทำให้ server ล่ม)
+    // เติมประวัติ stock_movements ย้อนหลังให้รายการโอนย้ายที่เคย confirmed ไปแล้วก่อนที่ระบบจะเริ่มบันทึก (กัน "สรุปสต๊อก" ไม่เห็นยอดของเก่า)
+    await pool.query(`
+      INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note,created_by,created_at)
+      SELECT sti.product_id, st.from_branch_id, 'out', sti.qty_sent, 'transfer', 'โอนย้ายไปสาขาอื่น ('||st.doc_no||') [ย้อนหลัง]', st.created_by, COALESCE(st.approved_at,st.created_at)
+      FROM stock_transfer_items sti
+      JOIN stock_transfers st ON sti.transfer_id=st.id
+      WHERE st.status='confirmed'
+        AND NOT EXISTS (
+          SELECT 1 FROM stock_movements sm
+          WHERE sm.product_id=sti.product_id AND sm.branch_id=st.from_branch_id
+            AND sm.movement_type='out' AND sm.ref_type='transfer' AND sm.note LIKE '%'||st.doc_no||'%'
+        )
+    `).catch(()=>{});
+    await pool.query(`
+      INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note,created_by,created_at)
+      SELECT sti.product_id, st.to_branch_id, 'in', COALESCE(sti.qty_received,sti.qty_sent), 'transfer', 'รับโอนย้ายจากสาขาอื่น ('||st.doc_no||') [ย้อนหลัง]', st.approved_by, COALESCE(st.approved_at,st.created_at)
+      FROM stock_transfer_items sti
+      JOIN stock_transfers st ON sti.transfer_id=st.id
+      WHERE st.status='confirmed'
+        AND NOT EXISTS (
+          SELECT 1 FROM stock_movements sm
+          WHERE sm.product_id=sti.product_id AND sm.branch_id=st.to_branch_id
+            AND sm.movement_type='in' AND sm.ref_type='transfer' AND sm.note LIKE '%'||st.doc_no||'%'
+        )
+    `).catch(()=>{});
     // damaged_eggs — บันทึกไข่บุบรายวัน
     await pool.query(`CREATE TABLE IF NOT EXISTS damaged_eggs (
       id SERIAL PRIMARY KEY,
