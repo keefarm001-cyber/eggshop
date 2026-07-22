@@ -2281,9 +2281,28 @@ async function submitApprove(recvId){
 
 
 async function submitTr(){
+  const from_branch_id = parseInt(document.getElementById('trFrom')?.value);
+  const to_branch_id = parseInt(document.getElementById('trTo')?.value);
+  if (!from_branch_id || !to_branch_id) { toast('กรุณาเลือกสาขาต้นทางและปลายทาง','error'); return; }
+  if (from_branch_id === to_branch_id) { toast('สาขาต้นทางและปลายทางต้องไม่ใช่สาขาเดียวกัน','error'); return; }
+
+  const items = [];
+  document.querySelectorAll('[id^="trRow_"]').forEach(row => {
+    const n = row.id.replace('trRow_','');
+    const prodSel = document.getElementById('trProd_'+n);
+    const product_id = prodSel?.value;
+    const qty = parseInt(document.getElementById('trQty_'+n)?.value||0);
+    const unitMult = parseFloat(document.getElementById('trUnit_'+n)?.value||1);
+    if (product_id && qty > 0) {
+      items.push({ product_id: parseInt(product_id), qty_unit: Math.round(qty * unitMult) });
+    }
+  });
+  if (!items.length) { toast('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ','error'); return; }
+
+  const note = document.getElementById('trNote')?.value || '';
   try{
-    await api.post('/stock/transfer',{from_branch_id:parseInt(document.getElementById('trFrom').value),to_branch_id:parseInt(document.getElementById('trTo').value),product_id:parseInt(document.getElementById('trProd').value),qty_unit:parseInt(document.getElementById('trQty').value),note:document.getElementById('trNote').value});
-    toast('โอนย้ายเรียบร้อย','success');CM();loadStock();
+    await api.post('/stock/transfer', { from_branch_id, to_branch_id, items, note });
+    toast('โอนย้ายเรียบร้อย รอปลายทางกดรับสินค้า','success');CM();loadStock();
   }catch(e){toast(e.message,'error');}
 }
 
