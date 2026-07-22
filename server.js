@@ -553,6 +553,8 @@ async function initSchema() {
       ('wholesale', 300, 'ต่อลัง (300)', 2)
       ON CONFLICT DO NOTHING
     `).catch(()=>{});
+    // แก้ sort_order ของ tier เก่าที่เคยเพิ่มตอนยังมีบั๊ก (ค้างเป็น 0 ทำให้เรียงผิดตำแหน่ง เช่น "6 ฟอง" ไปโผล่หน้าสุด) ให้เรียงตาม qty ใหม่ทั้งหมด
+    await pool.query(`UPDATE price_qty_tiers SET sort_order = qty`).catch(()=>{});
     await pool.query(`CREATE TABLE IF NOT EXISTS member_points_log (
       id SERIAL PRIMARY KEY,
       member_id INTEGER REFERENCES members(id),
@@ -600,6 +602,23 @@ async function initSchema() {
     await pool.query(`ALTER TABLE damaged_eggs ADD COLUMN IF NOT EXISTS damage_type VARCHAR(20) DEFAULT 'discard'`).catch(()=>{});
     // damage_category บนสินค้าไข่ปกติ — บอกว่าถ้าบุบแล้วขายได้ จะเข้ากลุ่ม 'large_broken' หรือ 'small_broken'
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS damage_category VARCHAR(20)`).catch(()=>{});
+    // ฟิลด์เพิ่มเติมสำหรับฟอร์ม "เพิ่มสินค้า" แบบเต็ม (บาร์โค้ด, ราคาซื้อ/ขายพื้นฐาน, VAT, รายละเอียด)
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode VARCHAR(50)`).catch(()=>{});
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS sell_price NUMERIC(10,2)`).catch(()=>{});
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS buy_price NUMERIC(10,2)`).catch(()=>{});
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS vat_type_sell VARCHAR(20) DEFAULT 'exclude'`).catch(()=>{}); // 'exclude' = ยังไม่รวม VAT, 'include' = รวม VAT แล้ว, 'none' = ไม่มี VAT
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS vat_type_buy VARCHAR(20) DEFAULT 'exclude'`).catch(()=>{});
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS description_sell TEXT`).catch(()=>{});
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS description_buy TEXT`).catch(()=>{});
+
+    // product_images — รูปสินค้า (สูงสุด 10 รูป/สินค้า)
+    await pool.query(`CREATE TABLE IF NOT EXISTS product_images (
+      id SERIAL PRIMARY KEY,
+      product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+      image_url TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(()=>{});
 
     // สร้างสินค้า "ไข่บุบใหญ่" / "ไข่บุบเล็ก" ให้อัตโนมัติถ้ายังไม่มี (ขายผ่าน POS ได้เหมือนไข่ปกติ)
     const brokenCat = await pool.query(`SELECT id FROM product_categories WHERE name='ไข่บุบ' LIMIT 1`);
@@ -987,7 +1006,7 @@ app.get('/api/products', auth, async (req, res) => {
   }
 });
 app.post('/api/products', auth, role('owner','admin','manager'), async (req, res) => {
-  const { category_id, code, name, unit, is_egg, track_stock } = req.body;
+  const { category_id, code, name, unit, is_egg, track_stock, barcode, sell_price, buy_price, vat_type_sell, vat_type_buy, description_sell, description_buy, opening_stock } = req.body;
   if (!code || !name) return res.status(400).json({ error: 'กรุณากรอกรหัสและชื่อสินค้า' });
   try {
     // ตรวจว่า code ซ้ำไหม
@@ -996,13 +1015,30 @@ app.post('/api/products', auth, role('owner','admin','manager'), async (req, res
       return res.status(409).json({ error: 'รหัสสินค้านี้มีอยู่แล้ว ('+code+')' });
     }
     const r = await pool.query(
-      'INSERT INTO products (category_id,code,name,unit,is_egg,track_stock) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [category_id||null, code, name, unit||'ฟอง', is_egg||false, track_stock!==false]
+      `INSERT INTO products (category_id,code,name,unit,is_egg,track_stock,barcode,sell_price,buy_price,vat_type_sell,vat_type_buy,description_sell,description_buy)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [category_id||null, code, name, unit||'ฟอง', is_egg||false, track_stock!==false,
+       barcode||null, sell_price||null, buy_price||null, vat_type_sell||'exclude', vat_type_buy||'exclude',
+       description_sell||null, description_buy||null]
     );
-    // สร้าง stock record สำหรับทุกสาขา
+    // สร้าง stock record สำหรับทุกสาขา (ใช้ยอดเริ่มต้นถ้าระบุมา)
     const brs = await pool.query('SELECT id FROM branches WHERE active=true');
+    const openingMap = {};
+    (opening_stock||[]).forEach(o => { openingMap[o.branch_id] = parseInt(o.qty)||0; });
     for (const br of brs.rows) {
-      await pool.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,0) ON CONFLICT DO NOTHING', [r.rows[0].id, br.id]);
+      const qty = openingMap[br.id] || 0;
+      await pool.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', [r.rows[0].id, br.id, qty]);
+      if (qty > 0) {
+        await pool.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note,created_by) VALUES ($1,$2,'in',$3,'opening_stock','ยอดเริ่มต้นตอนสร้างสินค้า',$4)`,
+          [r.rows[0].id, br.id, qty, req.user.id]);
+      }
+    }
+    // ตั้งราคาขายพื้นฐาน (ปลีก, 1 หน่วย) ให้ทุกสาขาถ้าระบุราคามา — ยังปรับ tier เพิ่มเติมได้ทีหลังที่ "จัดการราคา"
+    if (sell_price) {
+      for (const br of brs.rows) {
+        await pool.query(`INSERT INTO product_prices (product_id,branch_id,customer_type,qty,price) VALUES ($1,$2,'retail',1,$3) ON CONFLICT (product_id,branch_id,customer_type,qty) DO UPDATE SET price=EXCLUDED.price,active=true`,
+          [r.rows[0].id, br.id, sell_price]);
+      }
     }
     res.status(201).json({ message: 'เพิ่มสินค้าเรียบร้อย', id: r.rows[0].id, product: r.rows[0] });
   } catch(e) {
@@ -1010,7 +1046,38 @@ app.post('/api/products', auth, role('owner','admin','manager'), async (req, res
     res.status(500).json({ error: e.message });
   }
 });
-app.put('/api/products/:id', auth, role('owner','admin','manager'), async (req, res) => { const { name, unit, active, track_stock } = req.body; await pool.query('UPDATE products SET name=$1,unit=$2,active=$3,track_stock=$4 WHERE id=$5', [name, unit, active, track_stock!==false, req.params.id]); res.json({ message: 'แก้ไขเรียบร้อย' }); });
+app.put('/api/products/:id', auth, role('owner','admin','manager'), async (req, res) => {
+  const { name, unit, active, track_stock, category_id, barcode, sell_price, buy_price, vat_type_sell, vat_type_buy, description_sell, description_buy } = req.body;
+  try {
+    await pool.query(`UPDATE products SET name=$1,unit=$2,active=$3,track_stock=$4,category_id=$5,barcode=$6,sell_price=$7,buy_price=$8,vat_type_sell=$9,vat_type_buy=$10,description_sell=$11,description_buy=$12 WHERE id=$13`,
+      [name, unit, active, track_stock!==false, category_id||null, barcode||null, sell_price||null, buy_price||null, vat_type_sell||'exclude', vat_type_buy||'exclude', description_sell||null, description_buy||null, req.params.id]);
+    res.json({ message: 'แก้ไขเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// รูปภาพสินค้า (สูงสุด 10 รูป)
+app.get('/api/products/:id/images', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM product_images WHERE product_id=$1 ORDER BY sort_order,id', [req.params.id]);
+    res.json(r.rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/products/:id/images', auth, role('owner','admin','manager'), upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'กรุณาเลือกไฟล์รูป' });
+    const countR = await pool.query('SELECT COUNT(*) FROM product_images WHERE product_id=$1', [req.params.id]);
+    if (parseInt(countR.rows[0].count) >= 10) return res.status(400).json({ error: 'อัปโหลดได้สูงสุด 10 รูปต่อสินค้า' });
+    const url = '/uploads/'+req.file.filename;
+    const r = await pool.query('INSERT INTO product_images (product_id,image_url) VALUES ($1,$2) RETURNING *', [req.params.id, url]);
+    res.status(201).json({ message: 'อัปโหลดเรียบร้อย', image: r.rows[0] });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/products/images/:imageId', auth, role('owner','admin','manager'), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM product_images WHERE id=$1', [req.params.imageId]);
+    res.json({ message: 'ลบเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 app.delete('/api/products/:id', auth, role('owner','admin'), async (req, res) => {
   const client = await pool.connect();
   try {
