@@ -284,6 +284,18 @@ async function initSchema() {
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_url TEXT`);
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS doc_url TEXT`);
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`);
+    // เชื่อม employees เก่าที่สร้างไว้ก่อนมีระบบนี้ (user_id ยังเป็น NULL) เข้ากับ user account โดยจับคู่ชื่อ/เบอร์โทร
+    await pool.query(`
+      UPDATE employees e SET user_id = u.id
+      FROM users u
+      WHERE e.user_id IS NULL
+        AND (e.full_name = u.full_name OR (e.phone IS NOT NULL AND e.phone = u.phone))
+        AND u.id = (
+          SELECT u2.id FROM users u2
+          WHERE (e.full_name = u2.full_name OR (e.phone IS NOT NULL AND e.phone = u2.phone))
+          LIMIT 1
+        )
+    `).catch(()=>{});
 
     // debt_notes already in schema
     // add doc_sequence for debit/credit note
@@ -3961,7 +3973,7 @@ app.get('/api/stock-summary', auth, async (req, res) => {
     const banglaneMap = {};
     banglaneR.rows.forEach(r => { banglaneMap[r.product_id] = parseInt(r.qty||0); });
 
-    // C - ฟาร์มตัวเอง: stock_receipts source_type='farm' วันนั้น
+    // C - ฟาร์มตัวเอง: stock_receipts source_type='farm' วันนั้น + สต๊อกไข่บุบขายได้ที่เข้ามาวันนั้น (จากฟีเจอร์ไข่บุบ)
     const farmR = await pool.query(`
       SELECT sri.product_id, SUM(sri.qty_unit) AS qty
       FROM stock_receipt_items sri
@@ -3973,6 +3985,14 @@ app.get('/api/stock-summary', auth, async (req, res) => {
     `, [branch_id, date]);
     const farmMap = {};
     farmR.rows.forEach(r => { farmMap[r.product_id] = parseInt(r.qty||0); });
+    const damageInR = await pool.query(`
+      SELECT product_id, SUM(qty_change) AS qty
+      FROM stock_movements
+      WHERE branch_id=$1 AND created_at::date=$2
+        AND movement_type='in' AND ref_type='damage'
+      GROUP BY product_id
+    `, [branch_id, date]);
+    damageInR.rows.forEach(r => { farmMap[r.product_id] = (farmMap[r.product_id]||0) + parseInt(r.qty||0); });
 
     // F - ขายส่ง: invoice_items วันนั้น
     const invoiceR = await pool.query(`
@@ -3986,12 +4006,13 @@ app.get('/api/stock-summary', auth, async (req, res) => {
     const invoiceMap = {};
     invoiceR.rows.forEach(r => { invoiceMap[r.product_id] = parseInt(r.qty||0); });
 
-    // I - ไข่บุบ: stock_movements type='adjust_out' / 'broken' วันนั้น
+    // I - ไข่บุบ: stock_movements type='adjust_out'/'broken'/'waste'/'damaged' หรือ 'out'+ref_type='damage' (จากฟีเจอร์ไข่บุบ) วันนั้น
     const brokenR = await pool.query(`
       SELECT product_id, SUM(ABS(qty_change)) AS qty
       FROM stock_movements
       WHERE branch_id=$1 AND created_at::date=$2
-        AND movement_type IN ('adjust_out','broken','waste','damaged')
+        AND (movement_type IN ('adjust_out','broken','waste','damaged')
+             OR (movement_type='out' AND ref_type='damage'))
       GROUP BY product_id
     `, [branch_id, date]);
     const brokenMap = {};
