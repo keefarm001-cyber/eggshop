@@ -284,17 +284,21 @@ async function initSchema() {
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_url TEXT`);
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS doc_url TEXT`);
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`);
-    // เชื่อม employees เก่าที่สร้างไว้ก่อนมีระบบนี้ (user_id ยังเป็น NULL) เข้ากับ user account โดยจับคู่ชื่อ/เบอร์โทร
+    // เชื่อม employees เก่าที่สร้างไว้ก่อนมีระบบนี้ (user_id ยังเป็น NULL) เข้ากับ user account
+    // จับคู่จาก: เบอร์โทร = username (ธรรมเนียมที่ใช้เบอร์โทรเป็น username), เบอร์โทรตรงกัน, หรือชื่อตรงกัน (ตัดคำนำหน้า/ช่องว่างออกก่อนเทียบ)
     await pool.query(`
-      UPDATE employees e SET user_id = u.id
-      FROM users u
-      WHERE e.user_id IS NULL
-        AND (e.full_name = u.full_name OR (e.phone IS NOT NULL AND e.phone = u.phone))
-        AND u.id = (
-          SELECT u2.id FROM users u2
-          WHERE (e.full_name = u2.full_name OR (e.phone IS NOT NULL AND e.phone = u2.phone))
-          LIMIT 1
+      UPDATE employees e SET user_id = sub.id FROM (
+        SELECT DISTINCT ON (e2.id) e2.id AS emp_id, u2.id
+        FROM employees e2
+        JOIN users u2 ON (
+          (e2.phone IS NOT NULL AND regexp_replace(e2.phone,'[^0-9]','','g') <> '' AND regexp_replace(e2.phone,'[^0-9]','','g') = regexp_replace(u2.username,'[^0-9]','','g'))
+          OR (e2.phone IS NOT NULL AND u2.phone IS NOT NULL AND regexp_replace(e2.phone,'[^0-9]','','g') = regexp_replace(u2.phone,'[^0-9]','','g'))
+          OR (trim(regexp_replace(e2.full_name,'^(นาย|นาง|นางสาว|น\.ส\.)\s*','')) = trim(regexp_replace(u2.full_name,'^(นาย|นาง|นางสาว|น\.ส\.)\s*','')))
         )
+        WHERE e2.user_id IS NULL
+        ORDER BY e2.id, u2.id
+      ) sub
+      WHERE e.id = sub.emp_id
     `).catch(()=>{});
 
     // debt_notes already in schema
@@ -1848,6 +1852,15 @@ app.post('/api/employees', auth, role('owner','admin'), async (req, res) => {
     res.status(500).json({ error: 'เกิดข้อผิดพลาด' });
   } finally { client.release(); }
 });
+// เชื่อมพนักงาน (employees) เข้ากับบัญชีผู้ใช้ (users) ด้วยตัวเอง — เผื่อจับคู่อัตโนมัติไม่ตรง
+app.put('/api/employees/:id/link-user', auth, role('owner','admin'), async (req, res) => {
+  const { user_id } = req.body;
+  try {
+    await pool.query('UPDATE employees SET user_id=$1 WHERE id=$2', [user_id||null, req.params.id]);
+    res.json({ message: 'เชื่อมบัญชีเรียบร้อย' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.put('/api/employees/:id', auth, role('owner','admin'), async (req, res) => {
   const { full_name, nickname, national_id, phone, email, address, branch_id, position, start_date, probation_end_date, salary, salary_base, bank_name, bank_account, education, work_history, emergency_contact, active, branch_access } = req.body;
   try {
