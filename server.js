@@ -1446,6 +1446,10 @@ app.post('/api/stock/transfer', auth, role('owner','admin','manager','stock'), a
       await client.query('UPDATE stock SET qty_unit=qty_unit-$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [qty, pid, from_branch_id]);
       // บันทึก item
       await client.query('INSERT INTO stock_transfer_items (transfer_id,product_id,qty_sent) VALUES ($1,$2,$3)', [trId, pid, qty]);
+      // บันทึกประวัติการเคลื่อนไหวสต๊อก (ต้นทาง)
+      await client.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note,created_by)
+        VALUES ($1,$2,'out',$3,'transfer',$4,$5)`,
+        [pid, from_branch_id, qty, 'โอนย้ายไปสาขาอื่น ('+docNo+')', req.user.id]).catch(()=>{});
     }
     await client.query('COMMIT');
     res.json({ message: 'ส่งออกสินค้าเรียบร้อย รอปลายทางกดรับสินค้า', doc_no: docNo, id: trId });
@@ -1476,6 +1480,10 @@ app.post('/api/stock/transfers/:id/confirm', auth, role('owner','admin','manager
         await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [item.product_id, trData.to_branch_id, item.qty_sent]);
       }
       await client.query('UPDATE stock_transfer_items SET qty_received=$1 WHERE id=$2', [item.qty_sent, item.id]).catch(()=>{});
+      // บันทึกประวัติการเคลื่อนไหวสต๊อก (ปลายทาง)
+      await client.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note,created_by)
+        VALUES ($1,$2,'in',$3,'transfer',$4,$5)`,
+        [item.product_id, trData.to_branch_id, item.qty_sent, 'รับโอนย้ายจากสาขาอื่น ('+trData.doc_no+')', req.user.id]).catch(()=>{});
     }
     await client.query("UPDATE stock_transfers SET status='confirmed',approved_by=$1,approved_at=NOW() WHERE id=$2", [req.user.id, req.params.id]);
     await client.query('COMMIT');
@@ -4008,6 +4016,14 @@ app.get('/api/stock-summary', auth, async (req, res) => {
       GROUP BY product_id
     `, [branch_id, date]);
     damageInR.rows.forEach(r => { farmMap[r.product_id] = (farmMap[r.product_id]||0) + parseInt(r.qty||0); });
+    const transferInR = await pool.query(`
+      SELECT product_id, SUM(qty_change) AS qty
+      FROM stock_movements
+      WHERE branch_id=$1 AND created_at::date=$2
+        AND movement_type='in' AND ref_type='transfer'
+      GROUP BY product_id
+    `, [branch_id, date]);
+    transferInR.rows.forEach(r => { farmMap[r.product_id] = (farmMap[r.product_id]||0) + parseInt(r.qty||0); });
 
     // F - ขายส่ง: invoice_items วันนั้น
     const invoiceR = await pool.query(`
@@ -4020,6 +4036,14 @@ app.get('/api/stock-summary', auth, async (req, res) => {
     `, [branch_id, date]);
     const invoiceMap = {};
     invoiceR.rows.forEach(r => { invoiceMap[r.product_id] = parseInt(r.qty||0); });
+    const transferOutR = await pool.query(`
+      SELECT product_id, SUM(qty_change) AS qty
+      FROM stock_movements
+      WHERE branch_id=$1 AND created_at::date=$2
+        AND movement_type='out' AND ref_type='transfer'
+      GROUP BY product_id
+    `, [branch_id, date]);
+    transferOutR.rows.forEach(r => { invoiceMap[r.product_id] = (invoiceMap[r.product_id]||0) + parseInt(r.qty||0); });
 
     // I - ไข่บุบ: stock_movements type='adjust_out'/'broken'/'waste'/'damaged' หรือ 'out'+ref_type='damage' (จากฟีเจอร์ไข่บุบ) วันนั้น
     const brokenR = await pool.query(`
