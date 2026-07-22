@@ -919,9 +919,15 @@ async function doLogin(){
     CU=data.user;
     branches=safeArray(await api.get('/branches').catch(()=>[]));
     populateBranchSelects();
-    // Branch-first: owner/admin ที่มีหลายสาขา → เลือกสาขาก่อน
-    if (branches.length > 1) {
+    // Branch-first: ใช้สาขาที่ user มีสิทธิ์เข้าได้จริงเท่านั้น (owner/admin จะได้ทุกสาขาจาก access_branches อยู่แล้ว)
+    const myBranches = (CU.access_branches && CU.access_branches.length) ? CU.access_branches : branches;
+    if (myBranches.length > 1) {
       showBranchPickerScreen();
+    } else if (myBranches.length === 1) {
+      const b = myBranches[0];
+      CU = { ...CU, branch_id: b.id, branch_code: b.code, branch_name: b.name };
+      localStorage.setItem('es_user', JSON.stringify(CU));
+      await initApp();
     } else {
       await initApp();
     }
@@ -7345,7 +7351,7 @@ function showBranchPickerScreen() {
     <div style="font-size:14px;font-weight:600;color:var(--text-muted);margin-bottom:14px;text-align:center">เลือกสาขาที่ต้องการเข้าใช้งาน</div>
 
     <div style="display:grid;gap:10px;width:100%;max-width:480px;max-height:60vh;overflow-y:auto;padding:2px">
-      ${branches.map(b => {
+      ${((CU.access_branches && CU.access_branches.length) ? CU.access_branches : branches).map(b => {
         const isActive = CU.branch_id === b.id;
         return `<div onclick="selectBranchAndEnter(${b.id},'${b.code}','${b.name.replace(/'/g,"\\'")}' )"
           style="display:flex;align-items:center;gap:14px;padding:16px 20px;
