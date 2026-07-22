@@ -1445,7 +1445,7 @@ app.post('/api/stock/transfer', auth, role('owner','admin','manager','stock'), a
       // ตัดจากต้นทาง
       await client.query('UPDATE stock SET qty_unit=qty_unit-$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [qty, pid, from_branch_id]);
       // บันทึก item
-      await client.query('INSERT INTO stock_transfer_items (transfer_id,product_id,qty_unit) VALUES ($1,$2,$3)', [trId, pid, qty]).catch(()=>{});
+      await client.query('INSERT INTO stock_transfer_items (transfer_id,product_id,qty_sent) VALUES ($1,$2,$3)', [trId, pid, qty]);
     }
     await client.query('COMMIT');
     res.json({ message: 'ส่งออกสินค้าเรียบร้อย รอปลายทางกดรับสินค้า', doc_no: docNo, id: trId });
@@ -1470,10 +1470,11 @@ app.post('/api/stock/transfer/:id/confirm', auth, role('owner','admin','manager'
     for (const item of items.rows) {
       const ex = await client.query('SELECT id FROM stock WHERE product_id=$1 AND branch_id=$2', [item.product_id, trData.to_branch_id]);
       if (ex.rows.length) {
-        await client.query('UPDATE stock SET qty_unit=qty_unit+$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [item.qty_unit, item.product_id, trData.to_branch_id]);
+        await client.query('UPDATE stock SET qty_unit=qty_unit+$1,updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [item.qty_sent, item.product_id, trData.to_branch_id]);
       } else {
-        await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [item.product_id, trData.to_branch_id, item.qty_unit]);
+        await client.query('INSERT INTO stock (product_id,branch_id,qty_unit) VALUES ($1,$2,$3)', [item.product_id, trData.to_branch_id, item.qty_sent]);
       }
+      await client.query('UPDATE stock_transfer_items SET qty_received=$1 WHERE id=$2', [item.qty_sent, item.id]).catch(()=>{});
     }
     await client.query("UPDATE stock_transfers SET status='confirmed',confirmed_by=$1,confirmed_at=NOW() WHERE id=$2", [req.user.id, req.params.id]);
     await client.query('COMMIT');
