@@ -2058,6 +2058,13 @@ app.post('/api/damaged-eggs', auth, upload.single('photo'), async (req, res) => 
        product_id||null, product_name||null, parseInt(qty), note||null, photo_url, req.user.id, dtype]);
 
     let stockNote = '';
+    // หักสต๊อกไข่ต้นทางออกเสมอ (ทั้งบุบทิ้งและบุบขายได้ — ไข่พวกนี้ไม่ใช่สต๊อกสินค้าเดิมแล้ว)
+    if (product_id) {
+      await client.query('UPDATE stock SET qty_unit=GREATEST(0,qty_unit-$1), updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [parseInt(qty), product_id, branch_id]);
+      await client.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note,created_by)
+        VALUES ($1,$2,'out',$3,'damage',$4,$5)`,
+        [product_id, branch_id, parseInt(qty), (dtype==='sellable'?'ไข่บุบ (ย้ายไปเป็นบุบขายได้)':'ไข่บุบทิ้ง'), req.user.id]);
+    }
     if (dtype === 'sellable' && product_id) {
       const prodR = await client.query('SELECT damage_category FROM products WHERE id=$1', [product_id]);
       const cat = prodR.rows[0]?.damage_category;
@@ -2075,11 +2082,13 @@ app.post('/api/damaged-eggs', auth, upload.single('photo'), async (req, res) => 
           await client.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note,created_by)
             VALUES ($1,$2,'in',$3,'damage',$4,$5)`,
             [brokenProdId, branch_id, parseInt(qty), 'ไข่บุบขายได้จาก '+(product_name||''), req.user.id]);
-          stockNote = ' (เข้าสต๊อก '+(cat==='large_broken'?'ไข่บุบใหญ่':'ไข่บุบเล็ก')+' แล้ว)';
+          stockNote = ' (หักไข่ต้นทางออก + เข้าสต๊อก '+(cat==='large_broken'?'ไข่บุบใหญ่':'ไข่บุบเล็ก')+' แล้ว)';
         }
       } else {
-        stockNote = ' (⚠️ สินค้านี้ยังไม่ได้ตั้งค่าว่าเป็นบุบใหญ่/เล็ก จึงยังไม่เข้าสต๊อกให้ — ไปตั้งค่าที่ "⚙️ ตั้งค่าบุบใหญ่/เล็ก")';
+        stockNote = ' (หักไข่ต้นทางออกแล้ว แต่ ⚠️ สินค้านี้ยังไม่ได้ตั้งค่าว่าเป็นบุบใหญ่/เล็ก จึงยังไม่เข้าสต๊อกไข่บุบให้ — ไปตั้งค่าที่ "⚙️ ตั้งค่าบุบใหญ่/เล็ก")';
       }
+    } else if (product_id) {
+      stockNote = ' (หักไข่ต้นทางออกแล้ว)';
     }
     await client.query('COMMIT');
     res.status(201).json({ message: 'บันทึกไข่บุบเรียบร้อย'+stockNote, record: r.rows[0] });
@@ -2093,6 +2102,13 @@ app.delete('/api/damaged-eggs/:id', auth, async (req, res) => {
     await client.query('BEGIN');
     const rec = await client.query('SELECT * FROM damaged_eggs WHERE id=$1', [req.params.id]);
     const row = rec.rows[0];
+    if (row && row.product_id) {
+      // คืนสต๊อกไข่ต้นทางที่เคยหักออกไปตอนบันทึก
+      await client.query('UPDATE stock SET qty_unit=qty_unit+$1, updated_at=NOW() WHERE product_id=$2 AND branch_id=$3', [row.qty, row.product_id, row.branch_id]);
+      await client.query(`INSERT INTO stock_movements (product_id,branch_id,movement_type,qty_change,ref_type,note,created_by)
+        VALUES ($1,$2,'in',$3,'damage_reverse','ยกเลิกรายการไข่บุบ คืนสต๊อกไข่ต้นทาง',$4)`,
+        [row.product_id, row.branch_id, row.qty, req.user.id]);
+    }
     if (row && row.damage_type === 'sellable' && row.product_id) {
       const prodR = await client.query('SELECT damage_category FROM products WHERE id=$1', [row.product_id]);
       const cat = prodR.rows[0]?.damage_category;
