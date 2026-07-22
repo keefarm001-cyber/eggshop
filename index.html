@@ -4218,15 +4218,33 @@ async function loadDamagedEggSummary() {
     const byProduct = {};
     filtered.forEach(r => {
       const key = r.product_name || 'ไม่ระบุ';
-      byProduct[key] = (byProduct[key]||0) + parseInt(r.qty||0);
+      if (!byProduct[key]) byProduct[key] = { discard: 0, sellable: 0 };
+      const type = r.damage_type === 'sellable' ? 'sellable' : 'discard';
+      byProduct[key][type] += parseInt(r.qty||0);
     });
-    const entries = Object.entries(byProduct).sort((a,b)=>b[1]-a[1]);
-    const total = entries.reduce((s,[,q])=>s+q,0);
+    const entries = Object.entries(byProduct).sort((a,b)=>(b[1].discard+b[1].sellable)-(a[1].discard+a[1].sellable));
+    const totalDiscard = entries.reduce((s,[,v])=>s+v.discard,0);
+    const totalSellable = entries.reduce((s,[,v])=>s+v.sellable,0);
     el.innerHTML = entries.length ? `
       <table style="width:100%;border-collapse:collapse">
-        <thead><tr style="background:var(--surface2)"><th style="padding:6px 10px;text-align:left;font-size:12px">สินค้า</th><th style="padding:6px 10px;text-align:right;font-size:12px">จำนวนบุบสะสม (ฟอง)</th></tr></thead>
-        <tbody>${entries.map(([name,qty])=>`<tr style="border-bottom:1px solid var(--border)"><td style="padding:7px 10px">${name}</td><td style="padding:7px 10px;text-align:right;font-weight:700">${fmt.n(qty)}</td></tr>`).join('')}</tbody>
-        <tfoot><tr style="font-weight:700"><td style="padding:8px 10px">รวม</td><td style="padding:8px 10px;text-align:right">${fmt.n(total)}</td></tr></tfoot>
+        <thead><tr style="background:var(--surface2)">
+          <th style="padding:6px 10px;text-align:left;font-size:12px">สินค้า</th>
+          <th style="padding:6px 10px;text-align:right;font-size:12px">บุบทิ้ง (ฟอง)</th>
+          <th style="padding:6px 10px;text-align:right;font-size:12px">บุบขาย (ฟอง)</th>
+          <th style="padding:6px 10px;text-align:right;font-size:12px">รวม (ฟอง)</th>
+        </tr></thead>
+        <tbody>${entries.map(([name,v])=>`<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:7px 10px">${name}</td>
+          <td style="padding:7px 10px;text-align:right;color:var(--error)">${v.discard?fmt.n(v.discard):'–'}</td>
+          <td style="padding:7px 10px;text-align:right;color:var(--success)">${v.sellable?fmt.n(v.sellable):'–'}</td>
+          <td style="padding:7px 10px;text-align:right;font-weight:700">${fmt.n(v.discard+v.sellable)}</td>
+        </tr>`).join('')}</tbody>
+        <tfoot><tr style="font-weight:700">
+          <td style="padding:8px 10px">รวม</td>
+          <td style="padding:8px 10px;text-align:right">${fmt.n(totalDiscard)}</td>
+          <td style="padding:8px 10px;text-align:right">${fmt.n(totalSellable)}</td>
+          <td style="padding:8px 10px;text-align:right">${fmt.n(totalDiscard+totalSellable)}</td>
+        </tr></tfoot>
       </table>` : '<div style="text-align:center;color:var(--text-muted);padding:20px">ไม่มีข้อมูลในช่วงที่เลือก</div>';
   } catch(e) { el.innerHTML = '<div style="color:var(--error);padding:12px">'+e.message+'</div>'; }
 }
