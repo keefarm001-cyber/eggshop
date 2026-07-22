@@ -1459,11 +1459,12 @@ app.post('/api/stock/transfers/:id/confirm', auth, role('owner','admin','manager
   try {
     await client.query('BEGIN');
     const tr = await client.query("SELECT * FROM stock_transfers WHERE id=$1 AND status='pending'", [req.params.id]);
-    if (!tr.rows.length) return res.status(404).json({ error: 'ไม่พบเอกสารหรือยืนยันแล้ว' });
+    if (!tr.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'ไม่พบเอกสารหรือยืนยันแล้ว' }); }
     const trData = tr.rows[0];
     // ตรวจสิทธิ์สาขา — ต้องเป็นสาขาปลายทาง
     if (req.user.branch_id && req.user.branch_id !== trData.to_branch_id &&
         !['owner','admin'].includes(req.user.role)) {
+      await client.query('ROLLBACK');
       return res.status(403).json({ error: 'ไม่มีสิทธิ์รับสินค้าสาขาอื่น' });
     }
     const items = await client.query('SELECT * FROM stock_transfer_items WHERE transfer_id=$1', [req.params.id]);
@@ -1476,7 +1477,7 @@ app.post('/api/stock/transfers/:id/confirm', auth, role('owner','admin','manager
       }
       await client.query('UPDATE stock_transfer_items SET qty_received=$1 WHERE id=$2', [item.qty_sent, item.id]).catch(()=>{});
     }
-    await client.query("UPDATE stock_transfers SET status='confirmed',confirmed_by=$1,confirmed_at=NOW() WHERE id=$2", [req.user.id, req.params.id]);
+    await client.query("UPDATE stock_transfers SET status='confirmed',approved_by=$1,approved_at=NOW() WHERE id=$2", [req.user.id, req.params.id]);
     await client.query('COMMIT');
     res.json({ message: 'รับสินค้าเรียบร้อย สต๊อกปลายทางอัพเดทแล้ว' });
   } catch(e) { await client.query('ROLLBACK'); res.status(500).json({ error: e.message }); }
