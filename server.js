@@ -119,6 +119,7 @@ async function initSchema() {
     await pool.query(`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS supplier_name TEXT`);
     await pool.query(`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS total_cost NUMERIC(10,2)`);
     await pool.query(`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS priced_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS ref_no VARCHAR(50)`);
 
     await pool.query(`CREATE TABLE IF NOT EXISTS stock_receipt_items (id SERIAL PRIMARY KEY, receipt_id INTEGER REFERENCES stock_receipts(id), product_id INTEGER REFERENCES products(id), qty_unit INTEGER NOT NULL, qty_tray INTEGER, cost_per_unit NUMERIC(10,4), total_cost NUMERIC(10,2))`);
 
@@ -2906,7 +2907,7 @@ function role(...roles) { return (req, res, next) => { if (!roles.includes(req.u
 // STOCK RECEIPTS - รับสินค้า (Pre + Approved)
 // ============================================================
 app.post('/api/stock/receipts', auth, async (req, res) => {
-  const { branch_id, receipt_date, supplier_name, items, note, status } = req.body;
+  const { branch_id, receipt_date, supplier_name, items, note, status, ref_no } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -2918,8 +2919,8 @@ app.post('/api/stock/receipts', auth, async (req, res) => {
       : 'PRE-'+bCode+'-'+new Date().toISOString().slice(2,7).replace('-','')+'-'+String(Date.now()).slice(-4);
     
     const recv = await client.query(
-      `INSERT INTO stock_receipts (doc_no,branch_id,receipt_date,supplier_name,status,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [docNo, branch_id, receipt_date||new Date().toISOString().slice(0,10), supplier_name||null, isApproved?'approved':'pre', note||null, req.user.id]
+      `INSERT INTO stock_receipts (doc_no,branch_id,receipt_date,supplier_name,status,note,ref_no,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [docNo, branch_id, receipt_date||new Date().toISOString().slice(0,10), supplier_name||null, isApproved?'approved':'pre', note||null, ref_no||null, req.user.id]
     );
     const recvId = recv.rows[0].id;
 
