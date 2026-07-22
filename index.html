@@ -3361,8 +3361,16 @@ async function showEmployeeModal(e={}) {
     {val:'accountant',label:'📊 บัญชี'},{val:'sales_pc',label:'🛍️ พนักงานขาย (PC)'},
   ];
   let existingAccess = [];
+  let allUsers = [];
+  let linkedUsername = null;
   if (e.id && e.user_id) {
     existingAccess = await api.get('/users/'+e.user_id+'/branches').then(r=>(r||[]).map(x=>x.branch_id)).catch(()=>[]);
+    allUsers = safeArray(await api.get('/users').catch(()=>[]));
+    const linkedUser = allUsers.find(u=>u.id===e.user_id);
+    linkedUsername = linkedUser ? (linkedUser.username + (linkedUser.full_name?' — '+linkedUser.full_name:'')) : ('user_id #'+e.user_id+' (หาบัญชีไม่เจอ)');
+  }
+  if (e.id && !e.user_id) {
+    allUsers = safeArray(await api.get('/users').catch(()=>[]));
   }
   document.getElementById('MC').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)CM()">
   <div class="modal" style="max-width:660px">
@@ -3407,7 +3415,22 @@ async function showEmployeeModal(e={}) {
       </div>
       <div>
         <label class="lbl" style="margin-bottom:6px;display:block">🏪 สาขาที่ทำงานได้ (ติ๊กหลายสาขาได้)</label>
-        ${e.id && !e.user_id ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">พนักงานคนนี้ยังไม่มี account เข้าระบบ การติ๊กสาขาจะยังไม่มีผลจนกว่าจะสร้าง account ให้</div>` : ''}
+        ${e.id && e.user_id ? `
+        <div style="font-size:11px;background:var(--info-dim);color:var(--info);padding:7px 10px;border-radius:7px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span>🔗 เชื่อมกับบัญชี: <strong>${linkedUsername}</strong> — เช็คให้ตรงกับ username ที่พนักงานใช้ login จริง</span>
+          <button type="button" onclick="showRelinkEmployeeUser(${e.id},this)" style="background:none;border:none;color:var(--info);text-decoration:underline;cursor:pointer;font-size:11px;white-space:nowrap">ผูกผิด? เปลี่ยน</button>
+        </div>` : ''}
+        ${e.id && !e.user_id ? `
+        <div style="font-size:11px;color:var(--warning);background:var(--warning-dim);padding:8px 10px;border-radius:7px;margin-bottom:8px">
+          ⚠️ พนักงานคนนี้ยังไม่ได้เชื่อมกับบัญชีเข้าระบบ การติ๊กสาขาด้านล่างจะยังไม่มีผลจนกว่าจะเชื่อมบัญชีก่อน
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <select class="ctrl" id="emLinkUser" style="font-size:12px;flex:1">
+              <option value="">— เลือกบัญชีที่จะเชื่อม —</option>
+              ${allUsers.map(u=>`<option value="${u.id}">${u.full_name||u.username} (${u.username})</option>`).join('')}
+            </select>
+            <button type="button" class="btn btn-primary btn-sm" onclick="linkEmployeeUser(${e.id})">เชื่อม</button>
+          </div>
+        </div>` : ''}
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${branches.map(b=>`<label style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-size:13px">
             <input type="checkbox" class="emBrAccess" value="${b.id}" ${existingAccess.includes(b.id)?'checked':''} style="accent-color:var(--accent)">
@@ -3448,6 +3471,33 @@ async function showEmployeeModal(e={}) {
 
     <button class="btn btn-primary" onclick="saveEmployee(${e.id||0})" style="width:100%;margin-top:16px">💾 บันทึกพนักงาน</button>
   </div></div>`;
+}
+
+async function showRelinkEmployeeUser(empId, btnEl) {
+  const allUsers = safeArray(await api.get('/users').catch(()=>[]));
+  const box = btnEl ? btnEl.closest('div') : null;
+  if (!box) return;
+  box.innerHTML = `
+    <span>เลือกบัญชีที่ถูกต้อง:</span>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <select class="ctrl" id="emLinkUser" style="font-size:12px;flex:1">
+        <option value="">— เลือกบัญชี —</option>
+        ${allUsers.map(u=>`<option value="${u.id}">${u.full_name||u.username} (${u.username})</option>`).join('')}
+      </select>
+      <button type="button" class="btn btn-primary btn-sm" onclick="linkEmployeeUser(${empId})">เชื่อมใหม่</button>
+    </div>`;
+}
+
+async function linkEmployeeUser(empId) {
+  const userId = document.getElementById('emLinkUser')?.value;
+  if (!userId) { toast('กรุณาเลือกบัญชีที่จะเชื่อม','error'); return; }
+  try {
+    await api.put('/employees/'+empId+'/link-user', { user_id: parseInt(userId) });
+    toast('เชื่อมบัญชีเรียบร้อย','success');
+    const list = safeArray(await api.get('/employees').catch(()=>[]));
+    const emp = list.find(x=>x.id===empId) || {id:empId};
+    showEmployeeModal(emp);
+  } catch(e) { toast(e.message,'error'); }
 }
 
 async function uploadEmployeePhoto(empId) {
