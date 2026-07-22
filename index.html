@@ -4702,8 +4702,8 @@ async function showTransferItems(trId) {
     <table><thead><tr><th>สินค้า</th><th style="text-align:right">ฟอง</th><th style="text-align:right">แผง</th></tr></thead>
     <tbody>${items.map(it=>`<tr>
       <td><strong>${it.product_name}</strong> <span style="font-size:11px;color:var(--text-muted)">${it.code}</span></td>
-      <td style="text-align:right">${fmt.n(it.qty_unit)}</td>
-      <td style="text-align:right">${Math.floor(it.qty_unit/30)}</td>
+      <td style="text-align:right">${fmt.n(it.qty_sent)}</td>
+      <td style="text-align:right">${Math.floor(it.qty_sent/30)}</td>
     </tr>`).join('')}</tbody>
     </table></div></div>`;
   } catch(e) { toast(e.message,'error'); }
