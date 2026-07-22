@@ -3448,6 +3448,7 @@ async function showEmployeeModal(e={}) {
         <div><label class="lbl">วันเริ่มงาน</label><input type="date" class="ctrl" id="emStart" value="${e.start_date?e.start_date.slice(0,10):''}" style="margin-top:4px"></div>
         <div><label class="lbl">วันผ่านโปร</label><input type="date" class="ctrl" id="emProb" value="${e.probation_end_date?e.probation_end_date.slice(0,10):''}" style="margin-top:4px"></div>
       </div>
+      <div><label class="lbl">เงินเดือนเริ่มต้น (บาท)</label><input type="number" class="ctrl" id="emSalBase" value="${e.salary_base||0}" min="0" style="margin-top:4px"></div>
       ${!e.id ? `
       <div style="background:var(--info-dim);border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-top:4px">
         <div style="font-size:12px;font-weight:700;color:var(--info);margin-bottom:8px">🔐 Account เข้าใช้งานระบบ (ไม่บังคับ)</div>
@@ -3462,7 +3463,6 @@ async function showEmployeeModal(e={}) {
 
     <!-- แท็บ: เงินเดือน -->
     <div id="empTab-pay" style="display:none;grid-template-columns:1fr 1fr;gap:9px">
-      <div><label class="lbl">ฐานเงินเดือน (บาท)</label><input type="number" class="ctrl" id="emSalBase" value="${e.salary_base||0}" min="0" style="margin-top:4px"></div>
       <div><label class="lbl">เงินเดือนปัจจุบัน (บาท)</label><input type="number" class="ctrl" id="emSal" value="${e.salary||0}" min="0" style="margin-top:4px"></div>
       <div><label class="lbl">ธนาคาร</label><input type="text" class="ctrl" id="emBank" value="${e.bank_name||''}" placeholder="เช่น กสิกรไทย" style="margin-top:4px"></div>
       <div><label class="lbl">เลขบัญชี</label><input type="text" class="ctrl" id="emBankAcc" value="${e.bank_account||''}" style="margin-top:4px"></div>
