@@ -1454,7 +1454,7 @@ app.post('/api/stock/transfer', auth, role('owner','admin','manager','stock'), a
 });
 
 // ปลายทางกดยืนยันรับสินค้า
-app.post('/api/stock/transfer/:id/confirm', auth, role('owner','admin','manager','stock'), async (req, res) => {
+app.post('/api/stock/transfers/:id/confirm', auth, role('owner','admin','manager','stock'), async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
